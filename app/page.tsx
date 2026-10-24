@@ -40,12 +40,30 @@ const featuredProducts = [
   { name: "Pilot Notebook", category: "Workspace", price: "₹890" },
 ];
 
+export const dynamic = "force-dynamic";
+
+async function getHomeProducts() {
+  try {
+    const products = await prisma.product.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+    });
+
+    return products;
+  } catch {
+    return [] as Array<{
+      id: string;
+      name: string;
+      category?: string | null;
+      sellingPrice?: number | string | null;
+      imageUrls?: string[];
+    }>;
+  }
+}
+
 export default async function HomePage() {
-  const products = await prisma.product.findMany({
-    where: { status: "ACTIVE" },
-    orderBy: { createdAt: "desc" },
-    take: 8,
-  });
+  const products = await getHomeProducts();
 
   const productCards = (products.length > 0 ? products : featuredProducts.map((item, index) => ({
     id: `fallback-${index}`,
