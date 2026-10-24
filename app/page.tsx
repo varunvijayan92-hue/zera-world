@@ -29,17 +29,6 @@ const realisticProductShots = [
   "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=900&q=80",
 ];
 
-const featuredProducts = [
-  { name: "Luma Ceramic Set", category: "Home Edit", price: "₹2,490" },
-  { name: "Iris Textile Tote", category: "Travel", price: "₹1,890" },
-  { name: "Saffron Diffuser", category: "Wellness", price: "₹1,420" },
-  { name: "Northline Desk Light", category: "Workspace", price: "₹3,640" },
-  { name: "Cinder Glass Jar", category: "Kitchen", price: "₹1,160" },
-  { name: "Zen Carry Case", category: "Travel", price: "₹2,240" },
-  { name: "Luna Throw", category: "Home", price: "₹2,980" },
-  { name: "Pilot Notebook", category: "Workspace", price: "₹890" },
-];
-
 export const dynamic = "force-dynamic";
 
 async function getHomeProducts() {
@@ -65,14 +54,7 @@ async function getHomeProducts() {
 export default async function HomePage() {
   const products = await getHomeProducts();
 
-  const productCards = (products.length > 0 ? products : featuredProducts.map((item, index) => ({
-    id: `fallback-${index}`,
-    name: item.name,
-    category: item.category,
-    sku: `${index}-sku`,
-    sellingPrice: parseInt(item.price.replace(/[^\d]/g, ""), 10),
-    imageUrls: [realisticProductShots[index % realisticProductShots.length]],
-  }))) as Array<{
+  const productCards = products as Array<{
     id: string;
     name: string;
     category?: string | null;
