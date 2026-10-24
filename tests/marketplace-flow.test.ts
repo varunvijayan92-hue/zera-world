@@ -7,6 +7,7 @@ import {
   syncProductToMarketplaces,
   validateSupplierProductMapping,
 } from "../lib/marketplace";
+import { calculateEstimatedProfit, getMarginState } from "../lib/profit";
 import { supplierSchema } from "../lib/validators";
 
 test("syncProductToMarketplaces publishes a product to Amazon and Flipkart", () => {
@@ -205,4 +206,32 @@ test("createSupplierOrderWorkflow prevents duplicate supplier jobs for the same 
   assert.equal(first.idempotencyKey, second.idempotencyKey);
   assert.equal(second.duplicate, true);
   assert.equal(second.status, "DUPLICATE");
+});
+
+test("getMarginState flags negative profit estimates and calculates stable margins", () => {
+  const result = calculateEstimatedProfit({
+    sellingPrice: 1999,
+    supplierCost: 1190,
+    shippingCost: 120,
+    marketplaceFeeRate: 8,
+    marketplaceFeeFixed: 25,
+    packagingCost: 60,
+    taxRate: 5,
+  });
+
+  assert.ok(result.netProfit > 0);
+  assert.equal(getMarginState(result.profitMargin).warning, false);
+
+  const losing = calculateEstimatedProfit({
+    sellingPrice: 1200,
+    supplierCost: 1100,
+    shippingCost: 180,
+    marketplaceFeeRate: 12,
+    marketplaceFeeFixed: 50,
+    packagingCost: 40,
+    taxRate: 5,
+  });
+
+  assert.ok(losing.netProfit < 0);
+  assert.equal(getMarginState(losing.profitMargin).warning, true);
 });

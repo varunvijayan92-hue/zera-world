@@ -54,7 +54,7 @@ export default async function ProductsPage({
           </Link>
         </div>
 
-        <div className="mb-8 rounded-[28px] border border-[#173B35]/10 bg-white p-5 shadow-[0_12px_36px_rgba(23,59,53,0.06)]">
+        <div className="mb-8 rounded-[28px] border border-[#173B35]/10 bg-white p-5 shadow-[0_18px_42px_rgba(23,59,53,0.06)]">
           <form method="get" className="flex flex-col gap-4 md:flex-row md:items-end">
             <div className="flex-1">
               <label className="mb-2 block text-sm font-medium text-[#173B35]">Search</label>
@@ -98,7 +98,7 @@ export default async function ProductsPage({
               const imageUrl = product.imageUrls?.[0] || "";
 
               return (
-                <article key={product.id} className="overflow-hidden rounded-[28px] border border-[#173B35]/10 bg-white p-4 shadow-[0_10px_28px_rgba(23,59,53,0.04)]">
+                <article key={product.id} className="overflow-hidden rounded-[28px] border border-[#173B35]/10 bg-white p-4 shadow-[0_14px_32px_rgba(23,59,53,0.05)] transition hover:-translate-y-1 hover:shadow-[0_18px_36px_rgba(23,59,53,0.08)]">
                   <Link href={`/products/${product.id}`} className="block">
                     <div className="flex h-52 items-center justify-center overflow-hidden rounded-[22px] bg-gradient-to-br from-[#8EA695]/30 via-[#F7F4ED] to-[#B38A45]/20 text-4xl text-[#173B35]">
                       {imageUrl ? (

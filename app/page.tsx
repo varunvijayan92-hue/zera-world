@@ -81,8 +81,8 @@ export default async function HomePage() {
   }>;
 
   return (
-    <main className="min-h-screen bg-[#040906] px-3 py-4 text-[#173B35] md:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1280px] rounded-[26px] bg-[#f5f3ee] shadow-[0_35px_75px_rgba(0,0,0,0.32)] ring-1 ring-white/10">
+    <main className="min-h-screen bg-[#F7F4ED] px-3 py-4 text-[#173B35] md:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1280px] rounded-[26px] bg-[#f5f3ee] shadow-[0_35px_75px_rgba(23,59,53,0.12)] ring-1 ring-[#173B35]/5">
         <header className="tokoo-header">
           <div className="tokoo-brand">
             <ZeraWorldLogo compact />
@@ -133,9 +133,6 @@ export default async function HomePage() {
               <Link href="/products" className="tokoo-primary-button">
                 Shop now
                 <ArrowRight size={16} />
-              </Link>
-              <Link href="/admin/login" className="tokoo-secondary-button">
-                ZeraWorld Connect
               </Link>
             </div>
             <div className="tokoo-micro-meta">
@@ -262,7 +259,7 @@ export default async function HomePage() {
           <div className="tokoo-footer-links">
             <a href="#collections">Collections</a>
             <a href="#featured">Featured</a>
-            <a href="/admin/login">ZeraWorld Connect</a>
+            <a href="/login">Customer account</a>
           </div>
         </footer>
       </div>

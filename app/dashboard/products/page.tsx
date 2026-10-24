@@ -5,7 +5,10 @@ import { ProductQuickForm } from "@/components/management-forms";
 export default async function ProductsPage() {
   await requireAuth();
   const [suppliers, products] = await Promise.all([
-    prisma.supplier.findMany({ orderBy: { companyName: "asc" } }),
+    prisma.supplier.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { companyName: "asc" },
+    }),
     prisma.product.findMany({
       orderBy: { createdAt: "desc" },
       include: { supplier: true },

@@ -1,7 +1,9 @@
 "use client";
 
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+
+import { calculateEstimatedProfit, getMarginState } from "@/lib/profit";
 
 type Supplier = {
   id: string;
@@ -320,181 +322,533 @@ export function SupplierQuickForm() {
 
 export function ProductQuickForm({ suppliers }: { suppliers: Supplier[] }) {
   const router = useRouter();
+  const [availableSuppliers, setAvailableSuppliers] = useState<Supplier[]>(suppliers);
+  const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
+  const [supplierError, setSupplierError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     sku: "",
+    brand: "",
     category: "",
+    barcode: "",
     description: "",
+    tags: "",
+    weightKg: "",
+    dimensions: "",
     supplierId: suppliers[0]?.id ?? "",
     costPrice: "",
     sellingPrice: "",
+    shippingCost: "",
+    marketplaceFeeRate: "8",
+    marketplaceFeeFixed: "25",
+    packagingCost: "",
+    taxRate: "5",
     imageUrls: "",
     status: "DRAFT",
   });
+  const [supplierMappings, setSupplierMappings] = useState([
+    {
+      supplierId: suppliers[0]?.id ?? "",
+      supplierSku: "",
+      productUrl: "",
+      cost: "",
+      currency: "INR",
+      minOrderQty: "",
+      originCountry: "",
+      processingTime: "",
+      destinationCountries: "",
+    },
+  ]);
   const [message, setMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSuppliers() {
+      setIsLoadingSuppliers(true);
+      setSupplierError(null);
+
+      try {
+        const response = await fetch("/api/suppliers");
+        if (!response.ok) {
+          throw new Error("Unable to fetch suppliers.");
+        }
+
+        const payload = await response.json();
+        const nextSuppliers = Array.isArray(payload?.data)
+          ? payload.data.filter((supplier: Supplier) => supplier.status === "ACTIVE" || supplier.status === undefined)
+          : [];
+
+        if (!isMounted) return;
+
+        setAvailableSuppliers(nextSuppliers.length > 0 ? nextSuppliers : suppliers);
+        setSupplierError(nextSuppliers.length === 0 ? "No active suppliers are available yet. Create one from the supplier module first." : null);
+        setForm((current) => ({
+          ...current,
+          supplierId: current.supplierId || nextSuppliers[0]?.id || suppliers[0]?.id || "",
+        }));
+        setSupplierMappings((current) =>
+          current.map((row, index) => ({
+            ...row,
+            supplierId: index === 0 ? (nextSuppliers[0]?.id || suppliers[0]?.id || "") : row.supplierId,
+          }))
+        );
+      } catch (error) {
+        if (!isMounted) return;
+        setAvailableSuppliers(suppliers);
+        setSupplierError(error instanceof Error ? error.message : "Unable to load suppliers.");
+      } finally {
+        if (isMounted) setIsLoadingSuppliers(false);
+      }
+    }
+
+    loadSuppliers();
+    return () => {
+      isMounted = false;
+    };
+  }, [suppliers]);
+
+  const marginEstimate = useMemo(() => {
+    const sellingPrice = Number(form.sellingPrice || 0);
+    const supplierCost = Number(form.costPrice || 0);
+    const shippingCost = Number(form.shippingCost || 0);
+    const marketplaceFeeRate = Number(form.marketplaceFeeRate || 0);
+    const marketplaceFeeFixed = Number(form.marketplaceFeeFixed || 0);
+    const packagingCost = Number(form.packagingCost || 0);
+    const taxRate = Number(form.taxRate || 0);
+
+    return calculateEstimatedProfit({
+      sellingPrice,
+      supplierCost,
+      shippingCost,
+      marketplaceFeeRate,
+      marketplaceFeeFixed,
+      packagingCost,
+      taxRate,
+    });
+  }, [form.costPrice, form.marketplaceFeeFixed, form.marketplaceFeeRate, form.packagingCost, form.shippingCost, form.sellingPrice, form.taxRate]);
+
+  const marginState = getMarginState(marginEstimate.profitMargin);
+
+  function updateMapping(index: number, field: string, value: string) {
+    setSupplierMappings((current) =>
+      current.map((mapping, mappingIndex) =>
+        mappingIndex === index ? { ...mapping, [field]: value } : mapping
+      )
+    );
+  }
+
+  function addSupplierMapping() {
+    setSupplierMappings((current) => [
+      ...current,
+      {
+        supplierId: availableSuppliers[0]?.id || "",
+        supplierSku: "",
+        productUrl: "",
+        cost: "",
+        currency: "INR",
+        minOrderQty: "",
+        originCountry: "",
+        processingTime: "",
+        destinationCountries: "",
+      },
+    ]);
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
 
-    const normalizedImageUrls = form.imageUrls
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
-
-    const response = await fetch("/api/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        description: form.description.trim(),
-        imageUrls: normalizedImageUrls,
-        costPrice: Number(form.costPrice || 0),
-        sellingPrice: Number(form.sellingPrice || 0),
-      }),
-    });
-
-    const payload = await response.json();
-    if (!response.ok) {
-      setMessage(payload.message || "Product could not be created.");
+    if (!form.name.trim() || !form.sku.trim()) {
+      setMessage("Product name and SKU are required.");
       return;
     }
 
-    setMessage("Product created successfully.");
-    setForm({
-      name: "",
-      sku: "",
-      category: "",
-      description: "",
-      supplierId: suppliers[0]?.id ?? "",
-      costPrice: "",
-      sellingPrice: "",
-      imageUrls: "",
-      status: "DRAFT",
-    });
-    router.refresh();
+    if (availableSuppliers.length === 0 && !form.supplierId) {
+      setMessage("Create at least one active supplier before saving a product.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const normalizedImageUrls = form.imageUrls
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+      const mainSupplierId = form.supplierId || availableSuppliers[0]?.id || "";
+      const productResponse = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          sku: form.sku.trim(),
+          brand: form.brand.trim(),
+          category: form.category.trim(),
+          barcode: form.barcode.trim(),
+          description: `${form.description.trim()}${form.tags.trim() ? `\nTags: ${form.tags.trim()}` : ""}`.trim(),
+          imageUrls: normalizedImageUrls,
+          supplierId: mainSupplierId || undefined,
+          costPrice: Number(form.costPrice || 0),
+          sellingPrice: Number(form.sellingPrice || 0),
+          status: form.status,
+        }),
+      });
+
+      const productPayload = await productResponse.json();
+      if (!productResponse.ok) {
+        throw new Error(productPayload.message || "Product could not be created.");
+      }
+
+      const createdProduct = productPayload.data;
+      const mappingRequests = supplierMappings
+        .filter((mapping) => mapping.supplierId)
+        .map(async (mapping) => {
+          const supplierId = mapping.supplierId || mainSupplierId;
+          if (!supplierId) return null;
+
+          const response = await fetch("/api/supplier-product-mappings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              productId: createdProduct.id,
+              supplierId,
+              externalProductId: mapping.supplierSku || createdProduct.sku,
+              supplierSku: mapping.supplierSku || createdProduct.sku,
+              supplierProductUrl: mapping.productUrl,
+              purchaseCost: Number(mapping.cost || 0),
+              currency: mapping.currency || "INR",
+              shippingCost: Number(form.shippingCost || 0),
+              shippingDestination: mapping.destinationCountries || "India",
+              estimatedDeliveryDays: Number(mapping.processingTime || 0),
+              supplierAvailability: "UNKNOWN",
+              mappingStatus: "ACTIVE",
+              isPreferred: supplierId === mainSupplierId,
+              isFallback: false,
+            }),
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message || "Supplier mapping could not be saved.");
+          }
+
+          return data;
+        });
+
+      await Promise.all(mappingRequests);
+
+      setMessage("Product saved successfully and linked to the selected supplier mappings.");
+      setForm({
+        name: "",
+        sku: "",
+        brand: "",
+        category: "",
+        barcode: "",
+        description: "",
+        tags: "",
+        weightKg: "",
+        dimensions: "",
+        supplierId: availableSuppliers[0]?.id ?? "",
+        costPrice: "",
+        sellingPrice: "",
+        shippingCost: "",
+        marketplaceFeeRate: "8",
+        marketplaceFeeFixed: "25",
+        packagingCost: "",
+        taxRate: "5",
+        imageUrls: "",
+        status: "DRAFT",
+      });
+      setSupplierMappings([
+        {
+          supplierId: availableSuppliers[0]?.id ?? "",
+          supplierSku: "",
+          productUrl: "",
+          cost: "",
+          currency: "INR",
+          minOrderQty: "",
+          originCountry: "",
+          processingTime: "",
+          destinationCountries: "",
+        },
+      ]);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Product could not be saved.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-      <div>
-        <p className="text-lg font-bold text-slate-900">New product</p>
+    <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-lg font-bold text-slate-900">Dropshipping product form</p>
+          <p className="text-sm text-slate-600">Keep product data synced with the public storefront catalogue.</p>
+        </div>
+        <span className="rounded-full bg-teal-100 px-2.5 py-1 text-xs font-semibold text-teal-700">
+          {form.status}
+        </span>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2 text-sm md:col-span-2">
-          <span className="font-medium text-slate-700">Product name</span>
-          <input
-            value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500"
-            placeholder="Premium storage bottle"
-            required
-          />
-        </label>
+      <div className="space-y-6">
+        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Basic information</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2 text-sm md:col-span-2">
+              <span className="font-medium text-slate-700">Product name</span>
+              <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="Premium storage bottle" required />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">SKU</span>
+              <input value={form.sku} onChange={(event) => setForm({ ...form, sku: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="SB-001" required />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Brand</span>
+              <input value={form.brand} onChange={(event) => setForm({ ...form, brand: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="ZeraWorld" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Category</span>
+              <input value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="Home & Kitchen" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Barcode / GTIN</span>
+              <input value={form.barcode} onChange={(event) => setForm({ ...form, barcode: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="8901234567890" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Tags</span>
+              <input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="kitchen, premium, travel" />
+            </label>
+            <label className="space-y-2 text-sm md:col-span-2">
+              <span className="font-medium text-slate-700">Detailed description</span>
+              <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={4} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="Add product highlights, usage notes, features, and shipping details..." />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Weight (kg)</span>
+              <input type="number" min="0" step="0.01" value={form.weightKg} onChange={(event) => setForm({ ...form, weightKg: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="0.75" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Dimensions</span>
+              <input value={form.dimensions} onChange={(event) => setForm({ ...form, dimensions: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="32 x 24 x 18 cm" />
+            </label>
+          </div>
+        </section>
 
-        <label className="space-y-2 text-sm md:col-span-2">
-          <span className="font-medium text-slate-700">Product details</span>
-          <textarea
-            value={form.description}
-            onChange={(event) => setForm({ ...form, description: event.target.value })}
-            rows={4}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500"
-            placeholder="Add a complete product description, features, sizing, care instructions, and selling highlights..."
-          />
-        </label>
+        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Supplier mapping</p>
+            <button type="button" onClick={addSupplierMapping} className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">+ Add supplier</button>
+          </div>
 
-        <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-700">SKU</span>
-          <input
-            value={form.sku}
-            onChange={(event) => setForm({ ...form, sku: event.target.value })}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500"
-            placeholder="SB-001"
-            required
-          />
-        </label>
+          {isLoadingSuppliers ? (
+            <p className="text-sm text-slate-600">Loading active suppliers...</p>
+          ) : supplierError ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{supplierError}</div>
+          ) : null}
 
-        <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-700">Category</span>
-          <input
-            value={form.category}
-            onChange={(event) => setForm({ ...form, category: event.target.value })}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500"
-            placeholder="Home & Kitchen"
-          />
-        </label>
+          {supplierMappings.map((mapping, index) => (
+            <div key={`${index}-${mapping.supplierId || "new"}`} className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+              <label className="space-y-2 text-sm">
+                <span className="font-medium text-slate-700">Supplier</span>
+                <select value={mapping.supplierId} onChange={(event) => updateMapping(index, "supplierId", event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500">
+                  {availableSuppliers.length === 0 ? <option value="">No suppliers available</option> : availableSuppliers.map((option) => <option key={option.id} value={option.id}>{option.companyName}</option>)}
+                </select>
+              </label>
+              <label className="space-y-2 text-sm">
+                <span className="font-medium text-slate-700">Supplier SKU</span>
+                <input value={mapping.supplierSku} onChange={(event) => updateMapping(index, "supplierSku", event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="SUP-1001" />
+              </label>
+              <label className="space-y-2 text-sm md:col-span-2">
+                <span className="font-medium text-slate-700">Supplier product URL</span>
+                <input value={mapping.productUrl} onChange={(event) => updateMapping(index, "productUrl", event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="https://supplier.example/products/SUP-1001" />
+              </label>
+              <label className="space-y-2 text-sm">
+                <span className="font-medium text-slate-700">Supplier cost</span>
+                <input type="number" min="0" step="0.01" value={mapping.cost} onChange={(event) => updateMapping(index, "cost", event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="290" />
+              </label>
+              <label className="space-y-2 text-sm">
+                <span className="font-medium text-slate-700">Currency</span>
+                <input value={mapping.currency} onChange={(event) => updateMapping(index, "currency", event.target.value.toUpperCase())} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="INR" />
+              </label>
+              <label className="space-y-2 text-sm">
+                <span className="font-medium text-slate-700">Min order qty</span>
+                <input type="number" min="0" value={mapping.minOrderQty} onChange={(event) => updateMapping(index, "minOrderQty", event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="50" />
+              </label>
+              <label className="space-y-2 text-sm">
+                <span className="font-medium text-slate-700">Origin country</span>
+                <input value={mapping.originCountry} onChange={(event) => updateMapping(index, "originCountry", event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="India" />
+              </label>
+              <label className="space-y-2 text-sm">
+                <span className="font-medium text-slate-700">Processing time (days)</span>
+                <input type="number" min="0" value={mapping.processingTime} onChange={(event) => updateMapping(index, "processingTime", event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="5" />
+              </label>
+              <label className="space-y-2 text-sm md:col-span-2">
+                <span className="font-medium text-slate-700">Destination countries</span>
+                <input value={mapping.destinationCountries} onChange={(event) => updateMapping(index, "destinationCountries", event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="India, UAE, Saudi Arabia" />
+              </label>
+            </div>
+          ))}
+        </section>
 
-        <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-700">Supplier</span>
-          <select
-            value={form.supplierId}
-            onChange={(event) => setForm({ ...form, supplierId: event.target.value })}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500"
-          >
-            {suppliers.length === 0 ? (
-              <option value="">No suppliers available</option>
-            ) : (
-              suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id}>
-                  {supplier.companyName}
-                </option>
-              ))
-            )}
-          </select>
-        </label>
+        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Pricing</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Supplier cost</span>
+              <input type="number" min="0" step="0.01" value={form.costPrice} onChange={(event) => setForm({ ...form, costPrice: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="299" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Selling price</span>
+              <input type="number" min="0" step="0.01" value={form.sellingPrice} onChange={(event) => setForm({ ...form, sellingPrice: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="899" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Shipping cost</span>
+              <input type="number" min="0" step="0.01" value={form.shippingCost} onChange={(event) => setForm({ ...form, shippingCost: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="40" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Marketplace fee %</span>
+              <input type="number" min="0" step="0.01" value={form.marketplaceFeeRate} onChange={(event) => setForm({ ...form, marketplaceFeeRate: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="8" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Fixed marketplace fee</span>
+              <input type="number" min="0" step="0.01" value={form.marketplaceFeeFixed} onChange={(event) => setForm({ ...form, marketplaceFeeFixed: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="25" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Tax rate %</span>
+              <input type="number" min="0" step="0.01" value={form.taxRate} onChange={(event) => setForm({ ...form, taxRate: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="5" />
+            </label>
+          </div>
 
-        <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-700">Cost price</span>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={form.costPrice}
-            onChange={(event) => setForm({ ...form, costPrice: event.target.value })}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500"
-          />
-        </label>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-medium text-slate-700">Estimated profit</span>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${marginState.warning ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-700"}`}>
+                {marginState.label}
+              </span>
+            </div>
+            <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
+              <span>Net profit: ₹{marginEstimate.netProfit.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+              <span>Margin: {marginEstimate.profitMargin.toFixed(1)}%</span>
+              <span>Total costs: ₹{marginEstimate.totalCosts.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+            </div>
+            {marginState.warning ? <p className="mt-2 text-sm text-amber-800">{marginState.description}</p> : <p className="mt-2 text-sm text-emerald-700">{marginState.description}</p>}
+          </div>
+        </section>
 
-        <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-700">Selling price</span>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={form.sellingPrice}
-            onChange={(event) => setForm({ ...form, sellingPrice: event.target.value })}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500"
-          />
-        </label>
+        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Inventory & shipping</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Supplier stock quantity</span>
+              <input type="number" min="0" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="120" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Stock sync status</span>
+              <select className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500">
+                <option value="PENDING">Pending</option>
+                <option value="SUCCESS">Synced</option>
+                <option value="FAILED">Failed</option>
+              </select>
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Last sync time</span>
+              <input type="datetime-local" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Processing time (days)</span>
+              <input type="number" min="0" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="5" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Delivery estimate</span>
+              <input className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="4-6 business days" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Return eligibility</span>
+              <select className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500">
+                <option value="UNKNOWN">Unknown</option>
+                <option value="YES">Eligible</option>
+                <option value="NO">Not eligible</option>
+              </select>
+            </label>
+          </div>
+        </section>
 
-        <label className="space-y-2 text-sm md:col-span-2">
-          <span className="font-medium text-slate-700">Product photos</span>
-          <textarea
-            value={form.imageUrls}
-            onChange={(event) => setForm({ ...form, imageUrls: event.target.value })}
-            className="min-h-[88px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500"
-            placeholder="https://example.com/product-1.jpg, https://example.com/product-2.jpg"
-          />
-        </label>
+        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Sales channels</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">ZeraWorld Store status</span>
+              <select className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500">
+                <option value="DRAFT">Draft</option>
+                <option value="READY">Ready</option>
+                <option value="PUBLISHED">Published</option>
+              </select>
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">ZeraWorld listing ID</span>
+              <input className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="zws-001" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Amazon listing status</span>
+              <select className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500">
+                <option value="INACTIVE">Inactive</option>
+                <option value="PENDING_APPROVAL">Pending approval</option>
+                <option value="APPROVED">Approved</option>
+              </select>
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Amazon listing ID</span>
+              <input className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="B0XYZ123" />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Flipkart listing status</span>
+              <select className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500">
+                <option value="INACTIVE">Inactive</option>
+                <option value="PENDING_APPROVAL">Pending approval</option>
+                <option value="APPROVED">Approved</option>
+              </select>
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Flipkart listing ID</span>
+              <input className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="FK-987" />
+            </label>
+          </div>
+        </section>
+
+        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Advanced settings</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Primary supplier</span>
+              <select value={form.supplierId} onChange={(event) => setForm({ ...form, supplierId: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500">
+                {availableSuppliers.length === 0 ? <option value="">No suppliers available</option> : availableSuppliers.map((option) => <option key={option.id} value={option.id}>{option.companyName}</option>)}
+              </select>
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Status</span>
+              <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500">
+                <option value="DRAFT">Draft</option>
+                <option value="ACTIVE">Active</option>
+                <option value="ARCHIVED">Archived</option>
+              </select>
+            </label>
+            <label className="space-y-2 text-sm md:col-span-2">
+              <span className="font-medium text-slate-700">Product photos</span>
+              <textarea value={form.imageUrls} onChange={(event) => setForm({ ...form, imageUrls: event.target.value })} className="min-h-[88px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500" placeholder="https://example.com/product-1.jpg, https://example.com/product-2.jpg" />
+            </label>
+          </div>
+        </section>
       </div>
 
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <label className="space-y-2 text-sm md:w-44">
-          <span className="font-medium text-slate-700">Status</span>
-          <select
-            value={form.status}
-            onChange={(event) => setForm({ ...form, status: event.target.value })}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500"
-          >
-            <option value="DRAFT">Draft</option>
-            <option value="ACTIVE">Active</option>
-            <option value="ARCHIVED">Archived</option>
-          </select>
-        </label>
-
-        <button type="submit" className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white">
-          Save product
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
+        <button type="button" onClick={() => router.refresh()} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel</button>
+        <button type="button" className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Save draft</button>
+        <button type="submit" disabled={isSubmitting} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70">
+          {isSubmitting ? "Saving..." : "Save product"}
         </button>
       </div>
 

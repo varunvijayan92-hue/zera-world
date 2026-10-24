@@ -48,3 +48,27 @@ export function calculateEstimatedProfit(input: ProfitInput) {
     taxAmount,
   };
 }
+
+export function getMarginState(margin: number) {
+  if (margin < 0) {
+    return {
+      warning: true,
+      label: "Negative margin",
+      description: "This product is currently below the break-even point.",
+    };
+  }
+
+  if (margin < 10) {
+    return {
+      warning: true,
+      label: "Low margin",
+      description: "Margin is thin; review cost assumptions before launch.",
+    };
+  }
+
+  return {
+    warning: false,
+    label: "Healthy margin",
+    description: "Estimated margin looks viable for a dropshipping channel.",
+  };
+}
