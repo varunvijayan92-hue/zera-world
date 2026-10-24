@@ -1,0 +1,711 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --forest: #173B35;
+  --forest-deep: #0f2a26;
+  --gold: #B38A45;
+  --ivory: #F7F4ED;
+  --sage: #8EA695;
+  --ink: #1d2a28;
+  --muted: #5e6d6a;
+  --card: #ffffff;
+  --border: rgba(23, 59, 53, 0.12);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #040906;
+  color: var(--ink);
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+.brand-wordmark {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: -0.06em;
+}
+
+.tokoo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.5rem 1rem;
+  border-bottom: 1px solid rgba(23, 59, 53, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.tokoo-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 140px;
+}
+
+.tokoo-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(23, 59, 53, 0.8);
+}
+
+.tokoo-nav a {
+  transition: opacity 0.2s ease;
+}
+
+.tokoo-nav a:hover,
+.tokoo-footer-links a:hover,
+.tokoo-subnav-item:hover {
+  opacity: 0.75;
+}
+
+.tokoo-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tokoo-ghost-button,
+.tokoo-cart-button,
+.tokoo-menu-button,
+.tokoo-primary-button,
+.tokoo-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.tokoo-ghost-button {
+  padding: 0.72rem 1rem;
+  border: 1px solid rgba(23, 59, 53, 0.15);
+  background: rgba(23, 59, 53, 0.02);
+  color: var(--forest);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tokoo-cart-button {
+  padding: 0.78rem 1.15rem;
+  background: var(--forest);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 700;
+  box-shadow: 0 10px 22px rgba(23, 59, 53, 0.16);
+}
+
+.tokoo-menu-button {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgba(23, 59, 53, 0.15);
+  background: white;
+  color: var(--forest);
+}
+
+.tokoo-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  padding: 0.9rem 1.5rem 0;
+  background: linear-gradient(135deg, #00a85a 0%, #0f7c42 100%);
+}
+
+.tokoo-subnav-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 0.95rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.tokoo-hero-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem 0;
+}
+
+.tokoo-hero-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.8rem;
+  background: linear-gradient(135deg, #1b4137 0%, #0e2d2e 32%, #0b1d1c 100%);
+  padding: 2.1rem 2rem 1.5rem;
+  color: white;
+  min-height: 350px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+.tokoo-hero-card::before {
+  content: "";
+  position: absolute;
+  inset: auto -80px -70px auto;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(180, 211, 129, 0.22), transparent 68%);
+}
+
+.tokoo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.06);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.88);
+}
+
+.tokoo-hero-card h1 {
+  position: relative;
+  max-width: 540px;
+  margin-top: 1.5rem;
+  font-size: clamp(2.7rem, 4vw, 5rem);
+  line-height: 0.96;
+  letter-spacing: -0.08em;
+  font-weight: 900;
+}
+
+.tokoo-hero-card p {
+  position: relative;
+  max-width: 560px;
+  margin-top: 1rem;
+  font-size: 1.02rem;
+  line-height: 1.7;
+  color: rgba(255,255,255,0.78);
+}
+
+.tokoo-hero-actions {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 1.8rem;
+}
+
+.tokoo-primary-button,
+.tokoo-secondary-button {
+  padding: 0.95rem 1.4rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tokoo-primary-button {
+  background: linear-gradient(135deg, #c6a15d, #b38a45);
+  color: #0d1a18;
+  box-shadow: 0 12px 30px rgba(179, 138, 69, 0.3);
+}
+
+.tokoo-secondary-button {
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.06);
+  color: white;
+}
+
+.tokoo-micro-meta {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1.6rem;
+  color: rgba(255,255,255,0.8);
+  font-size: 0.8rem;
+}
+
+.tokoo-side-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: 1.8rem;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(23, 59, 53, 0.08);
+  padding: 1.5rem 1.2rem;
+}
+
+.tokoo-side-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.tokoo-label {
+  margin: 0;
+  color: rgba(23, 59, 53, 0.6);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.tokoo-side-top h2 {
+  margin-top: 0.45rem;
+  font-size: clamp(1.4rem, 2vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  color: var(--forest);
+}
+
+.tokoo-search-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 0.8rem;
+  background: rgba(23, 59, 53, 0.05);
+  color: var(--forest);
+}
+
+.tokoo-search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid rgba(23, 59, 53, 0.1);
+  border-radius: 1rem;
+  background: #f6f3ee;
+  padding: 0.85rem 0.9rem;
+  color: rgba(23, 59, 53, 0.7);
+}
+
+.tokoo-search-box input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--forest);
+  font-size: 0.85rem;
+}
+
+.tokoo-search-box input::placeholder {
+  color: rgba(23, 59, 53, 0.45);
+}
+
+.tokoo-highlight-box {
+  border-radius: 1.4rem;
+  background: linear-gradient(180deg, #f7f4ee 0%, #ebefe8 100%);
+  padding: 1rem 1rem 1.1rem;
+  border: 1px solid rgba(23, 59, 53, 0.08);
+}
+
+.tokoo-highlight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: rgba(23, 59, 53, 0.7);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.tokoo-highlight-head em {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(99, 170, 69, 0.12);
+  color: #2c5a45;
+  font-style: normal;
+}
+
+.tokoo-highlight-title {
+  margin-top: 0.8rem;
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: -0.07em;
+  color: var(--forest);
+  line-height: 1;
+}
+
+.tokoo-highlight-copy {
+  margin-top: 0.5rem;
+  color: rgba(23, 59, 53, 0.72);
+  line-height: 1.6;
+  font-size: 0.84rem;
+}
+
+.tokoo-showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1.4rem 1.5rem 0;
+}
+
+.tokoo-category-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1.3rem 1.5rem 0;
+}
+
+.tokoo-banner-card {
+  position: relative;
+  display: flex;
+  min-height: 250px;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  border-radius: 1.6rem;
+  padding: 1.15rem 1rem;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 18px 36px rgba(23, 59, 53, 0.12);
+  color: white;
+}
+
+.tokoo-banner-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-bottom: 0.8rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tokoo-banner-card h3 {
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  font-weight: 900;
+}
+
+.tokoo-banner-card p {
+  margin-top: 0.45rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.tokoo-showcase-card {
+  border-radius: 1.4rem;
+  background: #ffffff;
+  border: 1px solid rgba(23, 59, 53, 0.08);
+  padding: 1.1rem 1rem 1.2rem;
+  box-shadow: 0 12px 32px rgba(23, 59, 53, 0.04);
+}
+
+.tokoo-showcase-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.9rem;
+  background: var(--forest);
+  color: white;
+}
+
+.tokoo-showcase-tag {
+  margin-top: 0.8rem;
+  color: rgba(23, 59, 53, 0.58);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tokoo-showcase-card h3 {
+  margin-top: 0.35rem;
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  color: var(--forest);
+}
+
+.tokoo-showcase-card p {
+  margin-top: 0.5rem;
+  color: rgba(23, 59, 53, 0.7);
+  font-size: 0.82rem;
+}
+
+.tokoo-products-section {
+  padding: 2rem 1.5rem 0;
+}
+
+.tokoo-section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+
+.tokoo-section-head p {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(23, 59, 53, 0.62);
+  font-weight: 700;
+}
+
+.tokoo-section-head h2 {
+  margin-top: 0.4rem;
+  font-size: clamp(1.8rem, 2.5vw, 3rem);
+  line-height: 1.03;
+  letter-spacing: -0.07em;
+  font-weight: 900;
+  color: var(--forest);
+}
+
+.tokoo-section-link {
+  color: var(--forest);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.tokoo-product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.tokoo-product-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 1.5rem;
+  background: white;
+  border: 1px solid rgba(23, 59, 53, 0.08);
+  padding: 0.8rem;
+  box-shadow: 0 14px 28px rgba(23, 59, 53, 0.04);
+}
+
+.tokoo-product-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 5;
+  min-height: 270px;
+  border-radius: 1.2rem;
+  background: linear-gradient(135deg, rgba(142, 166, 149, 0.25), rgba(179, 138, 69, 0.14), rgba(247, 244, 237, 0.8));
+  overflow: hidden;
+}
+
+.tokoo-product-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.35s ease;
+}
+
+.tokoo-product-card:hover .tokoo-product-media img {
+  transform: scale(1.04);
+}
+
+.tokoo-product-media span {
+  font-size: 2.3rem;
+  color: var(--forest);
+}
+
+.tokoo-product-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.tokoo-product-category {
+  margin: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(23, 59, 53, 0.6);
+  font-weight: 700;
+}
+
+.tokoo-product-name {
+  display: block;
+  margin-top: 0.45rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--forest);
+}
+
+.tokoo-mini-cart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 50%;
+  background: var(--forest);
+  color: white;
+}
+
+.tokoo-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  color: var(--forest);
+  font-weight: 900;
+  font-size: 1.2rem;
+}
+
+.tokoo-shipping-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(179, 138, 69, 0.1);
+  color: rgba(23, 59, 53, 0.8);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.tokoo-journal {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.7rem 1.5rem 0;
+  background: linear-gradient(135deg, #173d33, #0d2725 70%);
+  border-radius: 1.8rem;
+  padding: 1.5rem 1.4rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.tokoo-journal-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.68);
+  font-weight: 700;
+}
+
+.tokoo-journal h2 {
+  margin-top: 0.5rem;
+  font-size: clamp(1.8rem, 3vw, 3rem);
+  line-height: 1.08;
+  letter-spacing: -0.06em;
+  font-weight: 900;
+}
+
+.tokoo-journal-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #d6c487;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.tokoo-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1.5rem 2rem;
+}
+
+.tokoo-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  color: rgba(23, 59, 53, 0.8);
+  font-weight: 600;
+}
+
+@media (max-width: 1024px) {
+  .tokoo-nav {
+    display: none;
+  }
+
+  .tokoo-hero-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .tokoo-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .tokoo-header {
+    padding-inline: 1rem;
+  }
+
+  .tokoo-subnav,
+  .tokoo-hero-wrap,
+  .tokoo-showcase-grid,
+  .tokoo-category-strip,
+  .tokoo-products-section,
+  .tokoo-journal,
+  .tokoo-footer {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .tokoo-product-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tokoo-showcase-grid,
+  .tokoo-category-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .tokoo-journal {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tokoo-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
