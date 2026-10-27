@@ -111,12 +111,6 @@ export default async function HomePage() {
             <p>
               Curated homeware, wellness essentials and everyday upgrades built for a more elevated lifestyle.
             </p>
-            <div className="tokoo-hero-actions">
-              <Link href="/products" className="tokoo-primary-button">
-                Shop now
-                <ArrowRight size={16} />
-              </Link>
-            </div>
             <div className="tokoo-micro-meta">
               <span>Curated collections</span>
               <span>Fast dispatch</span>
