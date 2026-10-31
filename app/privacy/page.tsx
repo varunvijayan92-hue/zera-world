@@ -9,6 +9,8 @@ export default function PrivacyPage() {
         <div className="mt-5 space-y-4 text-[#173B35]/70">
           <p>ZeraWorld protects personal data used for order processing, delivery, and supplier dispatch coordination.</p>
           <p>We do not store card numbers, CVV values or raw gateway secrets in the application database. Payment verification is handled server-side using approved gateway SDKs and secret validation.</p>
+          <p>If you choose Use my current location, your browser asks for permission. Coordinates are sent through our server to our address lookup provider (Photon, using OpenStreetMap data) to suggest a delivery address. Raw coordinates are not saved with your order.</p>
+          <p>Save this address stores the recipient, contact details and delivery address in this browser for reuse. Use Forget address at checkout to remove that saved copy. A temporary checkout draft is kept in this browser session while you proceed to payment.</p>
           <p>Customer order details are used only for fulfilment, accounting, and support operations approved by the business.</p>
         </div>
         <Link href="/checkout" className="mt-6 inline-flex rounded-xl bg-[#173B35] px-5 py-3 text-sm font-semibold text-white">Back to checkout</Link>

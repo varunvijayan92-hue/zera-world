@@ -1,32 +1,16 @@
+import { CategoryMenu } from "@/components/category-menu";
+import { ProductImage } from "@/components/product-image";
+import { categoryLink } from "@/lib/category";
 import { ArrowRight, Menu, Search, ShoppingBag, Sparkles, Star, Truck } from "lucide-react";
 import Link from "next/link";
 
 import ZeraWorldLogo from "@/components/zera-logo";
 import { prisma } from "@/lib/prisma";
 
-const categories = ["Home", "Wellness", "Kitchen", "Travel", "Workspace", "Gift Edit", "New In"];
-
-const categoryBanners = [
-  { title: "Home Edit", subtitle: "Warm textures & everyday rituals", badge: "New", image: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80" },
-  { title: "Wellness", subtitle: "Calm details for better living", badge: "Best seller", image: "https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=80" },
-  { title: "Travel", subtitle: "Smart pieces for moving light", badge: "Trending", image: "https://images.unsplash.com/photo-1527631746610-bca00a040d60?auto=format&fit=crop&w=900&q=80" },
-];
-
-const showcaseCards = [
-  { title: "Home Edit", subtitle: "Curated essentials", tag: "New" },
-  { title: "Kitchen", subtitle: "Cook smarter", tag: "Hot" },
-  { title: "Travel", subtitle: "For every journey", tag: "Trending" },
-];
-
-const realisticProductShots = [
-  "https://images.unsplash.com/photo-1517705008128-361805f42e86?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=900&q=80",
+const categoryBannerImages = [
   "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1527631746610-bca00a040d60?auto=format&fit=crop&w=900&q=80",
 ];
 
 export const dynamic = "force-dynamic";
@@ -52,7 +36,12 @@ async function getHomeProducts() {
 }
 
 export default async function HomePage() {
-  const products = await getHomeProducts();
+  const [products, categories] = await Promise.all([
+    getHomeProducts(),
+    prisma.storeCategory.findMany({ where: { isVisible: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }).catch(() => []),
+  ]);
+  const showcaseCards = categories.slice(0, 3).map((category) => ({ title: category.name, subtitle: category.description || "Explore the collection", tag: "Shop collection", href: categoryLink(category.slug) }));
+  const categoryBanners = categories.slice(0, 3).map((category, index) => ({ title: category.name, subtitle: category.description || "Discover your next favorite", badge: "Collection", image: categoryBannerImages[index], href: categoryLink(category.slug) }));
 
   const productCards = products as Array<{
     id: string;
@@ -95,11 +84,7 @@ export default async function HomePage() {
           </div>
         </header>
 
-        <div className="tokoo-subnav">
-          {categories.map((category) => (
-            <a key={category} href="#featured" className="tokoo-subnav-item">{category}</a>
-          ))}
-        </div>
+        <CategoryMenu categories={categories} />
 
         <section className="tokoo-hero-wrap">
           <div className="tokoo-hero-card">
@@ -145,20 +130,21 @@ export default async function HomePage() {
 
         <section id="collections" className="tokoo-showcase-grid">
           {showcaseCards.map((card) => (
-            <article key={card.title} className="tokoo-showcase-card">
+            <Link key={card.title} href={card.href} className="tokoo-showcase-card">
               <div className="tokoo-showcase-icon">
                 <Star size={18} />
               </div>
               <p className="tokoo-showcase-tag">{card.tag}</p>
               <h3>{card.title}</h3>
               <p>{card.subtitle}</p>
-            </article>
+            </Link>
           ))}
         </section>
 
         <section className="tokoo-category-strip" aria-label="Product categories">
           {categoryBanners.map((banner) => (
-            <article
+            <Link
+              href={banner.href}
               key={banner.title}
               className="tokoo-banner-card"
               style={{ backgroundImage: `linear-gradient(135deg, rgba(7,14,13,0.42), rgba(7,14,13,0.36)), url(${banner.image})` }}
@@ -166,7 +152,7 @@ export default async function HomePage() {
               <div className="tokoo-banner-badge">{banner.badge}</div>
               <h3>{banner.title}</h3>
               <p>{banner.subtitle}</p>
-            </article>
+            </Link>
           ))}
         </section>
 
@@ -180,18 +166,14 @@ export default async function HomePage() {
           </div>
 
           <div className="tokoo-product-grid">
-            {productCards.map((product, index) => {
-              const imageUrl = product.imageUrls?.[0] || realisticProductShots[index % realisticProductShots.length];
+            {productCards.map((product) => {
+              const imageUrl = product.imageUrls?.[0];
               const price = Number(product.sellingPrice ?? 0);
 
               return (
                 <article key={product.id} className="tokoo-product-card">
                   <div className="tokoo-product-media">
-                    {imageUrl ? (
-                      <img src={imageUrl} alt={product.name} />
-                    ) : (
-                      <span>✦</span>
-                    )}
+                    <ProductImage src={imageUrl} alt={product.name} width={600} height={600} sizes="(min-width: 1024px) 25vw, 50vw" className="h-full w-full object-cover" />
                   </div>
 
                   <div className="tokoo-product-meta">

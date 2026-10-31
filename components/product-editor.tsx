@@ -1,0 +1,38 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
+import type { AdminProduct } from "@/lib/admin-types";
+import type { MenuCategory } from "@/lib/category";
+import { ProductPhotoManager } from "./product-photo-manager";
+import { useClientReady } from "./use-client-ready";
+
+const blank = { name: "", sku: "", description: "", brand: "", categoryId: "", sellingPrice: "", costPrice: "", status: "DRAFT", availableQty: "0" };
+
+export function ProductEditor({ initialProducts, categories }: { initialProducts: AdminProduct[]; categories: MenuCategory[] }) {
+  const ready = useClientReady();
+  const [products, setProducts] = useState(initialProducts);
+  const [selectedId, setSelectedId] = useState("");
+  const [form, setForm] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const selected = products.find((product) => product.id === selectedId);
+  function select(id: string) {
+    setSelectedId(id); setMessage("");
+    const product = products.find((entry) => entry.id === id);
+    setForm(product ? { name: product.name, sku: product.sku, description: product.description, brand: product.brand, categoryId: product.categoryId || "", sellingPrice: String(product.sellingPrice), costPrice: String(product.costPrice), status: product.status, availableQty: String(product.availableQty) } : blank);
+  }
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setMessage("");
+    try {
+      const body = { name: form.name, sku: form.sku, description: form.description, brand: form.brand, categoryId: form.categoryId, sellingPrice: Number(form.sellingPrice), costPrice: Number(form.costPrice || 0), status: form.status, ...(!selectedId ? { availableQty: Number(form.availableQty) } : {}) };
+      const response = await fetch(selectedId ? `/api/products/${selectedId}` : "/api/products", { method: selectedId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok) throw Error(result.message || "Product could not be saved.");
+      const product: AdminProduct = { ...result.data, sellingPrice: Number(result.data.sellingPrice), costPrice: Number(result.data.costPrice || 0), availableQty: selected?.availableQty ?? Number(form.availableQty), description: result.data.description || "", brand: result.data.brand || "" };
+      setProducts((current) => selectedId ? current.map((entry) => entry.id === selectedId ? product : entry) : [product, ...current]);
+      setSelectedId(product.id); setMessage(product.status === "ACTIVE" ? "Product saved and available on the website. Add or update its photos below." : "Product saved as a draft. Add photos, then set status to Active when ready.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Product could not be saved."); }
+    finally { setBusy(false); }
+  }
+  return <div className="space-y-6"><section className="rounded-3xl border border-[#173B35]/10 bg-white p-6"><div className="flex flex-wrap items-center justify-between gap-4"><label className="block min-w-0 flex-1 text-sm font-semibold">Select a product<select aria-label="Select a product" disabled={!ready || busy} value={selectedId} onChange={(event) => select(event.target.value)} className="mt-2 w-full rounded-xl border border-[#173B35]/20 px-3 py-3"><option value="">+ Add a new product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.sku}</option>)}</select></label>{selected?.status === "ACTIVE" ? <a href={`/products/${selected.id}`} target="_blank" rel="noreferrer" className="mt-6 text-sm font-semibold underline">View product on website</a> : null}</div><form onSubmit={save} className="mt-6"><fieldset disabled={!ready || busy} className="grid gap-4 md:grid-cols-2">{([['name','Product name'],['sku','SKU'],['brand','Brand']] as const).map(([key,label]) => <label key={key} className="text-sm font-semibold">{label}<input required={key !== 'brand'} value={form[key]} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/20 px-3 py-3" /></label>)}<label className="text-sm font-semibold">Menu category<select aria-label="Menu category" value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/20 px-3 py-3"><option value="">Uncategorized</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}{category.isVisible ? "" : " (hidden menu)"}</option>)}</select></label><label className="text-sm font-semibold">Selling price (INR)<input required type="number" min="0.01" step="0.01" value={form.sellingPrice} onChange={(event) => setForm((current) => ({ ...current, sellingPrice: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/20 px-3 py-3" /></label><label className="text-sm font-semibold">Cost price (INR)<input type="number" min="0" step="0.01" value={form.costPrice} onChange={(event) => setForm((current) => ({ ...current, costPrice: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/20 px-3 py-3" /></label><label className="text-sm font-semibold">Status<select aria-label="Status" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/20 px-3 py-3"><option value="DRAFT">Draft — not published</option><option value="ACTIVE">Active — show on website</option><option value="ARCHIVED">Archived — not published</option></select></label><label className="text-sm font-semibold">{selectedId ? "Available stock" : "Opening stock"}<input type="number" min="0" step="1" disabled={!!selectedId} value={form.availableQty} onChange={(event) => setForm((current) => ({ ...current, availableQty: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/20 px-3 py-3 disabled:bg-[#F7F4ED]" />{selectedId ? <span className="mt-1 block text-xs font-normal text-[#173B35]/60">Existing stock is managed through your inventory integration.</span> : null}</label><label className="text-sm font-semibold md:col-span-2">Product description<textarea rows={4} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/20 px-3 py-3" /></label><button className="w-fit rounded-xl bg-[#173B35] px-6 py-3 font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : selectedId ? "Save product" : "Create product"}</button></fieldset>{message ? <p role="status" className="mt-4 text-sm">{message}</p> : null}</form></section>{selected ? <ProductPhotoManager key={selected.id} productId={selected.id} images={selected.imageUrls} onChanged={(imageUrls) => setProducts((current) => current.map((entry) => entry.id === selected.id ? { ...entry, imageUrls } : entry))} /> : <p className="rounded-2xl border border-dashed border-[#173B35]/20 p-6 text-sm text-[#173B35]/70">Create or select a product first, then upload photos for it.</p>}</div>;
+}

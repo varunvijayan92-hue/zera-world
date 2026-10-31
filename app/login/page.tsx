@@ -125,9 +125,6 @@ export default function CustomerAccountPage() {
           <Link href="/" className="font-semibold text-[#173B35] underline underline-offset-4">
             Back to home
           </Link>
-          <p>
-            Retail admin access: <a href="/admin/login" className="font-semibold text-[#173B35] underline underline-offset-4">Admin login</a>
-          </p>
         </div>
       </div>
     </main>

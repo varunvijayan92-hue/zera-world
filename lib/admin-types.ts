@@ -1,0 +1,6 @@
+export type AdminProduct = {
+  id: string; name: string; sku: string; description: string; brand: string;
+  categoryId: string | null; category: string | null;
+  sellingPrice: number; costPrice: number; status: "DRAFT" | "ACTIVE" | "ARCHIVED";
+  imageUrls: string[]; availableQty: number;
+};

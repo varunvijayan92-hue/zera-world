@@ -50,10 +50,12 @@ export const productSchema = z.object({
   barcode: z.string().optional(),
   description: z.string().optional(),
   category: z.string().optional(),
+  categoryId: z.string().optional(),
+  availableQty: z.coerce.number().int().min(0).max(1000000).optional(),
   brand: z.string().optional(),
   supplierId: z.string().optional(),
-  costPrice: z.coerce.number().optional(),
-  sellingPrice: z.coerce.number().optional(),
+  costPrice: z.coerce.number().min(0).optional(),
+  sellingPrice: z.coerce.number().min(0).optional(),
   imageUrls: z.array(z.string().url()).optional().default([]),
   status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),
 });
@@ -96,10 +98,15 @@ export const checkoutAddressSchema = z.object({
 });
 
 export const checkoutRequestSchema = z.object({
-  cart: z.array(checkoutItemSchema).min(1),
+  cart: z.array(checkoutItemSchema).min(1).max(100).superRefine((items, context) => {
+    if (new Set(items.map((item) => item.productId)).size !== items.length) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Duplicate cart products are not allowed." });
+    }
+  }),
   shippingAddress: checkoutAddressSchema,
+  expectedTotalPaise: z.number().int().min(100).optional(),
   paymentMethod: z.enum(["razorpay", "manual"]).default("razorpay"),
-  idempotencyKey: z.string().optional(),
+  idempotencyKey: z.string().min(16).max(128).optional(),
 });
 
 export const paymentWebhookSchema = z.object({

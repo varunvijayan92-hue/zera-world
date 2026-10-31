@@ -1,9 +1,14 @@
+import { revalidatePath } from "next/cache";
+import { CatalogError, resolveProductCategory } from "@/lib/catalog";
+import { authorizeManagement } from "@/lib/api-auth";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { syncProductToMarketplaces } from "@/lib/marketplace";
 import { productSchema } from "@/lib/validators";
 
 export async function GET() {
+  const denied = await authorizeManagement();
+  if (denied) return denied;
   const products = await prisma.product.findMany({
     include: { supplier: true },
     orderBy: { createdAt: "desc" },
@@ -13,6 +18,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = await authorizeManagement();
+  if (denied) return denied;
   try {
     const body = await request.json();
     const parsed = productSchema.safeParse(body);
@@ -24,26 +31,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const normalizedImageUrls = Array.isArray(body.imageUrls)
-      ? body.imageUrls
-      : typeof body.imageUrls === "string"
-        ? body.imageUrls.split(",").map((value: string) => value.trim()).filter(Boolean)
-        : [];
-
+    const { categoryId, category, availableQty, ...data } = parsed.data;
+    if (data.status === "ACTIVE" && Number(data.sellingPrice) <= 0) throw new CatalogError("An active product needs a selling price greater than zero.");
     const product = await prisma.product.create({
       data: {
-        ...parsed.data,
-        imageUrls: normalizedImageUrls,
-        status: parsed.data.status || "DRAFT",
-        costPrice: parsed.data.costPrice ?? null,
-        sellingPrice: parsed.data.sellingPrice ?? null,
+        ...data, ...await resolveProductCategory(categoryId, category),
+        status: data.status || "DRAFT",
+        costPrice: data.costPrice ?? null, sellingPrice: data.sellingPrice ?? null,
+        ...(availableQty !== undefined ? { inventory: { create: { availableQty } } } : {}),
       },
     });
+    for (const path of ["/", "/products", "/admin/products"]) revalidatePath(path);
 
     const marketplaceSync = syncProductToMarketplaces(product);
 
     return NextResponse.json({ data: product, marketplaceSync }, { status: 201 });
   } catch (error) {
+    if (error instanceof CatalogError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Product creation failed." },
       { status: 500 }

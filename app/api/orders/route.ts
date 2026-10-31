@@ -1,9 +1,12 @@
+import { authorizeManagement } from "@/lib/api-auth";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSupplierOrderWorkflow, routeMarketplaceOrderToSuppliers } from "@/lib/marketplace";
 import { orderSchema } from "@/lib/validators";
 
 export async function GET() {
+  const denied = await authorizeManagement();
+  if (denied) return denied;
   const orders = await prisma.customerOrder.findMany({
     include: { orderItems: true },
     orderBy: { createdAt: "desc" },
@@ -13,6 +16,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = await authorizeManagement();
+  if (denied) return denied;
   try {
     const body = await request.json();
     const parsed = orderSchema.safeParse(body);
@@ -29,6 +34,7 @@ export async function POST(request: Request) {
         marketplaceType: parsed.data.marketplaceType,
         marketplaceOrderId: parsed.data.marketplaceOrderId,
         customerName: parsed.data.customerName || "Guest",
+        shippingAddress: parsed.data.shippingAddress,
         status: parsed.data.status || "PENDING",
         totalAmount: parsed.data.totalAmount,
         orderItems: {

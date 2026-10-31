@@ -1,119 +1,99 @@
+import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
-
 import { prisma } from "@/lib/prisma";
 import { createPaymentSession } from "@/lib/payment";
+import { gatewayError, GatewayError } from "@/lib/razorpay";
+import { priceCheckout } from "@/lib/checkout";
 import { checkoutRequestSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
+  const parsed = checkoutRequestSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ message: parsed.error.issues[0]?.message || "Invalid checkout." }, { status: 400 });
+  }
+  const { cart, shippingAddress, paymentMethod } = parsed.data;
+  const idempotencyKey = parsed.data.idempotencyKey || randomUUID();
   try {
-    const body = await request.json();
-    const parsed = checkoutRequestSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return NextResponse.json(
-        { message: parsed.error.issues[0]?.message || "Invalid checkout payload." },
-        { status: 400 }
-      );
-    }
-
-    const cartItems = parsed.data.cart;
-    const productIds = cartItems.map((item) => item.productId);
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-      include: { supplierProductMappings: true },
-    });
-
-    const productLookup = new Map(products.map((product) => [product.id, product]));
-    const missingProducts = cartItems.filter((item) => !productLookup.has(item.productId));
-    if (missingProducts.length) {
-      return NextResponse.json({ message: "One or more products are no longer available." }, { status: 400 });
-    }
-
-    const subtotal = cartItems.reduce((sum, item) => {
-      const product = productLookup.get(item.productId)!;
-      const unitPrice = Number(product.sellingPrice ?? 0);
-      return sum + unitPrice * item.quantity;
-    }, 0);
-
-    const taxes = subtotal * 0.05;
-    const shippingCharges = subtotal > 0 ? 120 : 0;
-    const total = subtotal + shippingCharges + taxes;
-    const currency = "INR";
-    const idempotencyKey = parsed.data.idempotencyKey || `checkout_${Date.now()}`;
-
-    const existingTransaction = await prisma.paymentTransaction.findUnique({
-      where: { idempotencyKey },
-    });
-    if (existingTransaction) {
-      return NextResponse.json({ data: { payment: existingTransaction, order: null, note: "Duplicate checkout submission blocked." } }, { status: 200 });
-    }
-
-    const order = await prisma.customerOrder.create({
-      data: {
-        marketplaceType: "AMAZON",
-        marketplaceOrderId: `ORDER-${Date.now()}`,
-        customerName: parsed.data.shippingAddress.fullName,
-        status: "PENDING",
-        subtotal: subtotal,
-        shippingAmount: shippingCharges,
-        totalAmount: total,
-        orderDate: new Date(),
-        orderItems: {
-          create: cartItems.map((item) => ({
+    // Commit the order and its unique submission key together.
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.paymentTransaction.findUnique({ where: { idempotencyKey } });
+      if (existing) return null;
+      const products = await tx.product.findMany({
+        where: { id: { in: cart.map((item) => item.productId) } },
+        include: { inventory: true },
+      });
+      const amount = priceCheckout(cart, products);
+      if (parsed.data.expectedTotalPaise !== undefined && parsed.data.expectedTotalPaise !== Math.round(amount.total * 100)) {
+        throw new GatewayError("The order amount has changed. Go back to review and confirm the updated amount.", 409);
+      }
+      const order = await tx.customerOrder.create({
+        data: {
+          marketplaceType: "AMAZON",
+          marketplaceOrderId: `ORDER-${randomUUID()}`,
+          customerName: shippingAddress.fullName,
+          shippingAddress,
+          status: "PENDING",
+          subtotal: amount.subtotal,
+          shippingAmount: amount.shippingCharges,
+          totalAmount: amount.total,
+          orderDate: new Date(),
+          orderItems: { create: cart.map((item) => ({
             productId: item.productId,
-            marketplaceSku: item.sku,
+            marketplaceSku: products.find((product) => product.id === item.productId)!.sku,
             quantity: item.quantity,
-            unitPrice: Number(productLookup.get(item.productId)?.sellingPrice ?? 0),
-            status: "PENDING",
-          })),
+            unitPrice: Number(products.find((product) => product.id === item.productId)!.sellingPrice),
+          })) },
         },
-      },
-      include: { orderItems: true },
-    });
-
-    const payment = await createPaymentSession({
-      amount: total,
-      currency,
-      orderId: order.id,
-      customerName: parsed.data.shippingAddress.fullName,
-      email: parsed.data.shippingAddress.email,
-      provider: parsed.data.paymentMethod === "manual" ? "manual" : "razorpay",
-    });
-
-    await prisma.paymentTransaction.create({
-      data: {
+        include: { orderItems: true },
+      });
+      const transaction = await tx.paymentTransaction.create({ data: {
         orderId: order.id,
-        provider: payment.provider === "razorpay" ? "RAZORPAY" : payment.provider === "stripe" ? "STRIPE" : "MANUAL",
-        gatewayOrderId: payment.gatewayOrderId || null,
-        gatewayPaymentId: null,
-        amount: total,
-        currency,
-        paymentStatus: "PENDING",
+        provider: paymentMethod === "manual" ? "MANUAL" : "RAZORPAY",
+        amount: amount.total,
+        currency: amount.currency,
+        paymentStatus: "CREATED",
         idempotencyKey,
-        verificationTimestamp: null,
-        refundReference: null,
-        refundStatus: "NOT_REQUESTED",
-      },
+      } });
+      return { order, transaction, amount };
     });
+    if (!result) return NextResponse.json({ message: "This checkout has already been submitted." }, { status: 409 });
 
+    let payment;
+    try {
+      payment = await createPaymentSession({
+      amount: result.amount.total, currency: result.amount.currency, orderId: result.order.id,
+      customerName: shippingAddress.fullName, email: shippingAddress.email, provider: paymentMethod,
+      });
+    } catch (error) {
+      await prisma.paymentTransaction.update({ where: { id: result.transaction.id }, data: { paymentStatus: "FAILED" } });
+      throw gatewayError(error);
+    }
+    await prisma.$transaction([
+      prisma.paymentTransaction.update({ where: { id: result.transaction.id }, data: {
+        gatewayOrderId: payment.gatewayOrderId || null,
+        paymentStatus: payment.status === "FAILED" ? "FAILED" : "PENDING",
+      } }),
+      ...(payment.status === "FAILED" ? [prisma.customerOrder.update({
+        where: { id: result.order.id }, data: { status: "CANCELLED" },
+      })] : []),
+    ]);
+    if (payment.status === "FAILED") return NextResponse.json({ message: payment.message }, { status: 502 });
     return NextResponse.json({
-      data: {
-        order,
-        payment,
-        amount: {
-          subtotal,
-          shippingCharges,
-          taxes,
-          total,
-          currency,
-        },
-        address: parsed.data.shippingAddress,
-      },
+      order_id: payment.gatewayOrderId || null,
+      amount: Math.round(result.amount.total * 100),
+      currency: result.amount.currency,
+      data: { order: result.order, payment, amount: result.amount },
     }, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Payment session creation failed." },
-      { status: 500 }
-    );
+    if (error instanceof GatewayError) return NextResponse.json({ message: error.message }, { status: error.status });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json({ message: "This checkout has already been submitted." }, { status: 409 });
+    }
+    if (error instanceof Error && ["Cart must", "One or more", "Product price", "Requested quantity"].some((prefix) => error.message.startsWith(prefix))) {
+      return NextResponse.json({ message: error.message }, { status: 400 });
+    }
+    console.error("Checkout failed", error);
+    return NextResponse.json({ message: "Checkout could not be created. Please contact support before retrying." }, { status: 500 });
   }
 }

@@ -1,3 +1,4 @@
+import { authorizeManagement } from "@/lib/api-auth";
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
@@ -5,6 +6,8 @@ import { validateSupplierProductMapping } from "@/lib/marketplace";
 import { supplierProductMappingSchema } from "@/lib/validators";
 
 export async function GET() {
+  const denied = await authorizeManagement();
+  if (denied) return denied;
   const mappings = await prisma.supplierProductMapping.findMany({
     include: { product: true, supplier: true },
     orderBy: { createdAt: "desc" },
@@ -14,6 +17,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = await authorizeManagement();
+  if (denied) return denied;
   try {
     const body = await request.json();
     const parsed = supplierProductMappingSchema.safeParse(body);

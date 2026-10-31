@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ProductImage } from "@/components/product-image";
+import { readCart } from "@/lib/cart";
 
 export default function CartPage() {
   const [items, setItems] = useState<Array<{ id: string; name: string; sku: string; sellingPrice?: number | string | null; quantity?: number; imageUrls?: string[] | null }>>([]);
 
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem("zeraworld-cart") || "[]");
+    const stored = readCart(localStorage);
     setItems(stored);
   }, []);
 
@@ -40,7 +42,7 @@ export default function CartPage() {
               {items.map((item) => (
                 <div key={`${item.id}-${item.sku}`} className="flex items-center gap-4 rounded-[24px] border border-[#173B35]/10 bg-white p-4 shadow-[0_12px_30px_rgba(23,59,53,0.05)]">
                   <div className="h-20 w-20 overflow-hidden rounded-2xl bg-[#F7F4ED]">
-                    {item.imageUrls?.[0] ? <img src={item.imageUrls[0]} alt={item.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-2xl">✦</div>}
+                    <ProductImage src={item.imageUrls?.[0]} alt={item.name} width={160} height={160} sizes="80px" className="h-full w-full object-cover" />
                   </div>
                   <div className="flex-1">
                     <p className="text-lg font-bold text-[#173B35]">{item.name}</p>
@@ -71,7 +73,7 @@ export default function CartPage() {
                 </div>
               </div>
               <Link href="/checkout" className="mt-5 inline-flex w-full justify-center rounded-xl bg-[#173B35] px-4 py-3 text-sm font-semibold text-white">
-                Proceed to checkout
+                Confirm quantity & address
               </Link>
             </aside>
           </div>

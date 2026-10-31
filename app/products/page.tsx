@@ -1,3 +1,6 @@
+import { CategoryMenu } from "@/components/category-menu";
+import { ProductImage } from "@/components/product-image";
+import { CartButton } from "@/components/cart-button";
 import Link from "next/link";
 import { ShoppingBag, Truck } from "lucide-react";
 
@@ -14,6 +17,10 @@ export default async function ProductsPage({
   const query = (params.q || "").trim();
   const categoryFilter = (params.category || "all").trim();
 
+  const menuCategories = await prisma.storeCategory.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
+  const selectedCategory = menuCategories.find((category) => category.slug === categoryFilter || category.name.toLowerCase() === categoryFilter.toLowerCase());
+  const visibleCategories = menuCategories.filter((category) => category.isVisible);
+  const selectedValue = selectedCategory?.slug || categoryFilter;
   const products = await prisma.product.findMany({
     where: {
       status: "ACTIVE",
@@ -27,27 +34,22 @@ export default async function ProductsPage({
           }
         : {}),
       ...(categoryFilter && categoryFilter !== "all"
-        ? { category: { equals: categoryFilter, mode: "insensitive" } }
+        ? selectedCategory ? { categoryId: selectedCategory.id } : { category: { equals: categoryFilter, mode: "insensitive" } }
         : {}),
     },
     orderBy: { createdAt: "desc" },
     include: { supplier: true },
   });
 
-  const categories = [
-    "all",
-    ...new Set(
-      products.map((product) => product.category).filter(Boolean) as string[]
-    ),
-  ];
-
   return (
     <main className="min-h-screen bg-[#F7F4ED] px-4 py-8 text-[#173B35] md:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
+        <div className="mb-6 overflow-hidden rounded-2xl bg-[#173B35] pb-4"><CategoryMenu categories={visibleCategories} selected={selectedValue} /></div>
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#173B35]/60">Catalogue</p>
-            <h1 className="mt-2 text-4xl font-black tracking-[-0.07em]">Products</h1>
+            <h1 className="mt-2 text-4xl font-black tracking-[-0.07em]">{selectedCategory?.name || "Products"}</h1>
+            {selectedCategory?.description ? <p className="mt-3 max-w-2xl text-sm text-[#173B35]/70">{selectedCategory.description}</p> : null}
           </div>
           <Link href="/" className="inline-flex rounded-full border border-[#173B35]/15 bg-white px-4 py-2 text-sm font-semibold text-[#173B35]">
             Back to home
@@ -70,14 +72,12 @@ export default async function ProductsPage({
               <label className="mb-2 block text-sm font-medium text-[#173B35]">Category</label>
               <select
                 name="category"
-                defaultValue={categoryFilter}
+                defaultValue={selectedValue}
                 className="w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-3 text-sm text-[#173B35] outline-none focus:border-[#173B35]"
               >
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category === "all" ? "All categories" : category}
-                  </option>
-                ))}
+                <option value="all">All categories</option>
+                {visibleCategories.map((category) => <option key={category.id} value={category.slug}>{category.name}</option>)}
+                {selectedValue !== "all" && !visibleCategories.some((category) => category.slug === selectedValue) ? <option value={selectedValue}>{selectedCategory?.name || categoryFilter}</option> : null}
               </select>
             </div>
 
@@ -101,11 +101,7 @@ export default async function ProductsPage({
                 <article key={product.id} className="overflow-hidden rounded-[28px] border border-[#173B35]/10 bg-white p-4 shadow-[0_14px_32px_rgba(23,59,53,0.05)] transition hover:-translate-y-1 hover:shadow-[0_18px_36px_rgba(23,59,53,0.08)]">
                   <Link href={`/products/${product.id}`} className="block">
                     <div className="flex h-52 items-center justify-center overflow-hidden rounded-[22px] bg-gradient-to-br from-[#8EA695]/30 via-[#F7F4ED] to-[#B38A45]/20 text-4xl text-[#173B35]">
-                      {imageUrl ? (
-                        <img src={imageUrl} alt={product.name} className="h-full w-full object-cover" />
-                      ) : (
-                        <span>✦</span>
-                      )}
+                      <ProductImage src={imageUrl} alt={product.name} width={600} height={600} sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" className="h-full w-full object-cover" />
                     </div>
                   </Link>
 
@@ -130,6 +126,7 @@ export default async function ProductsPage({
                       Ready to ship
                     </span>
                   </div>
+                  <div className="mt-4"><CartButton product={{ id: product.id, name: product.name, sku: product.sku, sellingPrice: Number(product.sellingPrice), imageUrls: product.imageUrls }} /></div>
                 </article>
               );
             })

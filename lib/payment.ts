@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { getRazorpayCredentials, razorpayGateway } from "./razorpay";
 
 export type PaymentProvider = "stripe" | "razorpay" | "manual";
 
@@ -27,67 +28,23 @@ export type PaymentSession = {
   checkoutKey?: string;
 };
 
-function isRazorpayConfigured() {
-  return Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
-}
-
 export async function createPaymentSession(payload: PaymentSessionRequest): Promise<PaymentSession> {
   const provider = payload.provider ?? (process.env.PAYMENT_PROVIDER as PaymentProvider | undefined) ?? "manual";
   const amount = Number(payload.amount ?? 0);
   const orderId = payload.orderId ?? `ord_${Date.now()}`;
   const currency = (payload.currency ?? "INR").toUpperCase();
 
-  if (provider === "razorpay" && isRazorpayConfigured()) {
-    const keyId = process.env.RAZORPAY_KEY_ID!;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET!;
-
-    try {
-      const response = await fetch("https://api.razorpay.com/v1/orders", {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          amount: Math.round(amount * 100),
-          currency,
-          receipt: orderId,
-          payment_capture: 1,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data?.id) {
-        throw new Error(data?.error?.description || "Unable to create Razorpay order.");
-      }
-
-      return {
-        provider: "razorpay",
-        orderId,
-        status: "PENDING",
-        paymentId: `pay_razorpay_${Date.now()}`,
-        gatewayOrderId: data.id,
-        amount,
-        currency,
-        customerName: payload.customerName,
-        email: payload.email,
-        message: "Razorpay order created in sandbox/test mode. Payment will only complete after server verification.",
-        checkoutKey: keyId,
-      };
-    } catch {
-      return {
-        provider: "razorpay",
-        orderId,
-        status: "FAILED",
-        paymentId: `pay_razorpay_failed_${Date.now()}`,
-        amount,
-        currency,
-        customerName: payload.customerName,
-        email: payload.email,
-        message: "Razorpay gateway configuration is unavailable or invalid. Demo payment mode is active until credentials are approved.",
-      };
-    }
+  if (provider === "razorpay") {
+    const { keyId } = getRazorpayCredentials();
+    const order = await razorpayGateway.createOrder({
+      amount: Math.round(amount * 100), currency, receipt: orderId.slice(0, 40),
+    });
+    return {
+      provider, orderId, status: "PENDING", paymentId: order.id,
+      gatewayOrderId: order.id, amount: Number(order.amount) / 100, currency: order.currency,
+      customerName: payload.customerName, email: payload.email,
+      message: "Payment order created. Complete checkout to verify your payment.", checkoutKey: keyId,
+    };
   }
 
   if (provider === "stripe" && !process.env.STRIPE_SECRET_KEY) {
@@ -181,7 +138,7 @@ export async function createRefundRequest(input: {
     body: JSON.stringify({
       amount: input.amount ? Math.round(input.amount * 100) : undefined,
       currency: (input.currency || "INR").toUpperCase(),
-      notes: input.notes || input.reason || "Refund requested by ZeraWorld admin",
+      notes: { reason: input.reason || "Refund requested by ZeraWorld admin", details: input.notes || "" },
     }),
   });
 

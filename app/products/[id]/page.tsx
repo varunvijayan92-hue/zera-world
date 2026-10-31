@@ -1,3 +1,4 @@
+import { ProductGallery } from "@/components/product-gallery";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ShieldCheck, ShoppingBag, Truck } from "lucide-react";
@@ -14,11 +15,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     include: { supplier: true },
   });
 
-  if (!product) {
+  if (!product || product.status !== "ACTIVE") {
     notFound();
   }
-
-  const gallery = product.imageUrls?.length ? product.imageUrls : ["https://images.unsplash.com/..." ];
 
   return (
     <main className="min-h-screen bg-[#F7F4ED] px-4 py-8 text-[#173B35] md:px-6 lg:px-8">
@@ -29,21 +28,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         </Link>
 
         <div className="grid gap-8 rounded-[32px] border border-[#173B35]/10 bg-white p-5 shadow-[0_18px_48px_rgba(23,59,53,0.06)] lg:grid-cols-[1.1fr_0.9fr] lg:p-8">
-          <div className="space-y-4">
-            <div className="overflow-hidden rounded-[28px] border border-[#173B35]/10 bg-[#F7F4ED]">
-              <img src={gallery[0]} alt={product.name} className="h-[420px] w-full object-cover" />
-            </div>
-
-            {gallery.length > 1 ? (
-              <div className="grid grid-cols-3 gap-3">
-                {gallery.slice(0, 3).map((image, index) => (
-                  <div key={`${product.id}-${index}`} className="overflow-hidden rounded-2xl border border-[#173B35]/10 bg-[#F7F4ED]">
-                    <img src={image} alt={`${product.name} ${index + 1}`} className="h-28 w-full object-cover" />
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <ProductGallery images={product.imageUrls} name={product.name} />
 
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#173B35]/60">{product.category || "Featured product"}</p>

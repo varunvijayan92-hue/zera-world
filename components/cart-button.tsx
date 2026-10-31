@@ -1,29 +1,31 @@
 "use client";
 
-import { ShoppingBag } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { normalizeCart, readCart, writeCart } from "@/lib/cart";
 
 export function CartButton({ product }: { product: { id: string; name: string; sku: string; sellingPrice?: number | string | null; imageUrls?: string[] | null } }) {
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
   const [message, setMessage] = useState("");
-
-  function addToCart() {
-    const currentCart = JSON.parse(localStorage.getItem("zeraworld-cart") || "[]");
-    const nextCart = [...currentCart, { ...product, quantity: 1, addedAt: new Date().toISOString() }];
-    localStorage.setItem("zeraworld-cart", JSON.stringify(nextCart));
-    setMessage("Added to cart");
+  useEffect(() => setReady(true), []);
+  function selectItem() {
+    try {
+      const next = normalizeCart([...readCart(localStorage), { ...product, quantity: 1 }]);
+      if (!next.some((item) => item.id === product.id)) throw new Error("Product is unavailable.");
+      writeCart(localStorage, next);
+      router.push("/checkout");
+    } catch {
+      setMessage("Your browser could not save this item. Enable browser storage and try again.");
+    }
   }
-
   return (
     <div className="space-y-3">
-      <button
-        type="button"
-        onClick={addToCart}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#173B35] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0f2a26]"
-      >
-        <ShoppingBag size={16} />
-        Add to cart
+      <button type="button" disabled={!ready} onClick={selectItem} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#173B35] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0f2a26] disabled:opacity-50">
+        Select item <ArrowRight size={16} />
       </button>
-      {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
+      {message ? <p role="alert" className="text-sm text-red-700">{message}</p> : null}
     </div>
   );
 }

@@ -1,260 +1,115 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
+import { ArrowRight, Trash2 } from "lucide-react";
+import { readCart, writeCart, type CartItem } from "@/lib/cart";
+import { CHECKOUT_DRAFT_KEY, SAVED_ADDRESS_KEY, emptyAddress, readCheckoutDraft, readSavedAddress, rememberAddress, type DeliveryAddress, type CheckoutDraft } from "@/lib/checkout-storage";
+import { checkoutAddressSchema } from "@/lib/validators";
+import { DeliveryAddressFields } from "@/components/delivery-address-fields";
+import { CheckoutProgress, CheckoutSummary, money } from "@/components/checkout-summary";
 
-import { calculateEstimatedProfit } from "@/lib/profit";
-
-type CartItem = {
-  id: string;
-  name: string;
-  sku: string;
-  sellingPrice?: number | string | null;
-  quantity?: number;
-  imageUrls?: string[] | null;
-};
-
-const defaultAddress = {
-  fullName: "",
-  email: "",
-  phone: "",
-  addressLine1: "",
-  addressLine2: "",
-  city: "",
-  state: "",
-  pincode: "",
-  country: "India",
-  landmark: "",
-};
+type Quote = { fingerprint: string; items: CartItem[]; amount: CheckoutDraft["amount"] };
 
 export default function CheckoutPage() {
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
   const [items, setItems] = useState<CartItem[]>([]);
-  const [address, setAddress] = useState(defaultAddress);
-  const [paymentMethod, setPaymentMethod] = useState("razorpay");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [checkoutData, setCheckoutData] = useState<{ payment?: { checkoutKey?: string; gatewayOrderId?: string; provider?: string; message?: string; paymentId?: string; status?: string; checkoutUrl?: string }; order?: { id?: string; totalAmount?: number } } | null>(null);
+  const [address, setAddress] = useState<DeliveryAddress>({ ...emptyAddress });
+  const [savedAddress, setSavedAddress] = useState<DeliveryAddress | null>(null);
+  const [saveAddress, setSaveAddress] = useState(false);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [message, setMessage] = useState("");
+  const [quoteError, setQuoteError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const [locating, setLocating] = useState(false);
+  const [continuing, setContinuing] = useState(false);
+  const requestBody = JSON.stringify({ cart: items.map((item) => ({ productId: item.id, sku: item.sku, quantity: item.quantity })) });
+  const currentQuote = quote?.fingerprint === requestBody ? quote : null;
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("zeraworld-cart") || "[]");
-    setItems(saved);
+    setItems(readCart(localStorage));
+    const saved = readSavedAddress(localStorage);
+    const draft = readCheckoutDraft(sessionStorage);
+    if (saved) { setSavedAddress(saved); setSaveAddress(true); }
+    if (draft || saved) setAddress(draft?.shippingAddress || saved!);
+    setReady(true);
   }, []);
 
-  const summary = useMemo(() => {
-    const subtotal = items.reduce((sum, item) => sum + Number(item.sellingPrice ?? 0) * Number(item.quantity ?? 1), 0);
-    const shipping = subtotal > 0 ? 120 : 0;
-    const taxes = subtotal * 0.05;
-    const total = subtotal + shipping + taxes;
-    const profit = calculateEstimatedProfit({
-      sellingPrice: total,
-      supplierCost: subtotal * 0.6,
-      shippingCost: shipping,
-      marketplaceFeeRate: 8.5,
-      packagingCost: 35,
-      taxRate: 5,
-    });
-
-    return { subtotal, shipping, taxes, total, profit };
-  }, [items]);
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsSubmitting(true);
-    setMessage(null);
-
-    try {
-      const response = await fetch("/api/payments/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cart: items.map((item) => ({ productId: item.id, sku: item.sku, quantity: Number(item.quantity ?? 1) })),
-          shippingAddress: address,
-          paymentMethod,
-          idempotencyKey: `checkout_${Date.now()}`,
-        }),
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(payload?.message || "Checkout failed.");
+  useEffect(() => {
+    if (!ready || JSON.parse(requestBody).cart.length === 0) return;
+    const controller = new AbortController();
+    setQuote(null);
+    setQuoteError("");
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch("/api/checkout/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: requestBody, signal: controller.signal });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || "Order amount could not be checked.");
+        if (!controller.signal.aborted) setQuote({ ...result, fingerprint: requestBody });
+      } catch (error) {
+        if (!controller.signal.aborted) setQuoteError(error instanceof Error ? error.message : "Order amount could not be checked.");
       }
+    }, 250);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [requestBody, ready, retry]);
 
-      setCheckoutData(payload.data);
-      setMessage(payload.data?.payment?.message || "Checkout created successfully.");
-
-      if (payload.data?.payment?.provider === "razorpay" && payload.data?.payment?.checkoutKey) {
-        const options = {
-          key: payload.data.payment.checkoutKey,
-          amount: Math.round(Number(payload.data.amount?.total || 0) * 100),
-          currency: payload.data.amount?.currency || "INR",
-          name: "ZeraWorld",
-          description: "ZeraWorld order payment",
-          order_id: payload.data.payment.gatewayOrderId,
-          handler: function () {
-            window.location.href = `/checkout/success?order=${encodeURIComponent(payload.data?.order?.id || "")}`;
-          },
-          theme: { color: "#173B35" },
-        };
-
-        const razorpayScript = document.createElement("script");
-        razorpayScript.src = "https://checkout.razorpay.com/v1/checkout.js";
-        razorpayScript.async = true;
-        razorpayScript.onload = () => {
-          const Razorpay = (window as any).Razorpay;
-          if (Razorpay) {
-            new Razorpay(options).open();
-          }
-        };
-        document.body.appendChild(razorpayScript);
-      } else {
-        window.location.href = `/checkout/success?order=${encodeURIComponent(payload.data?.order?.id || "")}`;
-      }
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Checkout failed.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (!items.length) {
-    return (
-      <main className="min-h-screen bg-[#F7F4ED] px-4 py-10 text-[#173B35]">
-        <div className="mx-auto max-w-2xl rounded-[28px] border border-[#173B35]/10 bg-white p-8 text-center shadow-[0_12px_35px_rgba(23,59,53,0.05)]">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#173B35]/60">Checkout</p>
-          <h1 className="mt-2 text-3xl font-black tracking-[-0.06em]">Your cart is empty</h1>
-          <Link href="/products" className="mt-5 inline-flex rounded-xl bg-[#173B35] px-5 py-3 text-sm font-semibold text-white">
-            Continue shopping
-          </Link>
-        </div>
-      </main>
-    );
+  function changeItems(next: CartItem[]) {
+    setMessage("");
+    setItems(next);
+    try { writeCart(localStorage, next); } catch { setMessage("Your browser could not save the cart. Enable browser storage to continue."); }
   }
 
-  return (
-    <main className="min-h-screen bg-[#F7F4ED] px-4 py-8 text-[#173B35] md:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#173B35]/60">Checkout</p>
-            <h1 className="mt-2 text-4xl font-black tracking-[-0.07em]">Secure payment</h1>
-          </div>
-          <Link href="/cart" className="rounded-full border border-[#173B35]/15 bg-white px-4 py-2 text-sm font-semibold text-[#173B35]">
-            Back to cart
-          </Link>
+  function confirm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!currentQuote || continuing || locating) return;
+    const parsed = checkoutAddressSchema.safeParse(address);
+    if (!parsed.success) { setMessage("Please complete your contact and delivery address."); return; }
+    setContinuing(true);
+    try {
+      writeCart(localStorage, currentQuote.items);
+      rememberAddress(localStorage, parsed.data, saveAddress);
+      sessionStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify({ items: currentQuote.items, amount: currentQuote.amount, shippingAddress: parsed.data, createdAt: Date.now() }));
+      router.push("/checkout/payment");
+    } catch { setMessage("Your browser could not save the checkout details. Enable browser storage and try again."); setContinuing(false); }
+  }
+
+  if (!ready) return <main className="min-h-screen bg-[#F7F4ED] p-10 text-center text-[#173B35]" role="status">Loading your order...</main>;
+  if (!items.length) return <main className="min-h-screen bg-[#F7F4ED] p-10 text-center text-[#173B35]"><h1 className="text-3xl font-bold">Choose an item to get started</h1><Link href="/products" className="mt-6 inline-block rounded-xl bg-[#173B35] px-6 py-3 text-white">Browse products</Link></main>;
+
+  return <main className="min-h-screen bg-[#F7F4ED] px-4 py-8 text-[#173B35] md:px-8">
+    <div className="mx-auto max-w-6xl">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#173B35]/60">Your order</p><h1 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">Confirm items & delivery</h1></div><Link href="/products" className="text-sm font-semibold underline underline-offset-4">Continue shopping</Link></div>
+      <CheckoutProgress step={1} />
+      <form onSubmit={confirm} className="grid items-start gap-6 lg:grid-cols-[1.4fr_0.8fr]">
+        <div className="space-y-6">
+          <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 md:p-7">
+            <h2 className="text-xl font-bold">1. Check items & quantity</h2><p className="mt-1 text-sm text-[#173B35]/65">Choose how many you need. The amount updates with your quantity.</p>
+            <div className="mt-5 space-y-4">{(currentQuote?.items || items).map((item) => <div key={item.id} className="flex flex-wrap items-center gap-4 rounded-2xl border border-[#173B35]/10 p-4">
+              <div className="min-w-0 flex-1"><Link href={`/products/${item.id}`} className="font-bold hover:underline">{item.name}</Link><p className="mt-1 text-sm text-[#173B35]/65">{money(item.sellingPrice)} each</p></div>
+              <label className="text-xs font-semibold">Quantity<input aria-label={`Quantity for ${item.name}`} type="number" min="1" max="50" step="1" required value={item.quantity} onChange={(event) => {
+                const quantity = event.target.valueAsNumber;
+                if (Number.isFinite(quantity)) changeItems(items.map((entry) => entry.id === item.id ? { ...entry, quantity } : entry));
+              }} className="mt-1 block w-20 rounded-lg border border-[#173B35]/20 px-2 py-2 text-base" /></label>
+              <div className="min-w-20 text-right"><p className="font-bold">{money(item.sellingPrice * item.quantity)}</p><button type="button" aria-label={`Remove ${item.name}`} onClick={() => changeItems(items.filter((entry) => entry.id !== item.id))} className="mt-2 inline-flex items-center gap-1 text-xs text-red-700"><Trash2 size={13} /> Remove</button></div>
+            </div>)}</div>
+          </section>
+          <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 md:p-7">
+            <h2 className="text-xl font-bold">2. Confirm delivery address</h2>
+            {savedAddress ? <div className="mt-4 rounded-2xl bg-[#F7F4ED] p-4"><p className="text-sm font-semibold">Saved address | {savedAddress.fullName}</p><p className="mt-1 text-sm text-[#173B35]/70">{savedAddress.addressLine1}, {savedAddress.city} {savedAddress.pincode}</p><div className="mt-3 flex gap-4 text-sm"><button type="button" onClick={() => { setAddress(savedAddress); setSaveAddress(true); }} className="font-semibold underline">Use saved address</button><button type="button" onClick={() => { try { localStorage.removeItem(SAVED_ADDRESS_KEY); setSavedAddress(null); setSaveAddress(false); } catch { setMessage("The saved address could not be removed. Try again."); } }} className="text-red-700 underline">Forget address</button></div></div> : null}
+            <DeliveryAddressFields value={address} onChange={setAddress} onLocatingChange={setLocating} />
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl bg-[#F7F4ED] p-4 text-sm"><input type="checkbox" checked={saveAddress} onChange={(event) => setSaveAddress(event.target.checked)} className="mt-1 accent-[#173B35]" /><span><span className="font-semibold">Save this address for my next shipment</span><span className="mt-1 block text-xs text-[#173B35]/65">Saved on this browser. You can reuse or remove it next time.</span></span></label>
+          </section>
         </div>
-
-        <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
-          <div className="space-y-6">
-            <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 shadow-[0_12px_35px_rgba(23,59,53,0.05)]">
-              <h2 className="text-xl font-black tracking-[-0.05em]">Customer details</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <label className="text-sm font-medium text-[#173B35]/70">
-                  Full name
-                  <input required value={address.fullName} onChange={(event) => setAddress((current) => ({ ...current, fullName: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-2.5" />
-                </label>
-                <label className="text-sm font-medium text-[#173B35]/70">
-                  Phone
-                  <input required value={address.phone} onChange={(event) => setAddress((current) => ({ ...current, phone: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-2.5" />
-                </label>
-                <label className="text-sm font-medium text-[#173B35]/70 md:col-span-2">
-                  Email
-                  <input required type="email" value={address.email} onChange={(event) => setAddress((current) => ({ ...current, email: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-2.5" />
-                </label>
-              </div>
-            </section>
-
-            <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 shadow-[0_12px_35px_rgba(23,59,53,0.05)]">
-              <h2 className="text-xl font-black tracking-[-0.05em]">Delivery address</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <label className="text-sm font-medium text-[#173B35]/70 md:col-span-2">
-                  Address line 1
-                  <input required value={address.addressLine1} onChange={(event) => setAddress((current) => ({ ...current, addressLine1: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-2.5" />
-                </label>
-                <label className="text-sm font-medium text-[#173B35]/70 md:col-span-2">
-                  Address line 2
-                  <input value={address.addressLine2} onChange={(event) => setAddress((current) => ({ ...current, addressLine2: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-2.5" />
-                </label>
-                <label className="text-sm font-medium text-[#173B35]/70">
-                  City
-                  <input required value={address.city} onChange={(event) => setAddress((current) => ({ ...current, city: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-2.5" />
-                </label>
-                <label className="text-sm font-medium text-[#173B35]/70">
-                  State
-                  <input required value={address.state} onChange={(event) => setAddress((current) => ({ ...current, state: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-2.5" />
-                </label>
-                <label className="text-sm font-medium text-[#173B35]/70">
-                  Pin code
-                  <input required value={address.pincode} onChange={(event) => setAddress((current) => ({ ...current, pincode: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-2.5" />
-                </label>
-                <label className="text-sm font-medium text-[#173B35]/70">
-                  Country
-                  <input required value={address.country} onChange={(event) => setAddress((current) => ({ ...current, country: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-2.5" />
-                </label>
-                <label className="text-sm font-medium text-[#173B35]/70 md:col-span-2">
-                  Landmark
-                  <input value={address.landmark} onChange={(event) => setAddress((current) => ({ ...current, landmark: event.target.value }))} className="mt-2 w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-2.5" />
-                </label>
-              </div>
-            </section>
-
-            <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 shadow-[0_12px_35px_rgba(23,59,53,0.05)]">
-              <h2 className="text-xl font-black tracking-[-0.05em]">Payment method</h2>
-              <div className="mt-4 space-y-3">
-                <label className="flex items-center gap-3 rounded-2xl border border-[#173B35]/10 bg-[#F7F4ED] p-3">
-                  <input type="radio" name="paymentMethod" checked={paymentMethod === "razorpay"} onChange={() => setPaymentMethod("razorpay")} />
-                  <span className="font-semibold">Razorpay (India customers only)</span>
-                </label>
-                <label className="flex items-center gap-3 rounded-2xl border border-[#173B35]/10 bg-[#F7F4ED] p-3 opacity-70">
-                  <input type="radio" name="paymentMethod" checked={paymentMethod === "manual"} onChange={() => setPaymentMethod("manual")} />
-                  <span className="font-semibold">Manual demo checkout only</span>
-                </label>
-                <p className="text-sm text-[#173B35]/60">International payment support remains disabled until a provider and account are approved.</p>
-              </div>
-            </section>
-          </div>
-
-          <aside className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 shadow-[0_12px_35px_rgba(23,59,53,0.05)]">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#173B35]/60">Order summary</p>
-
-            <div className="mt-4 space-y-3">
-              {items.map((item) => (
-                <div key={`${item.id}-${item.sku}`} className="flex items-center justify-between gap-4 rounded-2xl border border-[#173B35]/10 bg-[#F7F4ED] p-3">
-                  <div>
-                    <p className="font-semibold text-[#173B35]">{item.name}</p>
-                    <p className="text-xs text-[#173B35]/60">Qty {item.quantity ?? 1}</p>
-                  </div>
-                  <p className="font-bold text-[#173B35]">₹{Number(item.sellingPrice ?? 0).toLocaleString("en-IN")}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 space-y-2 text-sm text-[#173B35]/70">
-              <div className="flex items-center justify-between"><span>Subtotal</span><span>₹{summary.subtotal.toLocaleString("en-IN")}</span></div>
-              <div className="flex items-center justify-between"><span>Shipping</span><span>₹{summary.shipping.toLocaleString("en-IN")}</span></div>
-              <div className="flex items-center justify-between"><span>Taxes</span><span>₹{summary.taxes.toLocaleString("en-IN")}</span></div>
-            </div>
-
-            <div className="mt-5 border-t border-[#173B35]/10 pt-4">
-              <div className="flex items-end justify-between">
-                <span className="text-sm uppercase tracking-[0.18em] text-[#173B35]/60">Final amount</span>
-                <span className="text-2xl font-black text-[#173B35]">₹{summary.total.toLocaleString("en-IN")}</span>
-              </div>
-              <p className="mt-2 text-xs text-[#173B35]/60">Estimated profit: ₹{summary.profit.netProfit.toFixed(2)}</p>
-            </div>
-
-            <div className="mt-5 text-xs text-[#173B35]/60">
-              <p>By placing this order, you agree to the <Link href="/privacy" className="font-semibold underline">privacy policy</Link> and the <Link href="/returns" className="font-semibold underline">return & refund policy</Link>.</p>
-            </div>
-
-            {message ? <div className="mt-4 rounded-xl border border-[#173B35]/10 bg-[#F7F4ED] p-3 text-sm text-[#173B35]">{message}</div> : null}
-
-            <button type="submit" disabled={isSubmitting} className="mt-5 inline-flex w-full justify-center rounded-xl bg-[#173B35] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
-              {isSubmitting ? "Processing..." : "Pay securely"}
-            </button>
-          </aside>
-        </form>
-      </div>
-    </main>
-  );
+        <aside className="rounded-[28px] border border-[#173B35]/10 bg-white p-6 lg:sticky lg:top-6">
+          <CheckoutSummary amount={currentQuote?.amount || null} />
+          {quoteError ? <div role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">{quoteError}<button type="button" onClick={() => setRetry((value) => value + 1)} className="mt-2 block font-semibold underline">Check amount again</button></div> : null}
+          {message ? <p role="alert" className="mt-4 text-sm text-red-700">{message}</p> : null}
+          <button type="submit" disabled={!currentQuote || continuing || locating} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#173B35] px-4 py-4 text-sm font-semibold text-white disabled:opacity-50">{continuing ? "Continuing..." : "Confirm & continue to payment"}<ArrowRight size={17} /></button>
+          <p className="mt-3 text-xs leading-relaxed text-[#173B35]/60">Review your items and address before continuing. Choose your payment option on the next page.</p>
+        </aside>
+      </form>
+    </div>
+  </main>;
 }

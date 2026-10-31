@@ -4,19 +4,17 @@ import test from "node:test";
 import { createPaymentSession, generateRazorpayWebhookSignature, verifyRazorpaySignature } from "../lib/payment";
 import { checkoutRequestSchema } from "../lib/validators";
 
-test("createPaymentSession stays in safe demo mode without live Razorpay credentials", async () => {
-  const session = await createPaymentSession({
-    amount: 1499,
-    currency: "INR",
-    orderId: "ord_demo",
-    customerName: "Demo Buyer",
-    email: "buyer@example.com",
-    provider: "razorpay",
-  });
-
-  assert.equal(session.provider, "razorpay");
-  assert.equal(session.status, "PENDING");
-  assert.ok(session.message.includes("test mode") || session.message.includes("demo"));
+test("Razorpay checkout fails closed when credentials are missing", async () => {
+  const originalId = process.env.RAZORPAY_KEY_ID;
+  const originalSecret = process.env.RAZORPAY_KEY_SECRET;
+  try {
+    delete process.env.RAZORPAY_KEY_ID;
+    delete process.env.RAZORPAY_KEY_SECRET;
+    await assert.rejects(() => createPaymentSession({ amount: 1499, orderId: "ord_demo", provider: "razorpay" }), /not configured/);
+  } finally {
+    if (originalId === undefined) delete process.env.RAZORPAY_KEY_ID; else process.env.RAZORPAY_KEY_ID = originalId;
+    if (originalSecret === undefined) delete process.env.RAZORPAY_KEY_SECRET; else process.env.RAZORPAY_KEY_SECRET = originalSecret;
+  }
 });
 
 test("verifyRazorpaySignature accepts valid signatures and rejects tampered payloads", () => {
