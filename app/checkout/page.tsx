@@ -17,6 +17,8 @@ export default function CheckoutPage() {
   const [ready, setReady] = useState(false);
   const [items, setItems] = useState<CartItem[]>([]);
   const [address, setAddress] = useState<DeliveryAddress>({ ...emptyAddress });
+  const [accountAddresses, setAccountAddresses] = useState<{ id: string; label: string; address: DeliveryAddress }[]>([]);
+  const [isCustomer, setIsCustomer] = useState(false);
   const [savedAddress, setSavedAddress] = useState<DeliveryAddress | null>(null);
   const [saveAddress, setSaveAddress] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -34,6 +36,11 @@ export default function CheckoutPage() {
     const draft = readCheckoutDraft(sessionStorage);
     if (saved) { setSavedAddress(saved); setSaveAddress(true); }
     if (draft || saved) setAddress(draft?.shippingAddress || saved!);
+    void fetch("/api/account/addresses").then(async (response) => {
+      if (!response.ok) return;
+      const result = await response.json(); setIsCustomer(true); setAccountAddresses(result.addresses);
+      if (!draft && !saved && result.addresses[0]) setAddress(result.addresses[0].address);
+    }).catch(() => {});
     setReady(true);
   }, []);
 
@@ -56,23 +63,28 @@ export default function CheckoutPage() {
   }, [requestBody, ready, retry]);
 
   function changeItems(next: CartItem[]) {
+    if (next.reduce((sum, item) => sum + item.quantity, 0) > 10) { setMessage("A cart can contain a maximum of 10 units."); return; }
     setMessage("");
     setItems(next);
     try { writeCart(localStorage, next); } catch { setMessage("Your browser could not save the cart. Enable browser storage to continue."); }
   }
 
-  function confirm(event: FormEvent<HTMLFormElement>) {
+  async function confirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!currentQuote || continuing || locating) return;
     const parsed = checkoutAddressSchema.safeParse(address);
     if (!parsed.success) { setMessage("Please complete your contact and delivery address."); return; }
     setContinuing(true);
     try {
+      if (saveAddress && isCustomer && !accountAddresses.some((entry) => JSON.stringify(entry.address) === JSON.stringify(parsed.data))) {
+        const response = await fetch("/api/account/addresses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: "Delivery", address: parsed.data }) });
+        const result = await response.json(); if (!response.ok) throw Error(result.message || "Address could not be saved.");
+      }
       writeCart(localStorage, currentQuote.items);
       rememberAddress(localStorage, parsed.data, saveAddress);
       sessionStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify({ items: currentQuote.items, amount: currentQuote.amount, shippingAddress: parsed.data, createdAt: Date.now() }));
       router.push("/checkout/payment");
-    } catch { setMessage("Your browser could not save the checkout details. Enable browser storage and try again."); setContinuing(false); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Checkout details could not be saved."); setContinuing(false); }
   }
 
   if (!ready) return <main className="min-h-screen bg-[#F7F4ED] p-10 text-center text-[#173B35]" role="status">Loading your order...</main>;
@@ -88,7 +100,7 @@ export default function CheckoutPage() {
             <h2 className="text-xl font-bold">1. Check items & quantity</h2><p className="mt-1 text-sm text-[#173B35]/65">Choose how many you need. The amount updates with your quantity.</p>
             <div className="mt-5 space-y-4">{(currentQuote?.items || items).map((item) => <div key={item.id} className="flex flex-wrap items-center gap-4 rounded-2xl border border-[#173B35]/10 p-4">
               <div className="min-w-0 flex-1"><Link href={`/products/${item.id}`} className="font-bold hover:underline">{item.name}</Link><p className="mt-1 text-sm text-[#173B35]/65">{money(item.sellingPrice)} each</p></div>
-              <label className="text-xs font-semibold">Quantity<input aria-label={`Quantity for ${item.name}`} type="number" min="1" max="50" step="1" required value={item.quantity} onChange={(event) => {
+              <label className="text-xs font-semibold">Quantity<input aria-label={`Quantity for ${item.name}`} type="number" min="1" max="10" step="1" required value={item.quantity} onChange={(event) => {
                 const quantity = event.target.valueAsNumber;
                 if (Number.isFinite(quantity)) changeItems(items.map((entry) => entry.id === item.id ? { ...entry, quantity } : entry));
               }} className="mt-1 block w-20 rounded-lg border border-[#173B35]/20 px-2 py-2 text-base" /></label>
@@ -97,9 +109,10 @@ export default function CheckoutPage() {
           </section>
           <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 md:p-7">
             <h2 className="text-xl font-bold">2. Confirm delivery address</h2>
+            {isCustomer ? <label className="mt-4 block text-sm font-semibold">Account addresses<select aria-label="Saved account address" className="mt-2 block w-full rounded-xl border p-3" defaultValue="" onChange={(event) => { const selected = accountAddresses.find((entry) => entry.id === event.target.value); if (selected) setAddress(selected.address); }}><option value="">Choose a saved address or enter a new one</option>{accountAddresses.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}: {entry.address.addressLine1}, {entry.address.city}</option>)}</select></label> : <p className="mt-4 text-sm"><Link href="/login" className="font-semibold underline">Sign in</Link> before placing the order to see it in your account and request returns.</p>}
             {savedAddress ? <div className="mt-4 rounded-2xl bg-[#F7F4ED] p-4"><p className="text-sm font-semibold">Saved address | {savedAddress.fullName}</p><p className="mt-1 text-sm text-[#173B35]/70">{savedAddress.addressLine1}, {savedAddress.city} {savedAddress.pincode}</p><div className="mt-3 flex gap-4 text-sm"><button type="button" onClick={() => { setAddress(savedAddress); setSaveAddress(true); }} className="font-semibold underline">Use saved address</button><button type="button" onClick={() => { try { localStorage.removeItem(SAVED_ADDRESS_KEY); setSavedAddress(null); setSaveAddress(false); } catch { setMessage("The saved address could not be removed. Try again."); } }} className="text-red-700 underline">Forget address</button></div></div> : null}
             <DeliveryAddressFields value={address} onChange={setAddress} onLocatingChange={setLocating} />
-            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl bg-[#F7F4ED] p-4 text-sm"><input type="checkbox" checked={saveAddress} onChange={(event) => setSaveAddress(event.target.checked)} className="mt-1 accent-[#173B35]" /><span><span className="font-semibold">Save this address for my next shipment</span><span className="mt-1 block text-xs text-[#173B35]/65">Saved on this browser. You can reuse or remove it next time.</span></span></label>
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl bg-[#F7F4ED] p-4 text-sm"><input type="checkbox" checked={saveAddress} onChange={(event) => setSaveAddress(event.target.checked)} className="mt-1 accent-[#173B35]" /><span><span className="font-semibold">Save this address for my next shipment</span><span className="mt-1 block text-xs text-[#173B35]/65">{isCustomer ? "Saved to your account and this browser for your next shipment." : "Saved on this browser. Sign in to save addresses to your account."}</span></span></label>
           </section>
         </div>
         <aside className="rounded-[28px] border border-[#173B35]/10 bg-white p-6 lg:sticky lg:top-6">

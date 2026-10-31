@@ -6,8 +6,11 @@ export const adminNavigation = [
   { label: "Commerce", items: [
     { label: "Products", href: "/admin/products", icon: "products" },
     { label: "Orders", href: "/admin/orders", icon: "orders" },
+    { label: "Contact requests", href: "/admin/contact-messages", icon: "customers" },
     { label: "Customers", href: "/admin/customers", icon: "customers" },
     { label: "Inventory", href: "/admin/inventory", icon: "inventory" },
+    { label: "Returns & RTO", href: "/admin/returns", icon: "fulfillment" },
+    { label: "Seller channels", href: "/admin/sellers", icon: "products" },
     { label: "Categories", href: "/admin/categories", icon: "categories" },
   ] },
   { label: "Dropshipping", items: [
@@ -29,4 +32,8 @@ export const adminNavigation = [
 
 export function isAdminNavActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function adminLandingPath(role?: string | null) {
+  return role === "ADMIN" || role === "MANAGER" ? "/admin/dashboard" : "/admin/login";
 }

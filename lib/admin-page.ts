@@ -3,7 +3,6 @@ import { getCurrentUser } from "./auth";
 
 export async function requireStoreAdmin() {
   const user = await getCurrentUser();
-  if (!user) redirect("/admin/login");
-  if (user.role !== "ADMIN" && user.role !== "MANAGER") redirect("/");
+  if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) redirect("/admin/login");
   return user;
 }

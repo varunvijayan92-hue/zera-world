@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { getRazorpayCredentials, razorpayGateway } from "./razorpay";
+import { resolveRazorpayCredentials, razorpayGateway } from "./razorpay";
 
 export type PaymentProvider = "stripe" | "razorpay" | "manual";
 
@@ -35,7 +35,7 @@ export async function createPaymentSession(payload: PaymentSessionRequest): Prom
   const currency = (payload.currency ?? "INR").toUpperCase();
 
   if (provider === "razorpay") {
-    const { keyId } = getRazorpayCredentials();
+    const { keyId } = await resolveRazorpayCredentials();
     const order = await razorpayGateway.createOrder({
       amount: Math.round(amount * 100), currency, receipt: orderId.slice(0, 40),
     });
@@ -121,18 +121,12 @@ export async function createRefundRequest(input: {
   reason?: string;
   notes?: string;
 }) {
-  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-    return {
-      status: "PENDING",
-      refundId: `refund_demo_${Date.now()}`,
-      message: "Razorpay is not configured; refund request is queued for manual review and cannot be confirmed until the gateway is approved.",
-    };
-  }
+  const { keyId, keySecret } = await resolveRazorpayCredentials();
 
   const response = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(input.paymentId)}/refunds`, {
     method: "POST",
     headers: {
-      Authorization: `Basic ${Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64")}`,
+      Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -144,7 +138,7 @@ export async function createRefundRequest(input: {
 
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data?.error?.description || "Refund could not be created.");
+    throw new Error("The gateway rejected the refund. Review the payment and credentials.");
   }
 
   return {

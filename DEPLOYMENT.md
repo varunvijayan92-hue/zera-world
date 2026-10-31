@@ -91,7 +91,7 @@ Vercel is the simplest path for this Next.js deployment because it supports cust
 - Set `JWT_SECRET` to a random value of at least 32 characters. Login fails closed without it.
 - The webhook test endpoint has been disabled. Rotate any Razorpay webhook secret that was used while that endpoint was publicly accessible.
 - Management pages and APIs require an active ADMIN or MANAGER account. The full admin sidebar opens at `/admin/dashboard` after signing in at `/admin/login`. User and role administration requires ADMIN access.
-- Before deploying this version, update the database with `npm run db:push` to add the nullable CustomerOrder.shippingAddress JSON field. Back up the target database first. Existing orders have no saved address.
+- Before deploying the expansion, obtain approval and apply the reviewed `prisma/store-expansion.sql` against a backed-up target database. See STORE_EXPANSION.md. Do not deploy the new code against the old schema.
 - New checkouts require ACTIVE products, positive prices, matching SKUs, and enough unreserved inventory. Inventory is checked when checkout starts; this version does not reserve stock while a buyer is paying.
 - Configure Razorpay to deliver payment.captured, payment.authorized, and payment.failed to `/api/payments/webhook`. Order and payment changes are committed together and checked against the stored amount, currency and gateway order.
 - Refund requests are claimed before the gateway call. If a request times out, reconcile it with the gateway before changing its status or retrying.
@@ -102,7 +102,7 @@ The storefront supports browsing products, a browser-local cart, guest checkout 
 
 Products, stock and order records remain in PostgreSQL. Protected management APIs remain available for a future trusted integration; they must not be made public to replace the removed dashboard. Automatic supplier API management is the selected operating model. The supplier and API documentation are still needed before implementing a live connector.
 
-Customer registration and sign-in are currently demo forms. Automated supplier ordering, marketplace synchronization, customer order tracking, email notifications and stock reservations during payment are not implemented.
+Customer authentication, account order history, returns and supplier portals are implemented in the store expansion. Delhivery tracking requires a valid token. Automated supplier ordering, marketplace synchronization, outbound notifications and stock reservations during payment remain unimplemented. See STORE_EXPANSION.md for the current schema upgrade and configuration.
 
 ## Razorpay Standard Checkout
 
@@ -111,3 +111,7 @@ See `RAZORPAY_SETUP.md` for create-order and signature verification endpoints, l
 ## Store content and Cloudinary
 
 See `STORE_ADMIN_SETUP.md` for administrator setup, menu/product editing, Cloudinary environment variables, upload limits and category database setup. Apply the schema and seed categories for a new deployment database before opening the content pages.
+
+## Customer and supplier expansion
+
+Read STORE_EXPANSION.md before deployment. Configure INTEGRATION_ENCRYPTION_KEY in Vercel using the same stable 32-byte base64 key used to encrypt stored settings. Apply the reviewed SQL only after approval. New account, supplier, returns, finance export and API settings require this schema. Verify /api/health reports store-portals-v1 and the intended deployment commit. The Vercel hostname currently redirects to zerasworld.in; inspect the custom-domain deployment, not only the preview hostname. Local changes have not been published.

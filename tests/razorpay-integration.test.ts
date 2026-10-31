@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
+import { integrationStore } from "../lib/integration-settings";
 import { prisma } from "../lib/prisma";
 import { POST as verifyPayment } from "../app/api/verify-payment/route";
 import { POST as createOrder } from "../app/api/create-order/route";
@@ -24,6 +25,7 @@ function request(body: unknown) {
 }
 
 function setup(t: TestContext) {
+  t.mock.method(integrationStore, "find", async () => null);
   // Prisma exposes model delegates through proxies; replace the delegates with
   // plain stubs so node:test can track method calls without opening a database.
   const originalDelegates = { paymentTransaction: prisma.paymentTransaction, customerOrder: prisma.customerOrder, product: prisma.product };
@@ -117,7 +119,7 @@ test("create-order uses persisted cart prices and returns gateway amounts in pai
     id: "p1", sku: "SKU", status: "ACTIVE", sellingPrice: 99.99,
     inventory: [{ availableQty: 10, reservedQty: 0 }],
   }]);
-  t.mock.method(prisma.customerOrder, "create", async () => ({ id: "local1" }));
+  t.mock.method(prisma.customerOrder, "create", async () => ({ id: "local1", orderItems: [{ costPrice: 12.34, supplierId: "private-supplier" }] }));
   t.mock.method(prisma.paymentTransaction, "create", async () => ({ id: "tx1" }));
   const create = t.mock.method(razorpayGateway, "createOrder", async (input: { amount: number; currency: string; receipt: string }) => ({ id: "order_test1", ...input }));
   const response = await createOrder(request({
@@ -132,6 +134,8 @@ test("create-order uses persisted cart prices and returns gateway amounts in pai
   assert.equal(result.currency, "INR");
   assert.equal(create.mock.calls[0].arguments[0].amount, 32998);
   assert.equal(JSON.stringify(result).includes(unitSecret), false);
+  assert.equal(JSON.stringify(result).includes("costPrice"), false);
+  assert.equal(JSON.stringify(result).includes("private-supplier"), false);
 });
 
 test("a changed total requires fresh confirmation before an order or payment is created", async (t) => {

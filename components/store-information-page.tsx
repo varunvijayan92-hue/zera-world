@@ -1,0 +1,4 @@
+import type { ReactNode } from "react";
+export function StoreInformationPage({ title, introduction, children }: { title: string; introduction?: string; children: ReactNode }) {
+  return <main className="bg-[#F7F4ED] px-5 py-10 text-[#173B35] md:py-14"><article className="mx-auto max-w-4xl rounded-3xl border border-[#173B35]/10 bg-white p-6 shadow-sm md:p-10"><p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-[#173B35]/60">Zera&apos;s World</p><h1 className="text-3xl font-black tracking-tight md:text-4xl">{title}</h1>{introduction ? <p className="mt-4 text-lg leading-relaxed text-[#173B35]/75">{introduction}</p> : null}<div className="mt-8 space-y-7 text-sm leading-7 text-[#173B35]/80 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-[#173B35] [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5 [&_a]:font-semibold [&_a]:underline [&_a]:underline-offset-4">{children}</div></article></main>;
+}

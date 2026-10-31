@@ -55,6 +55,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               </div>
             </div>
 
+            <p className="mt-4 text-sm">GST: {Number(product.gstRate)}% ? Handling: INR {Number(product.handlingCharge).toFixed(2)} per unit. {product.isReturnable ? `Returns within ${product.returnDays} days after delivery.` : "This product cannot be returned."}</p>
             <div className="mt-6">
               <CartButton product={{
                 id: product.id,

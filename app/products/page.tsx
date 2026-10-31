@@ -11,9 +11,10 @@ export const dynamic = "force-dynamic";
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string; category?: string }>;
+  searchParams?: Promise<{ q?: string; category?: string; sort?: string }>;
 }) {
   const params = searchParams ? await searchParams : {};
+  const isNewArrivals = params.sort === "newest";
   const query = (params.q || "").trim();
   const categoryFilter = (params.category || "all").trim();
 
@@ -48,7 +49,7 @@ export default async function ProductsPage({
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#173B35]/60">Catalogue</p>
-            <h1 className="mt-2 text-4xl font-black tracking-[-0.07em]">{selectedCategory?.name || "Products"}</h1>
+            <h1 className="mt-2 text-4xl font-black tracking-[-0.07em]">{isNewArrivals ? "New Arrivals" : selectedCategory?.name || "Products"}</h1>
             {selectedCategory?.description ? <p className="mt-3 max-w-2xl text-sm text-[#173B35]/70">{selectedCategory.description}</p> : null}
           </div>
           <Link href="/" className="inline-flex rounded-full border border-[#173B35]/15 bg-white px-4 py-2 text-sm font-semibold text-[#173B35]">
@@ -57,7 +58,8 @@ export default async function ProductsPage({
         </div>
 
         <div className="mb-8 rounded-[28px] border border-[#173B35]/10 bg-white p-5 shadow-[0_18px_42px_rgba(23,59,53,0.06)]">
-          <form method="get" className="flex flex-col gap-4 md:flex-row md:items-end">
+          <form id="catalog-search" method="get" className="flex flex-col gap-4 md:flex-row md:items-end">
+            {isNewArrivals ? <input type="hidden" name="sort" value="newest" /> : null}
             <div className="flex-1">
               <label className="mb-2 block text-sm font-medium text-[#173B35]">Search</label>
               <input

@@ -15,6 +15,7 @@ export function AdminShell({ user, children }: { user: { fullName: string; role:
   const toggle = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
+    const opener = toggle.current;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const panel = document.getElementById("admin-sidebar");
@@ -29,7 +30,7 @@ export function AdminShell({ user, children }: { user: { fullName: string; role:
       }
     };
     document.addEventListener("keydown", close);
-    return () => { document.body.style.overflow = previous; document.removeEventListener("keydown", close); toggle.current?.focus(); };
+    return () => { document.body.style.overflow = previous; document.removeEventListener("keydown", close); opener?.focus(); };
   }, [open]);
   return <div className="min-h-screen bg-[#F7F4ED] text-[#173B35] lg:flex">
     {open ? <button type="button" aria-label="Close navigation overlay" className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setOpen(false)} /> : null}

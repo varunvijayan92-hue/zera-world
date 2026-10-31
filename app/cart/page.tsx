@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProductImage } from "@/components/product-image";
-import { readCart } from "@/lib/cart";
+import { readCart, writeCart } from "@/lib/cart";
 
 export default function CartPage() {
   const [items, setItems] = useState<Array<{ id: string; name: string; sku: string; sellingPrice?: number | string | null; quantity?: number; imageUrls?: string[] | null }>>([]);
@@ -21,7 +21,7 @@ export default function CartPage() {
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#173B35]/60">Cart</p>
-            <h1 className="mt-2 text-4xl font-black tracking-[-0.07em]">Your selection</h1>
+            <h1 className="mt-2 text-4xl font-black tracking-[-0.07em]">Your selection</h1><p className="mt-2 text-sm">Maximum 10 units per cart. GST, delivery and handling are confirmed at checkout.</p>
           </div>
           <Link href="/products" className="rounded-full border border-[#173B35]/15 bg-white px-4 py-2 text-sm font-semibold text-[#173B35]">
             Continue shopping
@@ -50,7 +50,7 @@ export default function CartPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-black text-[#173B35]">₹{Number(item.sellingPrice ?? 0).toLocaleString("en-IN")}</p>
-                    <p className="text-xs text-[#173B35]/60">Qty {item.quantity ?? 1}</p>
+                    <label className="mt-2 block text-xs">Quantity<input aria-label={`Quantity for ${item.name}`} type="number" min="1" max="10" value={item.quantity ?? 1} className="ml-2 w-16 rounded border p-2" onChange={(event) => { const quantity = event.target.valueAsNumber; if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) return; const next = readCart(localStorage).map((entry) => entry.id === item.id ? { ...entry, quantity } : entry); if (next.reduce((sum, entry) => sum + entry.quantity, 0) > 10) { window.alert("Your cart can contain a maximum of 10 units."); return; } writeCart(localStorage, next); setItems(next); }} /></label><button type="button" className="mt-2 text-xs underline" onClick={() => { const next = readCart(localStorage).filter((entry) => entry.id !== item.id); writeCart(localStorage, next); setItems(next); }}>Remove</button>
                   </div>
                 </div>
               ))}

@@ -1,3 +1,4 @@
+import { isSameOriginRequest } from "@/lib/request-origin";
 import { authorizeManagement } from "@/lib/api-auth";
 import { NextResponse } from "next/server";
 
@@ -8,6 +9,7 @@ import { refundRequestSchema } from "@/lib/validators";
 export async function POST(request: Request) {
   const denied = await authorizeManagement();
   if (denied) return denied;
+  if (!isSameOriginRequest(request)) return NextResponse.json({ message: "Invalid origin." }, { status: 403 });
   try {
     const body = await request.json();
     const parsed = refundRequestSchema.safeParse(body);
@@ -27,6 +29,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Payment record was not found for refund processing." }, { status: 404 });
     }
 
+    const returnRefunds = await prisma.refund.count({ where: { returnRequest: { customerOrderId: payment.orderId }, status: { not: "FAILED" } } });
+    if (returnRefunds) return NextResponse.json({ message: "This payment has return refund records. Process and reconcile refunds through Returns." }, { status: 409 });
     if (!["PAID", "PARTIALLY_REFUNDED"].includes(payment.paymentStatus) || !payment.amount || parsed.data.amount > Number(payment.amount)) {
       return NextResponse.json({ message: "Refund amount or payment status is invalid." }, { status: 400 });
     }

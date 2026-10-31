@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { AUTH_COOKIE, verifySessionToken } from "./session";
+import { AUTH_COOKIE, verifySessionToken, sessionVersionMatches } from "./session";
 export { AUTH_COOKIE, signSession, verifySessionToken } from "./session";
 
-export async function getCurrentUser() {
+async function currentDatabaseUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get(AUTH_COOKIE)?.value;
   const session = await verifySessionToken(token);
@@ -20,12 +20,16 @@ export async function getCurrentUser() {
       fullName: true,
       role: true,
       isActive: true,
+      sessionVersion: true,
     },
   });
 
-  if (!user || !user.isActive) {
+  if (!user || !user.isActive || !sessionVersionMatches(session, user.sessionVersion)) {
     return null;
   }
 
-  return user;
+  return { id: user.id, email: user.email, fullName: user.fullName, role: user.role, isActive: user.isActive };
 }
+
+export const authContext = { current: currentDatabaseUser };
+export async function getCurrentUser() { return authContext.current(); }

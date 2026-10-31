@@ -1,5 +1,6 @@
 "use client";
 
+import { SupplierRegistrationForm } from "./supplier-registration-form";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useClientReady } from "./use-client-ready";
@@ -17,16 +18,7 @@ function FormBox({ title, children, message }: { title: string; children: ReactN
   return <section className="mb-7 rounded-2xl border border-[#173B35]/10 bg-white p-5"><h2 className="mb-5 text-lg font-bold">{title}</h2>{children}{message ? <p role="status" className="mt-4 text-sm">{message}</p> : null}</section>;
 }
 
-export function SupplierForm() {
-  const router = useRouter(); const ready = useClientReady(); const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
-  const [form, setForm] = useState({ companyName: "", contactName: "", email: "", phone: "", provider: "", country: "India", integrationType: "MANUAL" });
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setMessage("");
-    try { await send("/api/suppliers", form); setForm({ companyName: "", contactName: "", email: "", phone: "", provider: "", country: "India", integrationType: "MANUAL" }); setMessage("Supplier record created. API connection still needs configuration."); router.refresh(); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Supplier could not be saved."); } finally { setBusy(false); }
-  }
-  return <FormBox title="Add a supplier" message={message}><form onSubmit={submit}><fieldset disabled={!ready || busy} className="grid gap-4 md:grid-cols-3">{([['companyName','Company name'],['contactName','Contact name'],['email','Email'],['phone','Phone'],['provider','Provider / platform'],['country','Country']] as const).map(([key,label]) => <label key={key} className="text-sm font-semibold">{label}<input required={key === 'companyName'} type={key === 'email' ? 'email' : 'text'} value={form[key]} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} className={field} /></label>)}<label className="text-sm font-semibold">Integration type<select aria-label="Integration type" value={form.integrationType} onChange={(event) => setForm((current) => ({ ...current, integrationType: event.target.value }))} className={field}><option value="MANUAL">Manual</option><option value="API">API</option><option value="CSV">CSV</option><option value="APP">App</option></select></label><div className="flex items-end"><button className={button}>{busy ? "Saving..." : "Add supplier"}</button></div></fieldset></form></FormBox>;
-}
+export function SupplierForm({ canManageLogin = false }: { canManageLogin?: boolean }) { return <SupplierRegistrationForm canManageLogin={canManageLogin} />; }
 
 export function StockForm({ stock }: { stock: { id: string; availableQty: number; reservedQty: number; damagedQty: number; safetyStock: number; updatedAt: string } }) {
   const router = useRouter(); const ready = useClientReady(); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(""); const [form, setForm] = useState(stock);
@@ -56,7 +48,7 @@ export function UserCreateForm() {
     try { await send("/api/admin/users", form); setForm(blank); setMessage("User account created."); router.refresh(); }
     catch (error) { setMessage(error instanceof Error ? error.message : "User could not be created."); } finally { setBusy(false); }
   }
-  return <FormBox title="Create a staff or supplier account" message={message}><form onSubmit={submit}><fieldset disabled={!ready || busy} className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><label className="text-sm font-semibold">Full name<input required value={form.fullName} onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))} className={field} /></label><label className="text-sm font-semibold">Email<input required type="email" value={form.email} autoComplete="off" onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className={field} /></label><label className="text-sm font-semibold">Initial password<input required type="password" minLength={12} maxLength={72} autoComplete="new-password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} className={field} /></label><label className="text-sm font-semibold">Role<select aria-label="New account role" value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))} className={field}>{['ADMIN','MANAGER','STAFF','SUPPLIER'].map((role) => <option key={role}>{role}</option>)}</select></label><button className={`${button} w-fit`}>{busy ? "Creating..." : "Create user"}</button></fieldset></form></FormBox>;
+  return <FormBox title="Create a staff or supplier account" message={message}><form onSubmit={submit}><fieldset disabled={!ready || busy} className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><label className="text-sm font-semibold">Full name<input required value={form.fullName} onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))} className={field} /></label><label className="text-sm font-semibold">Email<input required type="email" value={form.email} autoComplete="off" onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className={field} /></label><label className="text-sm font-semibold">Initial password<input required type="password" minLength={12} maxLength={72} autoComplete="new-password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} className={field} /></label><label className="text-sm font-semibold">Role<select aria-label="New account role" value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))} className={field}>{['ADMIN','MANAGER','STAFF','SUPPLIER','CUSTOMER'].map((role) => <option key={role}>{role}</option>)}</select></label><button className={`${button} w-fit`}>{busy ? "Creating..." : "Create user"}</button></fieldset></form></FormBox>;
 }
 
 export function UserAccessForm({ user, self }: { user: { id: string; role: string; isActive: boolean }; self: boolean }) {
@@ -67,5 +59,5 @@ export function UserAccessForm({ user, self }: { user: { id: string; role: strin
     catch (error) { setMessage(error instanceof Error ? error.message : "Access could not be updated."); } finally { setBusy(false); }
   }
   if (self) return <p className="text-xs text-[#173B35]/60">Your account · administrator access protected</p>;
-  return <form onSubmit={submit}><fieldset disabled={!ready || busy} className="flex min-w-64 flex-wrap items-center gap-3"><select aria-label="Account role" value={role} onChange={(event) => setRole(event.target.value)} className="rounded-lg border px-2 py-2 text-xs">{['ADMIN','MANAGER','STAFF','SUPPLIER'].map((entry) => <option key={entry}>{entry}</option>)}</select><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} /> Active</label><button className="rounded-lg bg-[#173B35] px-3 py-2 text-xs text-white">{busy ? "Saving..." : "Save access"}</button></fieldset>{message ? <p role="status" className="mt-2 text-xs">{message}</p> : null}</form>;
+  return <form onSubmit={submit}><fieldset disabled={!ready || busy} className="flex min-w-64 flex-wrap items-center gap-3"><select aria-label="Account role" value={role} onChange={(event) => setRole(event.target.value)} className="rounded-lg border px-2 py-2 text-xs">{['ADMIN','MANAGER','STAFF','SUPPLIER','CUSTOMER'].map((entry) => <option key={entry}>{entry}</option>)}</select><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} /> Active</label><button className="rounded-lg bg-[#173B35] px-3 py-2 text-xs text-white">{busy ? "Saving..." : "Save access"}</button></fieldset>{message ? <p role="status" className="mt-2 text-xs">{message}</p> : null}</form>;
 }

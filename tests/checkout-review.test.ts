@@ -17,7 +17,7 @@ function storage() {
 
 test("repeated product selection merges quantities and corrupt browser carts recover safely", () => {
   assert.equal(normalizeCart([item, item])[0].quantity, 4);
-  assert.equal(normalizeCart([{ ...item, quantity: 49 }, item])[0].quantity, 50);
+  assert.equal(normalizeCart([{ ...item, quantity: 9 }, item])[0].quantity, 10);
   assert.deepEqual(normalizeCart([{ ...item, quantity: -1 }]), []);
   const local = storage();
   local.setItem(CART_KEY, "{broken");

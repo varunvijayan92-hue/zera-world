@@ -1,0 +1,6 @@
+export const supplierNavigation = [
+  ["Overview", [["Dashboard", "dashboard"], ["Orders", "orders"], ["Products & Inventory", "products"]]],
+  ["Fulfilment", [["Shipments & Tracking", "shipments"], ["Returns & RTO", "returns"]]],
+  ["Business", [["Payments & Settlements", "payments"], ["Reports", "reports"]]],
+  ["Account", [["Notifications", "notifications"], ["Profile & Settings", "profile"], ["Support", "support"]]],
+] as const;

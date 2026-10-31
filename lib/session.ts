@@ -14,6 +14,7 @@ export type SessionUser = {
   role: string;
   fullName: string;
   exp: number;
+  version?: number;
 };
 
 function encodeBase64Url(bytes: Uint8Array) {
@@ -95,7 +96,8 @@ export async function verifySessionToken(token?: string): Promise<SessionUser | 
     const payload = JSON.parse(payloadJson) as SessionUser;
 
     if (typeof payload.userId !== "string" || !payload.userId || typeof payload.email !== "string" || !payload.email
-      || !["ADMIN", "MANAGER", "SUPPLIER", "STAFF"].includes(payload.role)
+      || !["ADMIN", "MANAGER", "SUPPLIER", "STAFF", "CUSTOMER"].includes(payload.role)
+      || (payload.version !== undefined && (!Number.isSafeInteger(payload.version) || payload.version < 0))
       || typeof payload.exp !== "number" || !Number.isFinite(payload.exp) || payload.exp <= Date.now()) {
       return null;
     }
@@ -106,3 +108,5 @@ export async function verifySessionToken(token?: string): Promise<SessionUser | 
   }
 }
 
+
+export function sessionVersionMatches(session: Pick<SessionUser, "version">, userVersion: number) { return (session.version ?? 0) === userVersion; }

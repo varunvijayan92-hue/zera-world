@@ -78,7 +78,7 @@ Browser checks also passed for admin sign-in, menu creation/reordering, product 
 
 ## Full admin sidebar
 
-All 16 requested menu entries have protected pages:
+The original 16 requested menu entries have protected pages; Returns & RTO and Seller channels are added in STORE_EXPANSION.md:
 
 | Group | Pages |
 | --- | --- |
@@ -90,7 +90,7 @@ All 16 requested menu entries have protected pages:
 
 Dashboard, analytics, orders, payment history, fulfillment records, sync records and tracking read the existing database. Customers are grouped from guest checkout contact details, not fabricated customer accounts. Inventory supports version-checked edits to AVAILABLE stock. Suppliers can be added as records; expenses can be recorded. ADMIN users can create internal accounts, change roles and deactivate other accounts. MANAGER users cannot administer users. Self-demotion/deactivation and removing the last active administrator are blocked.
 
-Invoices currently provides printable order receipts; separately numbered tax invoices and business invoicing details are not configured. Settings is a read-only configuration summary that never displays private secrets. Live supplier purchasing, marketplace synchronization and carrier tracking still require actual provider connectors. These pages label those limits instead of reporting a fake connection.
+Invoices currently provides printable order receipts; separately numbered tax invoices and business invoicing details are not configured. Settings now supports encrypted Razorpay and Delhivery credentials, with Amazon/Flipkart credentials under Seller channels. Delhivery tracking is implemented and requires a valid account token. Live supplier purchasing and marketplace synchronization still require approved connectors. See STORE_EXPANSION.md for the current account, returns and supplier features.
 
 The sidebar highlights the current section and opens as a keyboard-accessible drawer on mobile. Existing `/dashboard` bookmarks redirect to the matching `/admin` pages. Admin login now opens `/admin/dashboard`.
 

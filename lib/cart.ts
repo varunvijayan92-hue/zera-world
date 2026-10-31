@@ -1,10 +1,11 @@
 import { z } from "zod";
 
+export const MAX_CART_UNITS = 10;
 export const CART_KEY = "zeraworld-cart";
 export const cartItemSchema = z.object({
   id: z.string().min(1), name: z.string().min(1), sku: z.string().min(1),
   sellingPrice: z.coerce.number().finite().nonnegative(),
-  quantity: z.number().int().min(1).max(50).default(1),
+  quantity: z.number().int().min(1).max(MAX_CART_UNITS).default(1),
   imageUrls: z.array(z.string()).nullable().optional(),
 });
 export type CartItem = z.infer<typeof cartItemSchema>;
@@ -17,7 +18,9 @@ export function normalizeCart(value: unknown): CartItem[] {
     if (!parsed.success) continue;
     const item = parsed.data;
     const previous = items.get(item.id);
-    items.set(item.id, { ...item, quantity: Math.min(50, (previous?.quantity || 0) + item.quantity) });
+    const remaining = MAX_CART_UNITS - [...items.values()].reduce((sum, row) => sum + row.quantity, 0);
+    if (remaining <= 0) break;
+    items.set(item.id, { ...item, quantity: (previous?.quantity || 0) + Math.min(remaining, item.quantity) });
   }
   return [...items.values()];
 }

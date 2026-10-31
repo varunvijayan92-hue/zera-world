@@ -10,7 +10,7 @@ const product = { id: "p1", sku: "SKU", status: "ACTIVE", sellingPrice: 99.99,
 
 test("checkout calculates prices in paise from persisted products", () => {
   assert.deepEqual(priceCheckout(cart, [product]), {
-    subtotal: 199.98, taxes: 10, shippingCharges: 120, total: 329.98, currency: "INR",
+    subtotal: 199.98, taxes: 10, handlingCharges: 0, shippingCharges: 120, total: 329.98, currency: "INR",
   });
 });
 

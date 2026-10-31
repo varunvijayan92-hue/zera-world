@@ -1,4 +1,7 @@
+import { rateLimited } from "@/lib/rate-limit";
+import { isSameOriginRequest } from "@/lib/request-origin";
 import { cookies } from "next/headers";
+import { loginIdentityWhere } from "@/lib/login-identity";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -8,11 +11,14 @@ import { prisma } from "@/lib/prisma";
 import { isProductionSecureContext } from "@/lib/site";
 
 const loginSchema = z.object({
+  portal: z.enum(["CUSTOMER", "SUPPLIER", "ADMIN"]).optional(),
   loginId: z.string().min(1, "Login ID is required."),
   password: z.string().min(6, "Password must be at least 6 characters."),
 });
 
 export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) return NextResponse.json({ message: "Invalid origin." }, { status: 403 });
+  if (rateLimited(request, "login")) return NextResponse.json({ message: "Too many login attempts. Try again later." }, { status: 429 });
   try {
     const body = await request.json();
     const parsed = loginSchema.safeParse(body);
@@ -28,12 +34,10 @@ export async function POST(request: Request) {
     const normalizedLoginId = loginId.trim();
 
     const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ email: { equals: normalizedLoginId, mode: "insensitive" } }, { fullName: normalizedLoginId }],
-      },
+      where: loginIdentityWhere(normalizedLoginId, parsed.data.portal),
     });
 
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || (parsed.data.portal && (parsed.data.portal === "ADMIN" ? !["ADMIN", "MANAGER"].includes(user.role) : user.role !== parsed.data.portal))) {
       return NextResponse.json({ message: "Invalid credentials." }, { status: 401 });
     }
 
@@ -43,12 +47,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Invalid credentials." }, { status: 401 });
     }
 
+    if (parsed.data.portal === "SUPPLIER") {
+      const access = await prisma.supplierContact.findFirst({ where: { userId: user.id, supplier: { status: "ACTIVE", sourceType: "DIRECT" } }, select: { id: true } });
+      if (!access) return NextResponse.json({ message: "Your supplier access is awaiting approval or has been disabled." }, { status: 403 });
+    }
     const cookieStore = await cookies();
     const token = await signSession({
       userId: user.id,
       email: user.email,
       role: user.role,
       fullName: user.fullName,
+      version: user.sessionVersion,
     });
 
     cookieStore.set(AUTH_COOKIE, token, {
@@ -71,7 +80,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       {
-        message: error instanceof Error ? error.message : "Authentication failed.",
+        message: "Authentication failed. Please try again.",
       },
       { status: 500 }
     );

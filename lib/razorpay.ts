@@ -1,3 +1,4 @@
+import { integrationCredentials } from "./integration-settings";
 import Razorpay from "razorpay";
 
 export class GatewayError extends Error {
@@ -13,8 +14,13 @@ export function getRazorpayCredentials() {
   return { keyId, keySecret };
 }
 
-function client() {
-  const { keyId, keySecret } = getRazorpayCredentials();
+export async function resolveRazorpayCredentials() {
+  const stored = await integrationCredentials("RAZORPAY");
+  if (stored.keyId && stored.keySecret) return { keyId: stored.keyId, keySecret: stored.keySecret };
+  return getRazorpayCredentials();
+}
+async function client() {
+  const { keyId, keySecret } = await resolveRazorpayCredentials();
   return new Razorpay({ key_id: keyId, key_secret: keySecret });
 }
 
@@ -37,14 +43,22 @@ export const razorpayGateway = {
   async createOrder(input: { amount: number; currency: string; receipt: string }) {
     assertOrderAmount(input.amount);
     try {
-      return await client().orders.create(input);
+      return await (await client()).orders.create(input);
     } catch (error) {
       throw gatewayError(error);
     }
   },
+  async refund(paymentId: string, amount: number, returnId: string) {
+    try { return await (await client()).payments.refund(paymentId, { amount, notes: { returnId } }); }
+    catch (error) { throw gatewayError(error); }
+  },
+  async fetchRefund(refundId: string) {
+    try { return await (await client()).refunds.fetch(refundId); }
+    catch (error) { throw gatewayError(error); }
+  },
   async fetchPayment(paymentId: string) {
     try {
-      return await client().payments.fetch(paymentId);
+      return await (await client()).payments.fetch(paymentId);
     } catch (error) {
       throw gatewayError(error);
     }

@@ -13,7 +13,7 @@ export const categorySchema = z.object({
   isVisible: z.boolean().default(true),
 });
 
-export type MenuCategory = { id: string; name: string; slug: string; description: string; sortOrder: number; isVisible: boolean };
+export type MenuCategory = { imageUrl?: string | null; imagePublicId?: string | null; id: string; name: string; slug: string; description: string; sortOrder: number; isVisible: boolean };
 
 export function categoryLink(slug: string) {
   return `/products?category=${encodeURIComponent(slug)}`;

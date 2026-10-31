@@ -1,3 +1,4 @@
+import { integrationCredentials } from "@/lib/integration-settings";
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -6,7 +7,9 @@ import { nextPaymentStatus, paymentMatches } from "@/lib/payment-state";
 import { paymentWebhookSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  let stored: Record<string, string>;
+  try { stored = await integrationCredentials("RAZORPAY"); } catch { return NextResponse.json({ message: "Payment configuration unavailable." }, { status: 503 }); }
+  const secret = stored.webhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET;
   if (!secret) return NextResponse.json({ message: "Webhook verification is not configured." }, { status: 503 });
   const rawBody = await request.text();
   if (!verifyRazorpaySignature({ payload: rawBody, secret, signature: request.headers.get("x-razorpay-signature") || "" })) {

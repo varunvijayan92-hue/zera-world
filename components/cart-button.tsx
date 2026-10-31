@@ -12,7 +12,9 @@ export function CartButton({ product }: { product: { id: string; name: string; s
   useEffect(() => setReady(true), []);
   function selectItem() {
     try {
-      const next = normalizeCart([...readCart(localStorage), { ...product, quantity: 1 }]);
+      const current = readCart(localStorage);
+      if (current.reduce((sum, item) => sum + item.quantity, 0) >= 10) { setMessage("Your cart has reached the maximum of 10 units."); return; }
+      const next = normalizeCart([...current, { ...product, quantity: 1 }]);
       if (!next.some((item) => item.id === product.id)) throw new Error("Product is unavailable.");
       writeCart(localStorage, next);
       router.push("/checkout");

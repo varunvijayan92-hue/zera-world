@@ -1,10 +1,9 @@
 import { CategoryMenu } from "@/components/category-menu";
 import { ProductImage } from "@/components/product-image";
 import { categoryLink } from "@/lib/category";
-import { ArrowRight, Menu, Search, ShoppingBag, Sparkles, Star, Truck } from "lucide-react";
+import { Search, ShoppingBag, Sparkles, Star, Truck } from "lucide-react";
 import Link from "next/link";
 
-import ZeraWorldLogo from "@/components/zera-logo";
 import { prisma } from "@/lib/prisma";
 
 const categoryBannerImages = [
@@ -41,7 +40,7 @@ export default async function HomePage() {
     prisma.storeCategory.findMany({ where: { isVisible: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }).catch(() => []),
   ]);
   const showcaseCards = categories.slice(0, 3).map((category) => ({ title: category.name, subtitle: category.description || "Explore the collection", tag: "Shop collection", href: categoryLink(category.slug) }));
-  const categoryBanners = categories.slice(0, 3).map((category, index) => ({ title: category.name, subtitle: category.description || "Discover your next favorite", badge: "Collection", image: categoryBannerImages[index], href: categoryLink(category.slug) }));
+  const categoryBanners = categories.slice(0, 3).map((category, index) => ({ title: category.name, subtitle: category.description || "Discover your next favorite", badge: "Collection", image: category.imageUrl || categoryBannerImages[index], href: categoryLink(category.slug) }));
 
   const productCards = products as Array<{
     id: string;
@@ -54,36 +53,6 @@ export default async function HomePage() {
   return (
     <main className="min-h-screen bg-[#F7F4ED] px-3 py-4 text-[#173B35] md:px-6 lg:px-8">
       <div className="mx-auto max-w-[1280px] rounded-[26px] bg-[#f5f3ee] shadow-[0_35px_75px_rgba(23,59,53,0.12)] ring-1 ring-[#173B35]/5">
-        <header className="tokoo-header">
-          <div className="tokoo-brand">
-            <ZeraWorldLogo compact />
-          </div>
-
-          <nav className="tokoo-nav">
-            <Link href="/">Home</Link>
-            <Link href="/products">Shop</Link>
-            <a href="#collections">Collections</a>
-            <a href="#featured">Featured</a>
-            <a href="#journal">Journal</a>
-            <a href="#about">About</a>
-          </nav>
-
-          <div className="tokoo-actions">
-            <button className="tokoo-ghost-button hidden md:inline-flex">
-              <Search size={15} />
-              Search
-            </button>
-            <Link href="/login" className="tokoo-ghost-button">Login</Link>
-            <Link href="/cart" className="tokoo-cart-button">
-              <ShoppingBag size={16} />
-              Cart
-            </Link>
-            <button className="tokoo-menu-button md:hidden" aria-label="Open menu">
-              <Menu size={16} />
-            </button>
-          </div>
-        </header>
-
         <CategoryMenu categories={categories} />
 
         <section className="tokoo-hero-wrap">
@@ -112,10 +81,11 @@ export default async function HomePage() {
               <span className="tokoo-search-icon"><Search size={16} /></span>
             </div>
 
-            <label className="tokoo-search-box">
+            <form action="/products" method="get" className="tokoo-search-box">
               <Search size={15} />
-              <input aria-label="Search products" placeholder="Search home, wellness, travel..." />
-            </label>
+              <input name="q" aria-label="Search products" placeholder="Search home, wellness, travel..." />
+              <button type="submit" aria-label="Submit product search" className="rounded-lg p-1"><Search size={15} /></button>
+            </form>
 
             <div className="tokoo-highlight-box">
               <div className="tokoo-highlight-head">
@@ -128,7 +98,7 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section id="collections" className="tokoo-showcase-grid">
+        <section id="categories" className="tokoo-showcase-grid">
           {showcaseCards.map((card) => (
             <Link key={card.title} href={card.href} className="tokoo-showcase-card">
               <div className="tokoo-showcase-icon">
@@ -156,13 +126,13 @@ export default async function HomePage() {
           ))}
         </section>
 
-        <section id="featured" className="tokoo-products-section">
+        <section id="new-arrivals" className="tokoo-products-section">
           <div className="tokoo-section-head">
             <div>
-              <p>Featured products</p>
+              <p>New arrivals</p>
               <h2>Designed for everyday rituals</h2>
             </div>
-            <Link href="/products" className="tokoo-section-link">View all</Link>
+            <Link href="/new-arrivals" className="tokoo-section-link">View all</Link>
           </div>
 
           <div className="tokoo-product-grid">
@@ -200,26 +170,6 @@ export default async function HomePage() {
             })}
           </div>
         </section>
-
-        <section id="journal" className="tokoo-journal">
-          <div>
-            <p className="tokoo-journal-kicker">ZeraWorld Journal</p>
-            <h2>Thoughtful living, beautifully organized.</h2>
-          </div>
-          <Link href="#about" className="tokoo-journal-link">
-            Explore the story
-            <ArrowRight size={16} />
-          </Link>
-        </section>
-
-        <footer id="about" className="tokoo-footer">
-          <ZeraWorldLogo variant="dark" compact />
-          <div className="tokoo-footer-links">
-            <a href="#collections">Collections</a>
-            <a href="#featured">Featured</a>
-            <a href="/login">Customer account</a>
-          </div>
-        </footer>
       </div>
     </main>
   );

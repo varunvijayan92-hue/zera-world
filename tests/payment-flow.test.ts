@@ -1,10 +1,12 @@
+import { integrationStore } from "../lib/integration-settings";
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createPaymentSession, generateRazorpayWebhookSignature, verifyRazorpaySignature } from "../lib/payment";
 import { checkoutRequestSchema } from "../lib/validators";
 
-test("Razorpay checkout fails closed when credentials are missing", async () => {
+test("Razorpay checkout fails closed when credentials are missing", async (t) => {
+  t.mock.method(integrationStore, "find", async () => null);
   const originalId = process.env.RAZORPAY_KEY_ID;
   const originalSecret = process.env.RAZORPAY_KEY_SECRET;
   try {

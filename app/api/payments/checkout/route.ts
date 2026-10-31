@@ -1,3 +1,4 @@
+import { AUTH_COOKIE, getCurrentUser } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ message: parsed.error.issues[0]?.message || "Invalid checkout." }, { status: 400 });
   }
+  const user = request.headers.get("cookie")?.includes(AUTH_COOKIE) ? await getCurrentUser() : null;
   const { cart, shippingAddress, paymentMethod } = parsed.data;
   const idempotencyKey = parsed.data.idempotencyKey || randomUUID();
   try {
@@ -31,14 +33,21 @@ export async function POST(request: Request) {
         data: {
           marketplaceType: "AMAZON",
           marketplaceOrderId: `ORDER-${randomUUID()}`,
+          customerId: user?.role === "CUSTOMER" ? user.id : null,
           customerName: shippingAddress.fullName,
           shippingAddress,
           status: "PENDING",
-          subtotal: amount.subtotal,
+          subtotal: amount.subtotal, taxAmount: amount.taxes, handlingAmount: amount.handlingCharges,
           shippingAmount: amount.shippingCharges,
           totalAmount: amount.total,
           orderDate: new Date(),
           orderItems: { create: cart.map((item) => ({
+            supplierId: products.find((product) => product.id === item.productId)!.supplierId,
+            costPrice: products.find((product) => product.id === item.productId)!.costPrice,
+            gstRate: products.find((product) => product.id === item.productId)!.gstRate,
+            handlingCharge: products.find((product) => product.id === item.productId)!.handlingCharge,
+            returnDays: products.find((product) => product.id === item.productId)!.returnDays,
+            isReturnable: products.find((product) => product.id === item.productId)!.isReturnable,
             productId: item.productId,
             marketplaceSku: products.find((product) => product.id === item.productId)!.sku,
             quantity: item.quantity,
@@ -83,7 +92,7 @@ export async function POST(request: Request) {
       order_id: payment.gatewayOrderId || null,
       amount: Math.round(result.amount.total * 100),
       currency: result.amount.currency,
-      data: { order: result.order, payment, amount: result.amount },
+      data: { order: { id: result.order.id, marketplaceOrderId: result.order.marketplaceOrderId, status: result.order.status, totalAmount: result.order.totalAmount }, payment, amount: result.amount },
     }, { status: 201 });
   } catch (error) {
     if (error instanceof GatewayError) return NextResponse.json({ message: error.message }, { status: error.status });

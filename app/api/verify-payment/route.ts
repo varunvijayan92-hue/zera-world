@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifyRazorpaySignature } from "@/lib/payment";
-import { gatewayError, getRazorpayCredentials, razorpayGateway } from "@/lib/razorpay";
+import { gatewayError, resolveRazorpayCredentials, razorpayGateway } from "@/lib/razorpay";
 import { nextPaymentStatus, paymentMatches } from "@/lib/payment-state";
 
 const verificationSchema = z.object({
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ success: false, message: "Missing or invalid payment verification fields." }, { status: 400 });
   const response = parsed.data;
   try {
-    const { keySecret } = getRazorpayCredentials();
+    const { keySecret } = await resolveRazorpayCredentials();
     const transaction = await prisma.paymentTransaction.findFirst({
       where: { provider: "RAZORPAY", gatewayOrderId: response.razorpay_order_id },
     });

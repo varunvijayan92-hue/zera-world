@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { adminNavigation, isAdminNavActive } from "../lib/admin-navigation";
+import { adminNavigation, isAdminNavActive, adminLandingPath } from "../lib/admin-navigation";
 import { stockUpdateSchema, expenseSchema, userCreateSchema, userAccessError, publicUserSelect } from "../lib/admin-operations";
 import { groupCheckoutCustomers, contactFromAddress, adminDate } from "../lib/admin-format";
 import { isSameOriginRequest } from "../lib/request-origin";
+
+test("admin entry uses its own login for visitors and customer accounts", () => {
+  for (const role of [undefined, null, "CUSTOMER", "SUPPLIER", "STAFF", "UNKNOWN"]) assert.equal(adminLandingPath(role), "/admin/login");
+  for (const role of ["ADMIN", "MANAGER"]) assert.equal(adminLandingPath(role), "/admin/dashboard");
+});
 
 test("admin mutations accept their own origin and reject cross-origin submissions", () => {
   assert.equal(isSameOriginRequest(new Request("https://store.example/api/admin/users", { headers: { origin: "https://store.example" } })), true);
@@ -11,10 +16,10 @@ test("admin mutations accept their own origin and reject cross-origin submission
   assert.equal(isSameOriginRequest(new Request("https://store.example/api/admin/users", { headers: { origin: "https://other.example" } })), false);
 });
 
-test("the admin navigation includes the 16 requested sections without ambiguous active matches", () => {
+test("the admin navigation includes all requested sections without ambiguous active matches", () => {
   const items = adminNavigation.flatMap((group) => [...group.items]);
-  assert.equal(items.length, 16);
-  assert.equal(new Set(items.map((item) => item.href)).size, 16);
+  assert.equal(items.length, 19);
+  assert.equal(new Set(items.map((item) => item.href)).size, 19);
   assert.equal(isAdminNavActive("/admin/invoices/order1", "/admin/invoices"), true);
   assert.equal(isAdminNavActive("/admin/product-sync", "/admin/products"), false);
 });

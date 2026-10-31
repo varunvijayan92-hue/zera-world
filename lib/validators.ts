@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const supplierSchema = z.object({
+  sourceType: z.enum(["DIRECT", "EXTERNAL_SITE"]).default("DIRECT"),
   companyName: z.string().min(1),
   contactName: z.string().optional().or(z.literal("")),
   email: z.string().email().optional().or(z.literal("")),
@@ -54,6 +55,10 @@ export const productSchema = z.object({
   availableQty: z.coerce.number().int().min(0).max(1000000).optional(),
   brand: z.string().optional(),
   supplierId: z.string().optional(),
+  gstRate: z.coerce.number().finite().min(0).max(100).optional(),
+  handlingCharge: z.coerce.number().finite().min(0).max(100000).optional(),
+  returnDays: z.coerce.number().int().min(0).max(365).optional(),
+  isReturnable: z.boolean().optional(),
   costPrice: z.coerce.number().min(0).optional(),
   sellingPrice: z.coerce.number().min(0).optional(),
   imageUrls: z.array(z.string().url()).optional().default([]),
@@ -81,7 +86,7 @@ export const marketplaceConfigSchema = z.object({
 export const checkoutItemSchema = z.object({
   productId: z.string().min(1),
   sku: z.string().min(1),
-  quantity: z.coerce.number().int().min(1).max(50),
+  quantity: z.coerce.number().int().min(1).max(10),
 });
 
 export const checkoutAddressSchema = z.object({
@@ -98,7 +103,8 @@ export const checkoutAddressSchema = z.object({
 });
 
 export const checkoutRequestSchema = z.object({
-  cart: z.array(checkoutItemSchema).min(1).max(100).superRefine((items, context) => {
+  cart: z.array(checkoutItemSchema).min(1).max(10).superRefine((items, context) => {
+    if (items.reduce((sum, item) => sum + item.quantity, 0) > 10) context.addIssue({ code: z.ZodIssueCode.custom, message: "A cart can contain a maximum of 10 units." });
     if (new Set(items.map((item) => item.productId)).size !== items.length) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Duplicate cart products are not allowed." });
     }

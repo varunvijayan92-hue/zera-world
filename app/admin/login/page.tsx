@@ -12,7 +12,7 @@ export default function StoreAdminLogin() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
     try {
-      const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ loginId, password }) });
+      const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ loginId, password, portal: "ADMIN" }) });
       const result = await response.json();
       if (!response.ok) throw Error(result.message || "Sign-in failed.");
       if (!["ADMIN", "MANAGER"].includes(result.user?.role)) throw Error("This account does not have store admin access.");

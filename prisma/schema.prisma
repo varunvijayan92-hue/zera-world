@@ -8,18 +8,28 @@ datasource db {
 }
 
 model User {
-  id                  String               @id @default(cuid())
-  email               String               @unique
-  passwordHash        String
-  fullName            String
-  role                UserRole             @default(STAFF)
-  isActive            Boolean              @default(true)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  auditLogs           AuditLog[]
-  marketplaceAccounts MarketplaceAccount[]
-  supplierContacts    SupplierContact[]
-  syncJobs            SyncJob[]
+  id                   String               @id @default(cuid())
+  email                String               @unique
+  loginId              String? @unique
+  sessionVersion       Int @default(0)
+  passwordHash         String
+  fullName             String
+  role                 UserRole             @default(STAFF)
+  isActive             Boolean              @default(true)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  auditLogs            AuditLog[]
+  marketplaceAccounts  MarketplaceAccount[]
+  supplierContacts     SupplierContact[]
+  syncJobs             SyncJob[]
+  phone                String?
+  language             String               @default("en")
+  notificationsEnabled Boolean              @default(true)
+  customerOrders       CustomerOrder[]
+  addresses            CustomerAddress[]
+  supportTickets       SupportTicket[]
+  vouchers             CustomerVoucher[]
+  customerReturns      ReturnRequest[]
 }
 
 model RolePermission {
@@ -34,6 +44,8 @@ model RolePermission {
 
 model Supplier {
   id                      String                   @id @default(cuid())
+  sourceType              String                   @default("DIRECT")
+  pickupAddress           String?
   companyName             String
   contactName             String?
   email                   String?
@@ -66,6 +78,7 @@ model Supplier {
   contacts                SupplierContact[]
   supplierProducts        SupplierProduct[]
   supplierProductMappings SupplierProductMapping[]
+  settlements             SupplierSettlement[]
 }
 
 model SupplierContact {
@@ -87,15 +100,17 @@ model SupplierContact {
 }
 
 model StoreCategory {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  slug        String    @unique
-  description String    @default("")
-  sortOrder   Int       @default(0)
-  isVisible   Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  products    Product[]
+  id            String    @id @default(cuid())
+  name          String    @unique
+  slug          String    @unique
+  description   String    @default("")
+  imageUrl      String?
+  imagePublicId String?
+  sortOrder     Int       @default(0)
+  isVisible     Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  products      Product[]
 }
 
 model Product {
@@ -112,6 +127,10 @@ model Product {
   status                  ProductStatus               @default(DRAFT)
   costPrice               Decimal?                    @db.Decimal(12, 2)
   sellingPrice            Decimal?                    @db.Decimal(12, 2)
+  gstRate                 Decimal                     @default(5) @db.Decimal(5, 2)
+  handlingCharge          Decimal                     @default(0) @db.Decimal(12, 2)
+  returnDays              Int                         @default(7)
+  isReturnable            Boolean                     @default(true)
   dimensions              String?
   weightKg                Decimal?                    @db.Decimal(10, 3)
   taxClassification       String?
@@ -363,6 +382,11 @@ model SupplierApprovalDecision {
 }
 
 model CustomerOrder {
+  customerId         String?
+  customer           User?           @relation(fields: [customerId], references: [id])
+  deliveredAt        DateTime?
+  taxAmount          Decimal?        @db.Decimal(12, 2)
+  handlingAmount     Decimal?        @db.Decimal(12, 2)
   id                 String          @id @default(cuid())
   marketplaceType    MarketplaceType
   marketplaceOrderId String
@@ -380,22 +404,30 @@ model CustomerOrder {
   shipments          Shipment[]
 
   @@unique([marketplaceType, marketplaceOrderId])
+  @@index([customerId, createdAt])
   @@index([status])
 }
 
 model OrderItem {
-  id              String        @id @default(cuid())
-  customerOrderId String
-  productId       String?
-  marketplaceSku  String?
-  supplierId      String?
-  quantity        Int
-  unitPrice       Decimal?      @db.Decimal(12, 2)
-  status          OrderStatus   @default(PENDING)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  customerOrder   CustomerOrder @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
-  product         Product?      @relation(fields: [productId], references: [id])
+  returns           ReturnRequest[]
+  costPrice         Decimal?        @db.Decimal(12, 2)
+  gstRate           Decimal?        @db.Decimal(5, 2)
+  handlingCharge    Decimal?        @db.Decimal(12, 2)
+  returnDays        Int?
+  isReturnable      Boolean?
+  fulfillmentStatus String          @default("PENDING")
+  id                String          @id @default(cuid())
+  customerOrderId   String
+  productId         String?
+  marketplaceSku    String?
+  supplierId        String?
+  quantity          Int
+  unitPrice         Decimal?        @db.Decimal(12, 2)
+  status            OrderStatus     @default(PENDING)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  customerOrder     CustomerOrder   @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
+  product           Product?        @relation(fields: [productId], references: [id])
 
   @@index([customerOrderId])
   @@index([productId])
@@ -431,21 +463,30 @@ model TrackingEvent {
 }
 
 model ReturnRequest {
-  id              String        @id @default(cuid())
-  customerOrderId String
-  supplierId      String?
-  reason          String?
-  status          ReturnStatus  @default(OPEN)
-  quantity        Int           @default(0)
-  refundAmount    Decimal?      @db.Decimal(12, 2)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  refunds         Refund[]
-  customerOrder   CustomerOrder @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
-  supplier        Supplier?     @relation(fields: [supplierId], references: [id])
+  orderItem          OrderItem?    @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  customer           User?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  supplierReceivedAt DateTime?
+  orderItemId        String?
+  customerId         String?
+  adminNotes         String?
+  receivedAt         DateTime?
+  returnType         String        @default("CUSTOMER_RETURN")
+  id                 String        @id @default(cuid())
+  customerOrderId    String
+  supplierId         String?
+  reason             String?
+  status             ReturnStatus  @default(OPEN)
+  quantity           Int           @default(0)
+  refundAmount       Decimal?      @db.Decimal(12, 2)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  refunds            Refund[]
+  customerOrder      CustomerOrder @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
+  supplier           Supplier?     @relation(fields: [supplierId], references: [id])
 }
 
 model Refund {
+  gatewayRefundId String?       @unique
   id              String        @id @default(cuid())
   returnRequestId String
   amount          Decimal       @db.Decimal(12, 2)
@@ -536,6 +577,7 @@ model IntegrationLog {
 }
 
 enum UserRole {
+  CUSTOMER
   ADMIN
   MANAGER
   SUPPLIER
@@ -634,4 +676,64 @@ enum SupplierApprovalAction {
   MANUAL_APPROVAL
   AUTO_SUBMIT
   REJECTED
+}
+
+model CustomerAddress {
+  id        String   @id @default(cuid())
+  userId    String
+  label     String   @default("Home")
+  address   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model IntegrationSetting {
+  id                   String   @id @default(cuid())
+  provider             String   @unique
+  encryptedCredentials String
+  options              Json?
+  updatedAt            DateTime @updatedAt
+}
+
+model SupplierSettlement {
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+  id         String   @id @default(cuid())
+  supplierId String
+  amount     Decimal  @db.Decimal(12, 2)
+  reference  String
+  notes      String?
+  paidAt     DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([supplierId, reference])
+  @@index([supplierId, paidAt])
+}
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  subject   String
+  message   String
+  reply     String?
+  status    String   @default("OPEN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model CustomerVoucher {
+  customer   User      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  customerId String
+  code       String    @unique
+  balance    Decimal   @db.Decimal(12, 2)
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([customerId])
 }

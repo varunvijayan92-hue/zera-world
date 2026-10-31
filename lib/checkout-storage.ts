@@ -11,6 +11,7 @@ export const SAVED_ADDRESS_KEY = "zeraworld-saved-address";
 export const CHECKOUT_DRAFT_KEY = "zeraworld-checkout-draft";
 export const amountSchema = z.object({
   subtotal: z.number().nonnegative(), taxes: z.number().nonnegative(),
+  handlingCharges: z.number().nonnegative().default(0),
   shippingCharges: z.number().nonnegative(), total: z.number().positive(), currency: z.literal("INR"),
 });
 export const draftSchema = z.object({

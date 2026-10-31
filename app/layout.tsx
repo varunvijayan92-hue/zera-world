@@ -1,4 +1,6 @@
 import "./globals.css";
+import { StorefrontHeader, StorefrontFooter } from "@/components/storefront-chrome";
+import { CustomerAccountMenu } from "@/components/customer-account-menu";
 import type { Metadata } from "next";
 
 import { getBaseUrl } from "@/lib/site";
@@ -22,7 +24,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><StorefrontHeader />{children}<StorefrontFooter /><CustomerAccountMenu /></body>
     </html>
   );
 }
