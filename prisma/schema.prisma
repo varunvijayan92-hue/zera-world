@@ -31,6 +31,24 @@ model User {
   vouchers             CustomerVoucher[]
   customerReturns      ReturnRequest[]
   loginChallenge       CustomerLoginChallenge?
+  adminAccountChallenge AdminAccountChallenge?
+}
+
+model AdminAccountChallenge {
+  userId         String   @id
+  challengeId    String   @unique
+  digest         String
+  sessionVersion Int
+  purpose        String
+  email          String
+  payload        Json
+  attempts       Int      @default(0)
+  expiresAt      DateTime
+  sentAt         DateTime
+  windowStart    DateTime
+  sendCount      Int      @default(1)
+  consumedAt     DateTime?
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model CustomerLoginChallenge {

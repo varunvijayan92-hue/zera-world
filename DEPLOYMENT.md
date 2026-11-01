@@ -120,6 +120,8 @@ Read STORE_EXPANSION.md before deployment. Configure INTEGRATION_ENCRYPTION_KEY 
 
 ## Customer email verification and enquiries
 
+Administrator account editing is available on the signed-in admin's own row under Users & Roles. Apply the additive `prisma/admin-account-otp.sql` before deploying this feature. Profile updates require the current password and a code delivered to the entered email; password changes require the current password and a code delivered to the saved email. Accounts with legacy non-email identifiers must first verify a valid email through Edit account. Login IDs remain separate from email addresses. Changes apply only to the signed-in ADMIN and never change their role or active status. Codes expire in ten minutes, permit five attempts, and have shared database limits of one send per minute and five per hour. Both profile and password changes revoke all existing sessions. Pending passwords are bcrypt hashes, never plaintext, and pending payloads are erased on successful verification or send failure. Admin account change codes cannot be used for customer sign-in.
+
 Set server-only `RESEND_API_KEY`, `RESEND_FROM_EMAIL` and `SUPPORT_EMAIL` in the local private environment and Vercel Production. Use a sender on a domain verified by Resend. The configured support recipient is `support@zerasworld.in`. Never add the API key to a public environment variable.
 
 Apply the additive `prisma/customer-login-otp.sql` to the target database before deploying this update. It creates one challenge record per customer with a foreign key to the existing User table. No existing account data is changed. The Prisma schema includes the same model for new installations.
