@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ShoppingBag, Truck } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
+import { getMenuCategories } from "@/lib/category-data";
+import { categoryDisplayName, categoryProductIds, categoryLink, visibleMenuCategories } from "@/lib/category";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +20,11 @@ export default async function ProductsPage({
   const query = (params.q || "").trim();
   const categoryFilter = (params.category || "all").trim();
 
-  const menuCategories = await prisma.storeCategory.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
+  const menuCategories = await getMenuCategories();
   const selectedCategory = menuCategories.find((category) => category.slug === categoryFilter || category.name.toLowerCase() === categoryFilter.toLowerCase());
-  const visibleCategories = menuCategories.filter((category) => category.isVisible);
+  const visibleCategories = visibleMenuCategories(menuCategories);
+  const subcategories = selectedCategory ? visibleCategories.filter(category => category.parentId === selectedCategory.id) : [];
+  const parentCategory = menuCategories.find(category => category.id === selectedCategory?.parentId);
   const selectedValue = selectedCategory?.slug || categoryFilter;
   const products = await prisma.product.findMany({
     where: {
@@ -35,7 +39,7 @@ export default async function ProductsPage({
           }
         : {}),
       ...(categoryFilter && categoryFilter !== "all"
-        ? selectedCategory ? { categoryId: selectedCategory.id } : { category: { equals: categoryFilter, mode: "insensitive" } }
+        ? selectedCategory ? { categoryId: { in: categoryProductIds(selectedCategory, menuCategories) } } : { category: { equals: categoryFilter, mode: "insensitive" } }
         : {}),
     },
     orderBy: { createdAt: "desc" },
@@ -50,6 +54,7 @@ export default async function ProductsPage({
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#173B35]/60">Catalogue</p>
             <h1 className="mt-2 text-4xl font-black tracking-[-0.07em]">{isNewArrivals ? "New Arrivals" : selectedCategory?.name || "Products"}</h1>
+            {parentCategory ? <Link href={categoryLink(parentCategory.slug)} className="mt-3 inline-block text-sm underline">Back to {parentCategory.name}</Link> : null}
             {selectedCategory?.description ? <p className="mt-3 max-w-2xl text-sm text-[#173B35]/70">{selectedCategory.description}</p> : null}
           </div>
           <Link href="/" className="inline-flex rounded-full border border-[#173B35]/15 bg-white px-4 py-2 text-sm font-semibold text-[#173B35]">
@@ -57,6 +62,7 @@ export default async function ProductsPage({
           </Link>
         </div>
 
+        {subcategories.length ? <section aria-label="Subcategories" className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{subcategories.map(category => <Link key={category.id} href={categoryLink(category.slug)} className="overflow-hidden rounded-2xl border bg-white"><ProductImage src={category.imageUrl} alt={category.name} width={400} height={240} className="h-32 w-full object-cover" /><h2 className="p-4 font-bold">{category.name}</h2></Link>)}</section> : null}
         <div className="mb-8 rounded-[28px] border border-[#173B35]/10 bg-white p-5 shadow-[0_18px_42px_rgba(23,59,53,0.06)]">
           <form id="catalog-search" method="get" className="flex flex-col gap-4 md:flex-row md:items-end">
             {isNewArrivals ? <input type="hidden" name="sort" value="newest" /> : null}
@@ -78,7 +84,7 @@ export default async function ProductsPage({
                 className="w-full rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-3 py-3 text-sm text-[#173B35] outline-none focus:border-[#173B35]"
               >
                 <option value="all">All categories</option>
-                {visibleCategories.map((category) => <option key={category.id} value={category.slug}>{category.name}</option>)}
+                {visibleCategories.map((category) => <option key={category.id} value={category.slug}>{categoryDisplayName(category, menuCategories)}</option>)}
                 {selectedValue !== "all" && !visibleCategories.some((category) => category.slug === selectedValue) ? <option value={selectedValue}>{selectedCategory?.name || categoryFilter}</option> : null}
               </select>
             </div>

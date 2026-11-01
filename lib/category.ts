@@ -11,9 +11,30 @@ export const categorySchema = z.object({
   description: z.string().trim().max(500).default(""),
   sortOrder: z.number().int().min(0).max(10000).default(0),
   isVisible: z.boolean().default(true),
+  parentId: z.string().trim().min(1).nullable().optional(),
 });
 
-export type MenuCategory = { imageUrl?: string | null; imagePublicId?: string | null; id: string; name: string; slug: string; description: string; sortOrder: number; isVisible: boolean };
+export type MenuCategory = { parentId?: string | null; imageUrl?: string | null; imagePublicId?: string | null; id: string; name: string; slug: string; description: string; sortOrder: number; isVisible: boolean };
+
+export function categoryDisplayName(category: MenuCategory, categories: MenuCategory[]) {
+  const parent = categories.find(entry => entry.id === category.parentId);
+  return parent ? `${parent.name} / ${category.name}` : category.name;
+}
+export function visibleMenuCategories(categories: MenuCategory[]) {
+  return categories.filter(category => category.isVisible && (!category.parentId || categories.some(parent => parent.id === category.parentId && parent.isVisible && !parent.parentId)));
+}
+export function categoryProductIds(category: MenuCategory, categories: MenuCategory[]) {
+  return [category.id, ...categories.filter(entry => entry.parentId === category.id).map(entry => entry.id)];
+}
+export function categoryParentError(categories: MenuCategory[], id: string | undefined, parentId: string | null) {
+  if (!parentId) return null;
+  if (id === parentId) return "A category cannot be its own parent.";
+  const parent = categories.find(entry => entry.id === parentId);
+  if (!parent) return "Choose an existing parent category.";
+  if (parent.parentId) return "Choose a main category as the parent, rather than a subcategory.";
+  if (id && categories.some(entry => entry.parentId === id)) return "Move this category's subcategories before making it a subcategory.";
+  return null;
+}
 
 export function categoryLink(slug: string) {
   return `/products?category=${encodeURIComponent(slug)}`;

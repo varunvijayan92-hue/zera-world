@@ -14,12 +14,12 @@ export function cloudinarySettings() {
 
 export type UploadedPhoto = { publicId: string; url: string };
 export const cloudinaryMedia = {
-  async upload(buffer: Buffer, productId: string): Promise<UploadedPhoto> {
+  async upload(buffer: Buffer, productId: string, kind: "products" | "categories" = "products"): Promise<UploadedPhoto> {
     cloudinary.config(cloudinarySettings());
     try {
       const result = await new Promise<UploadApiResponse>((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream({
-          resource_type: "image", folder: `zeraworld/products/${productId}`,
+          resource_type: "image", folder: `zeraworld/${kind}/${productId}`,
           allowed_formats: ["jpg", "png", "webp"], overwrite: false,
           unique_filename: true, use_filename: false, timeout: 30000,
         }, (error, response) => {

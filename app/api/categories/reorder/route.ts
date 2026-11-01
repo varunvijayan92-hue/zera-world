@@ -3,8 +3,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authorizeManagement } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { isSameOriginRequest } from "@/lib/request-origin";
 
 export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) return NextResponse.json({ message: "Invalid origin." }, { status: 403 });
   const denied = await authorizeManagement();
   if (denied) return denied;
   const parsed = z.object({ ids: z.array(z.string().min(1)).max(200) }).safeParse(await request.json().catch(() => null));

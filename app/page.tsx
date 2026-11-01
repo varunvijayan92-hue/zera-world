@@ -5,6 +5,7 @@ import { ArrowRight, ShieldCheck, ShoppingBag, Sparkles, Truck } from "lucide-re
 import Link from "next/link";
 
 import { prisma } from "@/lib/prisma";
+import { getMenuCategories } from "@/lib/category-data";
 
 const categoryBannerImages = [
   "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80",
@@ -37,7 +38,7 @@ async function getHomeProducts() {
 export default async function HomePage() {
   const [products, categories] = await Promise.all([
     getHomeProducts(),
-    prisma.storeCategory.findMany({ where: { isVisible: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }).catch(() => []),
+    getMenuCategories().then(categories => categories.filter(category => category.isVisible && !category.parentId)).catch(() => []),
   ]);
   const categoryBanners = categories.map((category, index) => ({ id: category.id, title: category.name, subtitle: category.description || "Discover your next favorite", image: category.imageUrl || categoryBannerImages[index] || null, href: categoryLink(category.slug) }));
 
