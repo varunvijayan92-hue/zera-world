@@ -60,3 +60,12 @@ test("failed email delivery invalidates the challenge and does not expose the co
   await assert.rejects(issueCustomerOtp({ id: "u", email: "buyer@example.test", sessionVersion: 0 }), /verification email could not be sent/);
   assert.equal(invalidated, true);
 });
+
+test("registration codes activate new customers atomically, while login codes cannot activate disabled users", async t => {
+ const original=prisma.$transaction;let activated=false;
+ const row={userId:"new",challengeId:"register",digest:otpDigest("register","123456"),sessionVersion:0,attempts:0,expiresAt:new Date(Date.now()+60000),consumedAt:null,purpose:"LOGIN"};
+ const tx={$queryRaw:async()=>[{...row}],$executeRaw:async()=>1,user:{findUnique:async()=>({id:"new",role:"CUSTOMER",isActive:false,sessionVersion:0}),update:async()=>{activated=true;return {};}}};
+ Object.assign(prisma,{$transaction:async(work:(client:typeof tx)=>unknown)=>work(tx)});t.after(()=>Object.assign(prisma,{$transaction:original}));
+ assert.equal(await consumeCustomerOtp("register","123456"),null);assert.equal(activated,false);
+ row.purpose="REGISTER";assert.equal((await consumeCustomerOtp("register","123456"))?.otpPurpose,"REGISTER");assert.equal(activated,true);
+});

@@ -14,18 +14,19 @@ export function otpMatches(challengeId: string, code: string, digest: string) {
   const expected = Buffer.from(digest, "hex");
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
-type Challenge = { userId: string; challengeId: string; digest: string; sessionVersion: number; attempts: number; expiresAt: Date; consumedAt: Date | null };
+type Challenge = { userId: string; challengeId: string; digest: string; sessionVersion: number; attempts: number; expiresAt: Date; consumedAt: Date | null; purpose?: string };
 
-export async function issueCustomerOtp(user: { id: string; email: string; sessionVersion: number }) {
+export async function issueCustomerOtp(user: { id: string; email: string; sessionVersion: number }, purpose: "LOGIN" | "REGISTER" = "LOGIN") {
   const challengeId = randomBytes(32).toString("hex");
   const code = String(randomInt(0, 1000000)).padStart(6, "0");
   const digest = otpDigest(challengeId, code);
   // A shared database guard applies across Vercel instances: one send/minute, five/hour per account.
   const issued = await prisma.$queryRaw<{ userId: string }[]>`
-    INSERT INTO "CustomerLoginChallenge" ("userId", "challengeId", "digest", "sessionVersion", "expiresAt", "sentAt", "windowStart")
-    VALUES (${user.id}, ${challengeId}, ${digest}, ${user.sessionVersion}, CURRENT_TIMESTAMP + INTERVAL '10 minutes', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT INTO "CustomerLoginChallenge" ("userId", "challengeId", "digest", "sessionVersion", "purpose", "expiresAt", "sentAt", "windowStart")
+    VALUES (${user.id}, ${challengeId}, ${digest}, ${user.sessionVersion}, ${purpose}, CURRENT_TIMESTAMP + INTERVAL '10 minutes', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT ("userId") DO UPDATE SET
       "challengeId" = EXCLUDED."challengeId", "digest" = EXCLUDED."digest", "sessionVersion" = EXCLUDED."sessionVersion",
+      "purpose" = EXCLUDED."purpose",
       "attempts" = 0, "expiresAt" = EXCLUDED."expiresAt", "sentAt" = CURRENT_TIMESTAMP, "consumedAt" = NULL,
       "sendCount" = CASE WHEN "CustomerLoginChallenge"."windowStart" < CURRENT_TIMESTAMP - INTERVAL '1 hour' THEN 1 ELSE "CustomerLoginChallenge"."sendCount" + 1 END,
       "windowStart" = CASE WHEN "CustomerLoginChallenge"."windowStart" < CURRENT_TIMESTAMP - INTERVAL '1 hour' THEN CURRENT_TIMESTAMP ELSE "CustomerLoginChallenge"."windowStart" END
@@ -50,8 +51,9 @@ export async function consumeCustomerOtp(challengeId: string, code: string) {
     await tx.$executeRaw`UPDATE "CustomerLoginChallenge" SET "attempts" = "attempts" + 1 WHERE "challengeId" = ${challengeId}`;
     if (!otpMatches(challengeId, code, row.digest)) return null;
     const user = await tx.user.findUnique({ where: { id: row.userId } });
-    if (!user || !user.isActive || user.role !== "CUSTOMER" || user.sessionVersion !== row.sessionVersion) return null;
+    if (!user || (!user.isActive && row.purpose !== "REGISTER") || user.role !== "CUSTOMER" || user.sessionVersion !== row.sessionVersion) return null;
+    if (row.purpose === "REGISTER") await tx.user.update({ where: { id: user.id }, data: { isActive: true } });
     await tx.$executeRaw`UPDATE "CustomerLoginChallenge" SET "consumedAt" = CURRENT_TIMESTAMP WHERE "challengeId" = ${challengeId}`;
-    return user;
+    return { ...user, otpPurpose: row.purpose || "LOGIN" };
   });
 }

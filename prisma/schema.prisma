@@ -32,6 +32,23 @@ model User {
   customerReturns      ReturnRequest[]
   loginChallenge       CustomerLoginChallenge?
   adminAccountChallenge AdminAccountChallenge?
+  passwordReset CustomerPasswordReset?
+}
+
+model CustomerPasswordReset {
+  userId String @id
+  challengeId String @unique
+  digest String
+  sessionVersion Int
+  attempts Int @default(0)
+  expiresAt DateTime
+  sentAt DateTime
+  windowStart DateTime
+  sendCount Int @default(1)
+  verifiedAt DateTime?
+  proofDigest String?
+  resetAt DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AdminAccountChallenge {
@@ -52,6 +69,7 @@ model AdminAccountChallenge {
 }
 
 model CustomerLoginChallenge {
+  purpose String @default("LOGIN")
   userId         String   @id
   challengeId    String   @unique
   digest         String

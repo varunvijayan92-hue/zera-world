@@ -126,7 +126,15 @@ Set server-only `RESEND_API_KEY`, `RESEND_FROM_EMAIL` and `SUPPORT_EMAIL` in the
 
 Apply the additive `prisma/customer-login-otp.sql` to the target database before deploying this update. It creates one challenge record per customer with a foreign key to the existing User table. No existing account data is changed. The Prisma schema includes the same model for new installations.
 
-Customer login checks the password, sends a six-digit email code, and issues the session only after `POST /api/auth/verify-otp` succeeds. Codes expire after ten minutes, are bound to the initiating browser, and can be consumed once. Database limits allow five attempts per code and five sends per account per hour, with a one-minute resend cooldown. Codes are stored as keyed digests and become unusable after a password/session-version reset. Admin and supplier login retain their existing flow. Registration creates the account; the following sign-in verifies email ownership. Existing signed-in sessions continue until logout or expiry.
+Customer registration creates an inactive account, then sends an email code to activate it. Activation and code consumption are atomic; activation codes are marked REGISTER so login codes cannot reactivate disabled accounts. Subsequent customer sign-in uses email and password and returns to the storefront. Codes expire after ten minutes and have five attempts, a one-minute send cooldown and five sends per hour.
+
+Apply `prisma/customer-password-reset.sql` before deploying the recovery flow. `/forgot-password` links from customer login and guides the customer through email, OTP verification, and a new password. `POST /api/auth/password-reset` handles the three steps. It only resets active CUSTOMER accounts and gives the same request response for unknown emails. OTPs are stored as keyed digests; successful verification sets a separate HttpOnly browser proof. Updating the password consumes that proof once and revokes all existing sessions. Admin and supplier accounts use their separate management flows.
+
+Apply `prisma/supplier-gst.sql` for the recent supplier GST fields. This adds three columns and sets the default GST rate for new products to 5, matching the Prisma schema. It does not rewrite existing product tax rates or remove supplier records.
+
+Users & Roles provides Edit account details and Edit password for non-admin users, including suppliers. Supplier contact name/email stays synchronized, and updates revoke previous sessions. ADMIN password and profile edits must use the account owner's OTP form; the general staff endpoint refuses these edits.
+
+The supplied logo and homepage reference are stored under `public/branding`. The logo uses Next.js image delivery. The hero crops the photograph portion of the reference through CSS and renders real headings and shopping links above it; mobile displays the photograph above the text.
 
 Contact submissions remain in the admin inbox and also email the support recipient, with the customer's email as Reply-To. If notification delivery fails, the response explicitly says the enquiry was saved but the email could not be sent. Contact notifications are synchronous and do not have an automatic background retry queue. This integration does not send order or shipment emails.
 

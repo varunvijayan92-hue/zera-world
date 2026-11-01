@@ -17,6 +17,7 @@ export const userCreateSchema = z.object({
 });
 export const userPasswordSchema = z.string().min(12).max(72).refine((password) => new TextEncoder().encode(password).length <= 72, "Use a password no longer than 72 UTF-8 bytes.");
 export const userAccessSchema = z.object({ role: z.enum(["ADMIN", "MANAGER", "STAFF", "SUPPLIER", "CUSTOMER"]), isActive: z.boolean() });
+export const userProfileSchema = z.object({ fullName: z.string().trim().min(2).max(120), email: z.string().trim().email().max(254).transform(v => v.toLowerCase()), loginId: z.string().trim().min(3).max(80).regex(/^[a-zA-Z0-9._-]+$/).transform(v => v.toLowerCase()).nullable() });
 
 export function userAccessError(actorId: string, target: { id: string; role: string; isActive: boolean }, next: { role: string; isActive: boolean }, activeAdminCount: number) {
   if (actorId === target.id && (next.role !== "ADMIN" || !next.isActive)) return "You cannot remove your own administrator access.";

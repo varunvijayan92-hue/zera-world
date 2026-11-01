@@ -1,8 +1,7 @@
 import { CategoryCarousel } from "@/components/category-carousel";
-import { CategoryMenu } from "@/components/category-menu";
 import { ProductImage } from "@/components/product-image";
 import { categoryLink } from "@/lib/category";
-import { Search, ShoppingBag, Sparkles, Truck } from "lucide-react";
+import { ArrowRight, ShieldCheck, ShoppingBag, Sparkles, Truck } from "lucide-react";
 import Link from "next/link";
 
 import { prisma } from "@/lib/prisma";
@@ -54,7 +53,9 @@ export default async function HomePage() {
     <main className="min-h-screen bg-[#F7F4ED] px-3 py-4 text-[#173B35] md:px-6 lg:px-8">
       <div className="mx-auto max-w-[1280px] rounded-[26px] bg-[#f5f3ee] shadow-[0_35px_75px_rgba(23,59,53,0.12)] ring-1 ring-[#173B35]/5">
         <section className="tokoo-hero-wrap">
-          <div className="tokoo-hero-card">
+          <div className="tokoo-hero-card premium-living-hero">
+            <div className="premium-living-photo" aria-hidden="true" />
+            <div className="premium-living-copy">
             <div className="tokoo-pill">
               <Sparkles size={12} />
               Premium living
@@ -63,10 +64,12 @@ export default async function HomePage() {
             <p>
               Curated homeware, kitchen essentials, travel accessories, and everyday upgrades designed for a better lifestyle.
             </p>
+            <div className="mt-6 flex flex-wrap gap-3"><Link href="/products" className="inline-flex items-center gap-3 rounded-full bg-[#EDBD57] px-6 py-3 font-bold text-[#10392D]">Shop now <ArrowRight size={18} /></Link><Link href="/categories" className="rounded-full border border-white/70 px-6 py-3 font-semibold">Explore collections</Link></div>
             <div className="tokoo-micro-meta">
-              <span>Curated collections</span>
-              <span>Fast dispatch</span>
-              <span>Premium service</span>
+              <span className="flex items-center gap-2"><Sparkles size={18} /> Premium quality</span>
+              <span className="flex items-center gap-2"><Truck size={18} /> Reliable delivery</span>
+              <span className="flex items-center gap-2"><ShieldCheck size={18} /> Secure payments</span>
+            </div>
             </div>
           </div>
         </section>

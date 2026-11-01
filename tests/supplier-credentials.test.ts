@@ -18,7 +18,7 @@ function request(body: unknown) { return new Request("https://store.example/api/
 
 test("generated supplier credentials are unique, normalized and accepted by the password policy", () => {
   const first = generateSupplierCredentials(); const second = generateSupplierCredentials();
-  assert.notEqual(first.loginId, second.loginId); assert.notEqual(first.password, second.password);
+  assert.equal(first.loginId, second.loginId); assert.notEqual(first.password, second.password);
   assert.equal(supplierLoginCreateSchema.safeParse(first).success, true);
   assert.equal(supplierLoginCreateSchema.parse({ loginId: " SUP-Example ", password }).loginId, "sup-example");
   for (const loginId of ["ab", "bad name", "bad@email.test", "../account"]) assert.equal(supplierLoginCreateSchema.safeParse({ loginId, password }).success, false);

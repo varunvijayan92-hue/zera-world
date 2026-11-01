@@ -23,6 +23,7 @@ export function generateSupplierCredentials(companyName?: string, joinedAt?: Dat
   const year = joinedAt ? new Date(joinedAt).getFullYear() : new Date().getFullYear();
   const safeName = name.slice(0, 28);
   const loginId = safeName || "supplier";
-  const password = `${safeName}${year}`;
+  const random = Array.from(crypto.getRandomValues(new Uint8Array(12)), value => value.toString(16).padStart(2, "0")).join("");
+  const password = `${safeName}${year}-${random}`;
   return { loginId, password };
 }

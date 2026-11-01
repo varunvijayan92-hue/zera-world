@@ -39,9 +39,10 @@ export function PortalLogin({ supplier = false }: { supplier?: boolean }) {
         <label className="block text-sm">{supplier ? "Login ID or email" : "Email"}<input name="email" type={supplier ? "text" : "email"} required autoComplete={supplier ? "username" : "email"} className="mt-2 w-full rounded-xl border p-3" /></label>
         <label className="block text-sm">Password<input name="password" type="password" required minLength={register ? 12 : 6} autoComplete={register ? "new-password" : "current-password"} className="mt-2 w-full rounded-xl border p-3" /></label>
       </>}
-      <button className="w-full rounded-xl bg-[#173B35] p-3 font-bold text-white">{busy ? "Please wait..." : challenge ? "Verify and sign in" : register ? "Create account" : "Sign in"}</button>
+      <button className="w-full rounded-xl bg-[#173B35] p-3 font-bold text-white">{busy ? "Please wait..." : challenge ? "Verify account" : register ? "Create account" : "Sign in"}</button>
     </fieldset></form>
     {message ? <p role="status" className="mt-4 text-sm">{message}</p> : null}
+    {!supplier && !register && !challenge ? <Link href="/forgot-password" className="mt-4 block text-sm underline">Forgot password?</Link> : null}
     {challenge ? <button type="button" disabled={busy} onClick={() => { setChallenge(""); setMessage("To request a new code, sign in again after one minute."); }} className="mt-5 text-sm underline">Use another email or request a new code</button> : !supplier ? <button type="button" disabled={busy} onClick={() => { setRegister(!register); setMessage(""); }} className="mt-5 text-sm underline">{register ? "Already have an account? Sign in" : "Create an account"}</button> : <p className="mt-5 text-sm">Your store administrator provides supplier access after approval.</p>}
   </div></main>;
 }
