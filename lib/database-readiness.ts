@@ -15,7 +15,7 @@ const required: Record<string, string[]> = {
   User: ["loginId", "sessionVersion", "language", "notificationsEnabled"],
   StoreCategory: ["imageUrl", "imagePublicId"],
   Product: ["gstRate", "handlingCharge", "returnDays", "isReturnable"],
-  Supplier: ["sourceType", "pickupAddress"],
+  Supplier: ["sourceType", "pickupAddress", "gstNumber", "gstRegistered", "gstRate"],
   CustomerOrder: ["customerId", "deliveredAt", "taxAmount", "handlingAmount"],
   OrderItem: ["costPrice", "gstRate", "handlingCharge", "isReturnable", "returnDays", "fulfillmentStatus"],
   ReturnRequest: ["customerId", "orderItemId", "receivedAt", "supplierReceivedAt"],

@@ -86,6 +86,9 @@ model Supplier {
   website                 String?
   status                  SupplierStatus           @default(ACTIVE)
   taxId                   String?
+  gstNumber               String?
+  gstRegistered           Boolean                  @default(false)
+  gstRate                 Decimal?                 @db.Decimal(5, 2)
   businessType            String?
   returnPolicy            String?
   paymentTerms            String?

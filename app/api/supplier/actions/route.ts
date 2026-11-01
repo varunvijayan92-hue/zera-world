@@ -9,7 +9,7 @@ const actions = z.discriminatedUnion("action", [
   z.object({ action: z.literal("SHIPMENT"), itemId: z.string(), awb: z.string().regex(/^[a-zA-Z0-9-]{5,40}$/) }),
   z.object({ action: z.literal("STOCK"), productId: z.string(), stock: z.coerce.number().int().min(0).max(1000000), costPrice: z.coerce.number().finite().min(0).max(1000000) }),
   z.object({ action: z.literal("PRODUCT"), name: z.string().trim().min(2).max(150), sku: z.string().trim().min(1).max(80), description: z.string().max(5000), costPrice: z.coerce.number().finite().min(0).max(1000000), stock: z.coerce.number().int().min(0).max(1000000) }),
-  z.object({ action: z.literal("PROFILE"), contactName: z.string().trim().max(100), phone: z.string().max(30), pickupAddress: z.string().trim().max(1000) }),
+  z.object({ action: z.literal("PROFILE"), contactName: z.string().trim().max(100), phone: z.string().max(30), pickupAddress: z.string().trim().max(1000), gstNumber: z.string().trim().max(50).optional().or(z.literal("")), gstRegistered: z.coerce.boolean().optional().default(false), gstRate: z.coerce.number().finite().min(0).max(100).optional() }),
 ]);
 export async function POST(request: Request) {
   try {
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       } else if (body.action === "PRODUCT") {
         await tx.product.create({ data: { supplierId: supplier.id, name: body.name, sku: body.sku, description: body.description, costPrice: body.costPrice, status: "DRAFT", inventory: { create: { supplierId: supplier.id, availableQty: body.stock } } } });
       } else {
-        await tx.supplier.update({ where: { id: supplier.id }, data: { contactName: body.contactName, phone: body.phone, pickupAddress: body.pickupAddress } });
+        await tx.supplier.update({ where: { id: supplier.id }, data: { contactName: body.contactName, phone: body.phone, pickupAddress: body.pickupAddress, gstNumber: body.gstNumber || null, gstRegistered: body.gstRegistered ?? supplier.gstRegistered, gstRate: body.gstRate ?? supplier.gstRate ?? null } });
       }
       await tx.auditLog.create({ data: { userId: user.id, action: `SUPPLIER_${body.action}`, entityType: "Supplier", entityId: supplier.id } });
     }, { isolationLevel: "Serializable" });

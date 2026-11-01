@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     const passwordHash = portalLogin ? await bcrypt.hash(portalLogin.password, 12) : undefined;
     const result = await prisma.$transaction(async (tx) => {
       if (portalLogin && await tx.user.findFirst({ where: { OR: [{ loginId: portalLogin.loginId }, { email: { equals: data.email!, mode: "insensitive" } }] }, select: { id: true } })) throw new AccessError("The login ID or contact email already has an account. Choose another.", 409);
-      const supplier = await tx.supplier.create({ data: { ...data, status: data.status || "ACTIVE", minOrderQty: data.minOrderQty ?? null, leadTimeDays: data.leadTimeDays ?? null, shippingCharges: data.shippingCharges ?? null } });
+      const supplier = await tx.supplier.create({ data: { ...data, status: data.status || "ACTIVE", minOrderQty: data.minOrderQty ?? null, leadTimeDays: data.leadTimeDays ?? null, shippingCharges: data.shippingCharges ?? null, gstRate: data.gstRate ?? null, gstRegistered: data.gstRegistered ?? false } });
       let login: { id: string; loginId: string | null; email: string } | null = null;
       if (portalLogin && passwordHash) {
         login = await tx.user.create({ data: { loginId: portalLogin.loginId, email: data.email!.trim().toLowerCase(), fullName: data.contactName || data.companyName, passwordHash, role: "SUPPLIER" }, select: { id: true, loginId: true, email: true } });
