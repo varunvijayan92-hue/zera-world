@@ -13,9 +13,16 @@ export const supplierCredentialUpdateSchema = z.object({
   isActive: z.boolean().optional(),
 }).refine((value) => value.loginId !== undefined || value.password !== undefined || value.isActive !== undefined, "Enter a login ID, new password or access change.");
 
-export function generateSupplierCredentials(source: Pick<Crypto, "getRandomValues"> = globalThis.crypto) {
-  const bytes = source.getRandomValues(new Uint8Array(32));
-  const loginId = `sup-${Array.from(bytes.subarray(0, 8), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-  const password = `Zw!${Array.from(bytes.subarray(8), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+function normalizeSupplierCredentialPart(value: string, fallback = "supplier") {
+  const cleaned = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return cleaned || fallback;
+}
+
+export function generateSupplierCredentials(companyName?: string, joinedAt?: Date | string | number) {
+  const name = normalizeSupplierCredentialPart(companyName || "supplier", "supplier");
+  const year = joinedAt ? new Date(joinedAt).getFullYear() : new Date().getFullYear();
+  const safeName = name.slice(0, 28);
+  const loginId = safeName || "supplier";
+  const password = `${safeName}${year}`;
   return { loginId, password };
 }

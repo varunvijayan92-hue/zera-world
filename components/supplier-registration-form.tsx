@@ -10,7 +10,10 @@ const field = "mt-2 block w-full rounded-xl border border-[#173B35]/20 bg-white 
 export function SupplierRegistrationForm({ canManageLogin }: { canManageLogin: boolean }) {
   const router = useRouter(); const ready = useClientReady(); const [form, setForm] = useState(blank); const [login, setLogin] = useState({ loginId: "", password: "" }); const [createLogin, setCreateLogin] = useState(true); const [showPassword, setShowPassword] = useState(false); const [receipt, setReceipt] = useState<{ loginId: string; password: string } | null>(null); const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
   const needsLogin = canManageLogin && createLogin && form.sourceType === "DIRECT";
-  useEffect(() => { if (canManageLogin) setLogin(generateSupplierCredentials()); }, [canManageLogin]);
+  useEffect(() => {
+    if (!canManageLogin) return;
+    setLogin(generateSupplierCredentials(form.companyName, new Date()));
+  }, [canManageLogin, form.companyName]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage(""); setReceipt(null);
     try {
