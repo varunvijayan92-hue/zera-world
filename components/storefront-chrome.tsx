@@ -1,15 +1,81 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, ShoppingBag, UserRound } from "lucide-react";
+import { ChevronDown, Heart, Search, ShoppingBag, Truck, UserRound } from "lucide-react";
 import ZeraWorldLogo from "./zera-logo";
 import { footerNavigation, storefrontNavigation, isInternalPortal } from "@/lib/storefront-navigation";
 
 export function StorefrontHeader() {
   const pathname = usePathname();
   if (isInternalPortal(pathname)) return null;
-  return <header className="border-b border-[#173B35]/10 bg-[#FAF9F5] px-4 text-[#173B35] md:px-8"><div className="mx-auto max-w-7xl"><div className="flex min-h-20 items-center justify-between gap-3"><Link href="/" aria-label="Zera's World home" className="shrink-0"><ZeraWorldLogo compact /></Link><div className="flex items-center gap-1 sm:gap-3"><Link href="/products#catalog-search" aria-label="Search products" className="rounded-full p-3 hover:bg-[#173B35]/5 focus-visible:outline-offset-4"><Search size={19} /></Link><Link href="/account" aria-label="My account" className="rounded-full p-3 hover:bg-[#173B35]/5 focus-visible:outline-offset-4"><UserRound size={19} /></Link><Link href="/cart" aria-label="Shopping cart" className="rounded-full bg-[#173B35] p-3 text-white focus-visible:outline-offset-4"><ShoppingBag size={19} /></Link></div></div><nav aria-label="Main navigation" className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-[#173B35]/10 py-4 text-sm font-semibold sm:gap-x-9">{storefrontNavigation.map((link) => <Link key={link.href} href={link.href} aria-current={pathname === link.href ? "page" : undefined} className={`underline-offset-8 hover:underline ${pathname === link.href ? "underline decoration-[#B38A45] decoration-2" : ""}`}>{link.label}</Link>)}</nav></div></header>;
+
+  return (
+    <header className="border-b border-[#173B35]/10 bg-[#F7F4ED] text-[#173B35]">
+      <div className="bg-[#173B35] text-[#EAF3EE]">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 text-[11px] font-medium sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2 font-semibold">
+            <Truck size={14} className="text-[#D9C089]" />
+            <span>Free Shipping in India on Orders Above ₹999</span>
+          </div>
+
+          <div className="hidden items-center gap-5 text-[11px] sm:flex">
+            <Link href="/track-order" className="transition hover:text-white/85">Track Order</Link>
+            <Link href="/contact" className="transition hover:text-white/85">Help &amp; Support</Link>
+            <button type="button" className="inline-flex items-center gap-1 transition hover:text-white/85">
+              INR <span className="text-[10px]">(₹)</span>
+              <ChevronDown size={12} />
+            </button>
+            <Link href="/account" className="font-semibold transition hover:text-white/85">
+              Sign In / Register
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-b border-[#173B35]/10 bg-[#FAF9F5]">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+          <Link href="/" aria-label="Zera's World home" className="shrink-0">
+            <ZeraWorldLogo compact />
+          </Link>
+
+          <nav
+            aria-label="Main navigation"
+            className="hidden items-center justify-center gap-6 text-sm font-semibold text-[#173B35]/80 lg:flex"
+          >
+            {storefrontNavigation.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={pathname === link.href ? "page" : undefined}
+                className={`relative pb-1 transition hover:text-[#173B35] ${
+                  pathname === link.href ? "text-[#173B35] after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:rounded-full after:bg-[#B38A45]" : ""
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link href="/products#catalog-search" aria-label="Search products" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#173B35]/15 bg-white text-[#173B35] transition hover:bg-[#173B35]/5">
+              <Search size={18} />
+            </Link>
+            <Link href="/account" aria-label="My account" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#173B35]/15 bg-white text-[#173B35] transition hover:bg-[#173B35]/5">
+              <UserRound size={18} />
+            </Link>
+            <Link href="/cart" aria-label="Shopping cart" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#173B35] text-white shadow-[0_10px_22px_rgba(23,59,53,0.2)] transition hover:bg-[#0f2a26]">
+              <ShoppingBag size={18} />
+            </Link>
+            <Link href="/account" aria-label="Wishlist" className="hidden items-center justify-center rounded-full border border-[#173B35]/15 bg-white p-2 text-[#173B35] transition hover:bg-[#173B35]/5 sm:inline-flex">
+              <Heart size={17} />
+            </Link>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
 }
+
 export function StorefrontFooter() {
   const pathname = usePathname();
   if (isInternalPortal(pathname)) return null;

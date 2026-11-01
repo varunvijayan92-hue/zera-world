@@ -61,3 +61,17 @@ export function UserAccessForm({ user, self }: { user: { id: string; role: strin
   if (self) return <p className="text-xs text-[#173B35]/60">Your account · administrator access protected</p>;
   return <form onSubmit={submit}><fieldset disabled={!ready || busy} className="flex min-w-64 flex-wrap items-center gap-3"><select aria-label="Account role" value={role} onChange={(event) => setRole(event.target.value)} className="rounded-lg border px-2 py-2 text-xs">{['ADMIN','MANAGER','STAFF','SUPPLIER','CUSTOMER'].map((entry) => <option key={entry}>{entry}</option>)}</select><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} /> Active</label><button className="rounded-lg bg-[#173B35] px-3 py-2 text-xs text-white">{busy ? "Saving..." : "Save access"}</button></fieldset>{message ? <p role="status" className="mt-2 text-xs">{message}</p> : null}</form>;
 }
+
+export function UserPasswordForm({ user }: { user: { id: string; role: string; isActive: boolean } }) {
+  const router = useRouter(); const ready = useClientReady(); const [password, setPassword] = useState(""); const [confirm, setConfirm] = useState(""); const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setMessage("");
+    try {
+      if (password !== confirm) throw Error("Passwords do not match.");
+      await send(`/api/admin/users/${user.id}`, { role: user.role, isActive: user.isActive, password }, "PATCH");
+      setPassword(""); setConfirm(""); setMessage("Password updated."); router.refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Password could not be updated."); }
+    finally { setBusy(false); }
+  }
+  return <details className="min-w-56"><summary className="cursor-pointer text-xs font-semibold underline">Edit password</summary><form onSubmit={submit} className="mt-3"><fieldset disabled={!ready || busy} className="space-y-3"><label className="block text-xs">New password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={12} maxLength={72} autoComplete="new-password" className={field} /></label><label className="block text-xs">Confirm password<input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} minLength={12} maxLength={72} autoComplete="new-password" className={field} /></label><button className="rounded-lg bg-[#173B35] px-3 py-2 text-xs text-white">{busy ? "Saving..." : "Save password"}</button></fieldset>{message ? <p role="status" className="mt-2 text-xs">{message}</p> : null}</form></details>;
+}

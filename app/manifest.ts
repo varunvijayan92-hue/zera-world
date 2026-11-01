@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ZeraWorld",
-    short_name: "ZeraWorld",
+    name: "Zera's World",
+    short_name: "Zera's World",
     description: "Premium ecommerce and supplier-to-marketplace integration.",
     start_url: "/",
     display: "standalone",

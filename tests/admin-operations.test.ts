@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { adminNavigation, isAdminNavActive, adminLandingPath } from "../lib/admin-navigation";
-import { stockUpdateSchema, expenseSchema, userCreateSchema, userAccessError, publicUserSelect } from "../lib/admin-operations";
+import { stockUpdateSchema, expenseSchema, userCreateSchema, userAccessError, publicUserSelect, userPasswordSchema } from "../lib/admin-operations";
 import { groupCheckoutCustomers, contactFromAddress, adminDate } from "../lib/admin-format";
 import { isSameOriginRequest } from "../lib/request-origin";
+import { productSchema } from "../lib/validators";
 
 test("admin entry uses its own login for visitors and customer accounts", () => {
   for (const role of [undefined, null, "CUSTOMER", "SUPPLIER", "STAFF", "UNKNOWN"]) assert.equal(adminLandingPath(role), "/admin/login");
@@ -41,6 +42,13 @@ test("expense entries require a positive finite amount and a valid date", () => 
   assert.equal(expenseSchema.safeParse({ ...expense, expenseDate: "yesterday" }).success, false);
 });
 
+test("product payloads accept a supplier relationship without breaking the SKU requirements", () => {
+  const payload = { name: "Brass Lamp", sku: "BR-LAMP-001", supplierId: "supplier-123", sellingPrice: 1499, costPrice: 899, status: "DRAFT" };
+  assert.equal(productSchema.safeParse(payload).success, true);
+  assert.equal(productSchema.parse(payload).supplierId, "supplier-123");
+  assert.equal(productSchema.safeParse({ ...payload, sku: "" }).success, false);
+});
+
 test("staff creation normalizes email and prevents bcrypt password truncation", () => {
   const user = { fullName: "Store Staff", email: "STAFF@EXAMPLE.COM", password: "a-strong-test-password", role: "STAFF" };
   assert.equal(userCreateSchema.parse(user).email, "staff@example.com");
@@ -48,6 +56,8 @@ test("staff creation normalizes email and prevents bcrypt password truncation", 
   assert.equal(userCreateSchema.safeParse({ ...user, password: "😀".repeat(30) }).success, false);
   assert.equal("passwordHash" in publicUserSelect, false);
   assert.equal("password" in publicUserSelect, false);
+  assert.equal(userPasswordSchema.safeParse("a-strong-test-password").success, true);
+  assert.equal(userPasswordSchema.safeParse("short").success, false);
 });
 
 test("access changes protect the acting account and the final active administrator", () => {

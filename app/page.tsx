@@ -53,8 +53,6 @@ export default async function HomePage() {
   return (
     <main className="min-h-screen bg-[#F7F4ED] px-3 py-4 text-[#173B35] md:px-6 lg:px-8">
       <div className="mx-auto max-w-[1280px] rounded-[26px] bg-[#f5f3ee] shadow-[0_35px_75px_rgba(23,59,53,0.12)] ring-1 ring-[#173B35]/5">
-        <CategoryMenu categories={categories} />
-
         <section className="tokoo-hero-wrap">
           <div className="tokoo-hero-card">
             <div className="tokoo-pill">
@@ -63,37 +61,12 @@ export default async function HomePage() {
             </div>
             <h1>Discover More. Live Better.</h1>
             <p>
-              Curated homeware, wellness essentials and everyday upgrades built for a more elevated lifestyle.
+              Curated homeware, kitchen essentials, travel accessories, and everyday upgrades designed for a better lifestyle.
             </p>
             <div className="tokoo-micro-meta">
               <span>Curated collections</span>
               <span>Fast dispatch</span>
               <span>Premium service</span>
-            </div>
-          </div>
-
-          <div className="tokoo-side-card">
-            <div className="tokoo-side-top">
-              <div>
-                <p className="tokoo-label">Search</p>
-                <h2>Find your next ritual</h2>
-              </div>
-              <span className="tokoo-search-icon"><Search size={16} /></span>
-            </div>
-
-            <form action="/products" method="get" className="tokoo-search-box">
-              <Search size={15} />
-              <input name="q" aria-label="Search products" placeholder="Search home, wellness, travel..." />
-              <button type="submit" aria-label="Submit product search" className="rounded-lg p-1"><Search size={15} /></button>
-            </form>
-
-            <div className="tokoo-highlight-box">
-              <div className="tokoo-highlight-head">
-                <span>Featured collection</span>
-                <em>New</em>
-              </div>
-              <p className="tokoo-highlight-title">Forest Calm</p>
-              <p className="tokoo-highlight-copy">Natural textures and warm accents for slower living.</p>
             </div>
           </div>
         </section>

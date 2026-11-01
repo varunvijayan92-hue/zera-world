@@ -161,10 +161,8 @@ img {
 }
 
 .tokoo-hero-wrap {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
-  gap: 1.25rem;
-  padding: 1.25rem 1.5rem 0;
+  display: block;
+  padding: 1.25rem 0 0;
 }
 
 .tokoo-hero-card {
@@ -172,6 +170,7 @@ img {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  width: 100%;
   overflow: hidden;
   border-radius: 1.8rem;
   background: linear-gradient(135deg, #173b35 0%, #123d3a 26%, #0d2423 100%);

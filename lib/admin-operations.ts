@@ -15,6 +15,7 @@ export const userCreateSchema = z.object({
   password: z.string().min(12).max(72).refine((password) => new TextEncoder().encode(password).length <= 72, "Use a password no longer than 72 UTF-8 bytes."),
   role: z.enum(["ADMIN", "MANAGER", "STAFF", "SUPPLIER", "CUSTOMER"]).default("STAFF"),
 });
+export const userPasswordSchema = z.string().min(12).max(72).refine((password) => new TextEncoder().encode(password).length <= 72, "Use a password no longer than 72 UTF-8 bytes.");
 export const userAccessSchema = z.object({ role: z.enum(["ADMIN", "MANAGER", "STAFF", "SUPPLIER", "CUSTOMER"]), isActive: z.boolean() });
 
 export function userAccessError(actorId: string, target: { id: string; role: string; isActive: boolean }, next: { role: string; isActive: boolean }, activeAdminCount: number) {
