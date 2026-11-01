@@ -12,7 +12,7 @@ const canonicalHost = configuredUrl ? (() => {
 const canonicalRedirect = canonicalHost && canonicalHost !== "localhost" && canonicalHost !== "127.0.0.1"
   ? {
       source: "/:path*",
-      has: [{ type: "host", key: "host", value: `www.${canonicalHost}` }],
+      has: [{ type: "host" as const, value: `www.${canonicalHost}` }],
       destination: `https://${canonicalHost}/:path*`,
       permanent: true,
     }
