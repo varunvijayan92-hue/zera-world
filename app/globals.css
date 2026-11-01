@@ -351,18 +351,28 @@ img {
   font-size: 0.84rem;
 }
 
-.tokoo-showcase-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.category-carousel-track {
+  display: flex;
   gap: 1rem;
-  padding: 1.4rem 1.5rem 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  scrollbar-color: #173B35 #e6e2d9;
+  padding: 2px 2px 1rem;
 }
 
-.tokoo-category-strip {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  padding: 1.3rem 1.5rem 0;
+.category-carousel-card {
+  flex: 0 0 calc((100% - 2rem) / 3);
+  scroll-snap-align: start;
+}
+
+@media (max-width: 1023px) {
+  .category-carousel-card { flex-basis: calc((100% - 1rem) / 2); }
+}
+
+@media (max-width: 639px) {
+  .category-carousel-card { flex-basis: 86%; }
 }
 
 .tokoo-banner-card {
@@ -405,48 +415,6 @@ img {
   margin-top: 0.45rem;
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.82);
-}
-
-.tokoo-showcase-card {
-  border-radius: 1.4rem;
-  background: #ffffff;
-  border: 1px solid rgba(23, 59, 53, 0.08);
-  padding: 1.1rem 1rem 1.2rem;
-  box-shadow: 0 12px 32px rgba(23, 59, 53, 0.04);
-}
-
-.tokoo-showcase-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.6rem;
-  height: 2.6rem;
-  border-radius: 0.9rem;
-  background: var(--forest);
-  color: white;
-}
-
-.tokoo-showcase-tag {
-  margin-top: 0.8rem;
-  color: rgba(23, 59, 53, 0.58);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.tokoo-showcase-card h3 {
-  margin-top: 0.35rem;
-  font-size: 1.55rem;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-  color: var(--forest);
-}
-
-.tokoo-showcase-card p {
-  margin-top: 0.5rem;
-  color: rgba(23, 59, 53, 0.7);
-  font-size: 0.82rem;
 }
 
 .tokoo-products-section {
@@ -675,8 +643,6 @@ img {
 
   .tokoo-subnav,
   .tokoo-hero-wrap,
-  .tokoo-showcase-grid,
-  .tokoo-category-strip,
   .tokoo-products-section,
   .tokoo-journal,
   .tokoo-footer {
@@ -721,11 +687,6 @@ img {
   }
 
   .tokoo-product-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .tokoo-showcase-grid,
-  .tokoo-category-strip {
     grid-template-columns: 1fr;
   }
 

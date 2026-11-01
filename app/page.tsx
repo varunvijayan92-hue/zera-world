@@ -1,3 +1,4 @@
+import { CategoryCarousel } from "@/components/category-carousel";
 import { CategoryMenu } from "@/components/category-menu";
 import { ProductImage } from "@/components/product-image";
 import { categoryLink } from "@/lib/category";
@@ -39,8 +40,7 @@ export default async function HomePage() {
     getHomeProducts(),
     prisma.storeCategory.findMany({ where: { isVisible: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }).catch(() => []),
   ]);
-  const showcaseCards = categories.slice(0, 3).map((category) => ({ title: category.name, subtitle: category.description || "Explore the collection", tag: "Shop collection", href: categoryLink(category.slug) }));
-  const categoryBanners = categories.slice(0, 3).map((category, index) => ({ title: category.name, subtitle: category.description || "Discover your next favorite", badge: "Collection", image: category.imageUrl || categoryBannerImages[index], href: categoryLink(category.slug) }));
+  const categoryBanners = categories.map((category, index) => ({ id: category.id, title: category.name, subtitle: category.description || "Discover your next favorite", image: category.imageUrl || categoryBannerImages[index] || null, href: categoryLink(category.slug) }));
 
   const productCards = products as Array<{
     id: string;
@@ -98,30 +98,7 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section id="categories" className="tokoo-showcase-grid">
-          {showcaseCards.map((card) => (
-            <Link key={card.title} href={card.href} className="tokoo-showcase-card">
-              <p className="tokoo-showcase-tag">{card.tag}</p>
-              <h3>{card.title}</h3>
-              <p>{card.subtitle}</p>
-            </Link>
-          ))}
-        </section>
-
-        <section className="tokoo-category-strip" aria-label="Product categories">
-          {categoryBanners.map((banner) => (
-            <Link
-              href={banner.href}
-              key={banner.title}
-              className="tokoo-banner-card"
-              style={{ backgroundImage: `linear-gradient(135deg, rgba(7,14,13,0.42), rgba(7,14,13,0.36)), url(${banner.image})` }}
-            >
-              <div className="tokoo-banner-badge">{banner.badge}</div>
-              <h3>{banner.title}</h3>
-              <p>{banner.subtitle}</p>
-            </Link>
-          ))}
-        </section>
+        <CategoryCarousel categories={categoryBanners} />
 
         <section id="new-arrivals" className="tokoo-products-section">
           <div className="tokoo-section-head">
