@@ -18,7 +18,7 @@ export const adminNavigation: AdminNavSection[] = [
   { label: "Commerce", items: [
     { label: "Products", href: "/admin/products", icon: "products" },
     { label: "Orders", href: "/admin/orders", icon: "orders" },
-    { label: "Notifications", href: "/admin/returns", icon: "orders", badge: "New" },
+    { label: "Notifications", href: "/admin/notifications", icon: "orders", badge: "New" },
     { label: "Contact requests", href: "/admin/contact-messages", icon: "customers" },
     { label: "Customers", href: "/admin/customers", icon: "customers" },
     { label: "Inventory", href: "/admin/inventory", icon: "inventory" },

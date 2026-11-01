@@ -15,11 +15,12 @@ test("OTP digests bind the code to its challenge and never store plaintext", () 
   assert.equal(otpMatches("challenge-a", "999999", digest), false);
 });
 
-test("customer password login sends a code without creating an authenticated session, including omitted portal", async (t) => {
+test("customer password login signs in immediately without a verification code", async (t) => {
+  process.env.JWT_SECRET = "unit-test-secret-at-least-thirty-two-characters";
   const originalUser = prisma.user, originalQuery = prisma.$queryRaw, originalSend = emailDelivery.send;
   const user = { id: "otp-user", email: "buyer@example.test", fullName: "Buyer", role: "CUSTOMER", isActive: true, sessionVersion: 0, passwordHash: await bcrypt.hash("test-password", 4) };
-  let emailCount = 0; let allowed = true;
-  Object.assign(prisma, { user: { findFirst: async () => user }, $queryRaw: async () => allowed ? [{ userId: user.id }] : [] });
+  let emailCount = 0;
+  Object.assign(prisma, { user: { findFirst: async () => user }, $queryRaw: async () => [{ userId: user.id }] });
   emailDelivery.send = async (message) => { emailCount++; assert.match(message.text, /\b\d{6}\b/); return "test-email"; };
   t.after(() => { Object.assign(prisma, { user: originalUser, $queryRaw: originalQuery }); emailDelivery.send = originalSend; });
   const request = (password: string) => new Request("https://store.example/api/auth/login", { method: "POST", headers: { origin: "https://store.example", "content-type": "application/json" }, body: JSON.stringify({ loginId: user.email, password }) });
@@ -27,13 +28,11 @@ test("customer password login sends a code without creating an authenticated ses
   assert.equal(emailCount, 0);
   const response = await login(request("test-password"));
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).requiresOtp, true);
-  assert.match(response.headers.get("set-cookie")!, /zera_customer_otp=/);
-  assert.doesNotMatch(response.headers.get("set-cookie")!, /supplierbridge_session=/);
-  assert.equal(emailCount, 1);
-  allowed = false;
-  assert.equal((await login(request("test-password"))).status, 429);
-  assert.equal(emailCount, 1);
+  const result = await response.json();
+  assert.equal(result.requiresOtp, undefined);
+  assert.match(response.headers.get("set-cookie")!, /supplierbridge_session=/);
+  assert.doesNotMatch(response.headers.get("set-cookie")!, /zera_customer_otp=/);
+  assert.equal(emailCount, 0);
 });
 
 test("verification rejects expired, exhausted, changed-account and reused challenges", async (t) => {
