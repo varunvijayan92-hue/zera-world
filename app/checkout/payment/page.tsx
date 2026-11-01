@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { QrCode, Smartphone } from "lucide-react";
 import { loadRazorpay, openRazorpay, upiCheckoutDisplay, type RazorpayResponse } from "@/lib/razorpay-browser";
 import { CHECKOUT_DRAFT_KEY, readCheckoutDraft, type CheckoutDraft } from "@/lib/checkout-storage";
+import { getPostPaymentRedirectPath } from "@/lib/navigation-paths";
 import { CheckoutProgress, CheckoutSummary, money } from "@/components/checkout-summary";
 
 type CheckoutSession = {
@@ -93,7 +94,7 @@ export default function PaymentPage() {
       if (!verified.ok || !result.success) throw new Error(result.message || "Payment verification failed. Try verification again before making another payment.");
       if (result.payment_status === "PAID") localStorage.removeItem("zeraworld-cart");
       sessionStorage.removeItem(CHECKOUT_DRAFT_KEY);
-      window.location.href = `/checkout/success?order=${encodeURIComponent(result.order_id)}`;
+      window.location.assign(getPostPaymentRedirectPath());
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Checkout failed.";
       setMessage(pendingVerification.current ? `${detail} Submit again to retry verification; no new payment will be started.` : detail);

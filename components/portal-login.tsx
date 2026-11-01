@@ -1,6 +1,7 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { getPostLoginRedirectPath } from "@/lib/navigation-paths";
 import { useClientReady } from "./use-client-ready";
 export function PortalLogin({ supplier = false }: { supplier?: boolean }) {
   const ready = useClientReady();
@@ -25,7 +26,7 @@ export function PortalLogin({ supplier = false }: { supplier?: boolean }) {
         setMessage(result.message || "Account verified successfully.");
       }
       else if (register) { setRegister(false); setMessage(result.message || "Account verified. You can now sign in."); }
-      else window.location.assign(supplier ? "/suppliers/dashboard" : "/account");
+      else window.location.assign(getPostLoginRedirectPath(supplier));
     } catch (error) { setMessage(error instanceof Error ? error.message : "Sign in failed."); }
     finally { setBusy(false); }
   }

@@ -27,7 +27,7 @@ export default async function CheckoutSuccessPage({
           Keep this order reference for any payment or delivery enquiries.
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-          <Link href="/products" className="rounded-xl bg-[#173B35] px-5 py-3 text-sm font-semibold text-white">Continue shopping</Link>
+          <Link href="/account" className="rounded-xl bg-[#173B35] px-5 py-3 text-sm font-semibold text-white">View my orders</Link>
           <Link href="/" className="rounded-xl border border-[#173B35]/15 bg-[#F7F4ED] px-5 py-3 text-sm font-semibold text-[#173B35]">Back to home</Link>
         </div>
       </div>
