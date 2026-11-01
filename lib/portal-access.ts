@@ -21,5 +21,10 @@ export async function supplierAccess(request?: Request) {
 }
 export function apiError(error: unknown) {
   if (error && typeof error === "object" && "code" in error && error.code === "P2002") return NextResponse.json({ message: "This record already exists. Refresh before submitting again." }, { status: 409 });
+  if (error && typeof error === "object" && "code" in error && error.code === "P2034") return NextResponse.json({ message: "This record changed while you were saving. Refresh and try again." }, { status: 409 });
+  if (!(error instanceof AccessError)) {
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "UNKNOWN";
+    console.error(JSON.stringify({ event: "api_operation_failed", code }));
+  }
   return NextResponse.json({ message: error instanceof AccessError ? error.message : "The request could not be completed. Please try again." }, { status: error instanceof AccessError ? error.status : 500 });
 }

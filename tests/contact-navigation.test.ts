@@ -12,7 +12,7 @@ test("top navigation contains the four shopping links and all seven information 
   assert.deepEqual(storefrontNavigation.map((entry) => entry.label), ["Home", "Shop", "Categories", "New Arrivals"]);
   assert.deepEqual(footerNavigation.map((entry) => entry.label), ["About Us", "Contact Us", "Privacy Policy", "Terms & Conditions", "Shipping Policy", "Return & Refund Policy", "Track Order"]);
   assert.equal(new Set(footerNavigation.map((entry) => entry.href)).size, 7);
-  for (const path of ["/admin", "/admin/contact-messages", "/supplier/login", "/dashboard/orders"]) assert.equal(isInternalPortal(path), true);
+  for (const path of ["/admin", "/admin/contact-messages", "/supplier/login", "/suppliers/login", "/suppliers/dashboard", "/dashboard/orders"]) assert.equal(isInternalPortal(path), true);
   for (const path of ["/", "/about", "/contact", "/account", "/administrator"]) assert.equal(isInternalPortal(path), false);
 });
 test("contact validation requires real form details and accepts an optional order reference", () => {

@@ -1,7 +1,7 @@
 import { CategoryMenu } from "@/components/category-menu";
 import { ProductImage } from "@/components/product-image";
 import { categoryLink } from "@/lib/category";
-import { Search, ShoppingBag, Sparkles, Star, Truck } from "lucide-react";
+import { Search, ShoppingBag, Sparkles, Truck } from "lucide-react";
 import Link from "next/link";
 
 import { prisma } from "@/lib/prisma";
@@ -101,9 +101,6 @@ export default async function HomePage() {
         <section id="categories" className="tokoo-showcase-grid">
           {showcaseCards.map((card) => (
             <Link key={card.title} href={card.href} className="tokoo-showcase-card">
-              <div className="tokoo-showcase-icon">
-                <Star size={18} />
-              </div>
               <p className="tokoo-showcase-tag">{card.tag}</p>
               <h3>{card.title}</h3>
               <p>{card.subtitle}</p>

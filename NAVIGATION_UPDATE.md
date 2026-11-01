@@ -1,3 +1,5 @@
+> Current status (2026-11-01): The configured database has now been backed up and upgraded, preserving original records. Supplier login IDs and session invalidation are included. See [DEPLOYMENT_FIX.md](DEPLOYMENT_FIX.md) for current deployment status and canonical `/suppliers/login` routes. Earlier pending-migration statements below describe the prior stage.
+
 # Storefront navigation and information pages
 
 The shared storefront header now has four shopping links: Home, Shop, Categories and New Arrivals. Collections is renamed Categories; Featured is replaced by New Arrivals; Journal is removed from the homepage. About and Contact are footer links.

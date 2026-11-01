@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ message: "Please check the items and quantities in your order." }, { status: 400 });
   try {
     const products = await prisma.product.findMany({
-      where: { id: { in: parsed.data.cart.map((item) => item.productId) } }, include: { inventory: true },
+      where: { id: { in: parsed.data.cart.map((item) => item.productId) } }, include: { inventory: { where: { status: "AVAILABLE" } } },
     });
     const amount = priceCheckout(parsed.data.cart, products);
     const items = parsed.data.cart.map((item) => {

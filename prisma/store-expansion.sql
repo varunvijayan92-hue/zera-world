@@ -1,4 +1,4 @@
--- Review and approve before running against production. One-time additive upgrade.
+-- Reviewed additive upgrade; original schema/data backed up under ignored .backups.
 BEGIN;
 
 -- AlterEnum
@@ -45,8 +45,10 @@ ADD COLUMN     "sourceType" TEXT NOT NULL DEFAULT 'DIRECT';
 
 -- AlterTable
 ALTER TABLE "User" ADD COLUMN     "language" TEXT NOT NULL DEFAULT 'en',
+ADD COLUMN     "loginId" TEXT,
 ADD COLUMN     "notificationsEnabled" BOOLEAN NOT NULL DEFAULT true,
-ADD COLUMN     "phone" TEXT;
+ADD COLUMN     "phone" TEXT,
+ADD COLUMN     "sessionVersion" INTEGER NOT NULL DEFAULT 0;
 
 -- CreateTable
 CREATE TABLE "CustomerAddress" (
@@ -136,6 +138,9 @@ CREATE INDEX "CustomerOrder_customerId_createdAt_idx" ON "CustomerOrder"("custom
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Refund_gatewayRefundId_key" ON "Refund"("gatewayRefundId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_loginId_key" ON "User"("loginId");
 
 -- AddForeignKey
 ALTER TABLE "CustomerOrder" ADD CONSTRAINT "CustomerOrder_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -2,7 +2,7 @@ type CartItem = { productId: string; sku: string; quantity: number };
 type Product = {
   id: string; sku: string; status: string; sellingPrice: unknown;
   gstRate?: unknown; handlingCharge?: unknown;
-  inventory: { availableQty: number; reservedQty: number }[];
+  inventory: { availableQty: number; reservedQty: number; status?: string }[];
 };
 
 export function priceCheckout(cart: CartItem[], products: Product[]) {
@@ -19,7 +19,7 @@ export function priceCheckout(cart: CartItem[], products: Product[]) {
     }
     const price = Number(product.sellingPrice);
     if (!Number.isFinite(price) || price <= 0) throw new Error("Product price is unavailable.");
-    const stock = product.inventory.reduce((sum, row) => sum + Math.max(0, row.availableQty - row.reservedQty), 0);
+    const stock = product.inventory.filter((row) => row.status === undefined || row.status === "AVAILABLE").reduce((sum, row) => sum + Math.max(0, row.availableQty - row.reservedQty), 0);
     if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10 || stock < item.quantity) {
       throw new Error("Requested quantity is unavailable.");
     }

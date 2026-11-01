@@ -30,6 +30,13 @@ test("duplicate cart lines cannot bypass the per-product quantity limit", () => 
   assert.equal(result.success, false);
 });
 
+test("damaged, reserved and in-transit inventory cannot be sold as available stock", () => {
+  for (const status of ["DAMAGED", "RESERVED", "TRANSIT"]) {
+    assert.throws(() => priceCheckout(cart, [{ ...product, inventory: [{ availableQty: 100, reservedQty: 0, status }] }]));
+  }
+  assert.equal(priceCheckout(cart, [{ ...product, inventory: [{ availableQty: 2, reservedQty: 0, status: "AVAILABLE" }, { availableQty: 100, reservedQty: 0, status: "DAMAGED" }] }]).subtotal, 199.98);
+});
+
 test("gateway amounts, currency and an already-bound payment ID must match", () => {
   const transaction = { amount: 329.98, currency: "INR", gatewayPaymentId: null };
   const payment = { id: "pay1", amount: 32998, currency: "INR" };

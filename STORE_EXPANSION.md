@@ -1,3 +1,5 @@
+> Current status (2026-11-01): The configured database has now been backed up and upgraded, preserving original records. Supplier login IDs and session invalidation are included. See [DEPLOYMENT_FIX.md](DEPLOYMENT_FIX.md) for current deployment status and canonical `/suppliers/login` routes. Earlier pending-migration statements below describe the prior stage.
+
 # Store, customer and supplier update
 
 This change extends the existing Next.js 15 / React 19 / Prisma / PostgreSQL app. It preserves the existing product, order, payment and supplier records. Production database changes and deployment have **not** been executed.

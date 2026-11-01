@@ -8,7 +8,10 @@ declare global {
 export const prisma =
   globalThis.prisma ??
   new PrismaClient({
-    log: ["error", "warn"],
+    // Route handlers log safe error codes without dumping query arguments or customer data.
+    log: ["warn"],
+    // Multi-record shipment/return updates need headroom for remote database latency.
+    transactionOptions: { maxWait: 10000, timeout: 30000 },
   });
 
 if (process.env.NODE_ENV !== "production") {

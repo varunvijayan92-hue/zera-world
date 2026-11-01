@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       if (existing) return null;
       const products = await tx.product.findMany({
         where: { id: { in: cart.map((item) => item.productId) } },
-        include: { inventory: true },
+        include: { inventory: { where: { status: "AVAILABLE" } } },
       });
       const amount = priceCheckout(cart, products);
       if (parsed.data.expectedTotalPaise !== undefined && parsed.data.expectedTotalPaise !== Math.round(amount.total * 100)) {

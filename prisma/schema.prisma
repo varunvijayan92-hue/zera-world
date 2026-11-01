@@ -10,8 +10,8 @@ datasource db {
 model User {
   id                   String               @id @default(cuid())
   email                String               @unique
-  loginId              String? @unique
-  sessionVersion       Int @default(0)
+  loginId              String?              @unique
+  sessionVersion       Int                  @default(0)
   passwordHash         String
   fullName             String
   role                 UserRole             @default(STAFF)
