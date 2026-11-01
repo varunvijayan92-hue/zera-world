@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     const parsed = schema.safeParse(await request.json()); if (!parsed.success) throw new AccessError(parsed.error.issues[0]?.message || "Invalid supplier details.");
     const body = parsed.data;
     if (body.action === "INVITE" && actor.role !== "ADMIN") throw new AccessError("Only administrators can grant login access.", 403);
+    let newLoginId: string | undefined;
     await prisma.$transaction(async (tx) => {
       if (body.action === "SUPPORT_REPLY") {
         await tx.supportTicket.update({ where: { id: body.ticketId }, data: { reply: body.reply, status: "ANSWERED" } });
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
         const supplier = await tx.supplier.findUnique({ where: { id: body.supplierId } }); if (!supplier) throw new AccessError("Supplier not found.", 404);
         if (body.action === "INVITE") {
           const defaults = generateSupplierCredentials(supplier.companyName, supplier.createdAt);
-          const newLoginId = body.loginId || defaults.loginId;
+          newLoginId = body.loginId || defaults.loginId;
           const passwordHash = await bcrypt.hash(body.password || defaults.password, 12);
           if (supplier.sourceType !== "DIRECT") throw new AccessError("Supplier login is available for direct suppliers. External sites are managed through sourcing records.");
           if (await tx.user.findFirst({ where: { OR: [{ email: { equals: body.email, mode: "insensitive" } }, { loginId: newLoginId }] } })) throw new AccessError("This email already has an account. Use a separate supplier email.", 409);
