@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { contactSchema } from "../lib/contact";
 import { storefrontNavigation, footerNavigation, isInternalPortal } from "../lib/storefront-navigation";
 import { POST } from "../app/api/contact/route";
+import { emailDelivery } from "../lib/email";
 
 const details = { fullName: "Test Customer", email: "buyer@example.test", orderNumber: "ZW-TEST", subject: "Order enquiry", message: "Please check the delivery status of my order." };
 const request = (body: unknown, origin = "https://store.example") => new Request("https://store.example/api/contact", { method: "POST", headers: { origin, "Content-Type": "application/json", "x-forwarded-for": "contact-unit-test" }, body: JSON.stringify(body) });
@@ -21,9 +22,10 @@ test("contact validation requires real form details and accepts an optional orde
   for (const patch of [{ fullName: " " }, { email: "invalid" }, { subject: "x" }, { message: "short" }, { message: "x".repeat(3001) }]) assert.equal(contactSchema.safeParse({ ...details, ...patch }).success, false);
 });
 test("contact API saves guest messages in the admin inbox and reports failures without claiming success", async (t) => {
-  const previous = prisma.auditLog; let saved: unknown; let fail = false;
+  const previous = prisma.auditLog; const previousSend = emailDelivery.send; let saved: unknown; let fail = false; let emailed: unknown;
+  emailDelivery.send = async (message) => { emailed = message; return "email-test"; };
   Object.assign(prisma, { auditLog: { create: async (args: unknown) => { if (fail) throw Error("private database details"); saved = args; return {}; } } });
-  t.after(() => Object.assign(prisma, { auditLog: previous }));
+  t.after(() => { Object.assign(prisma, { auditLog: previous }); emailDelivery.send = previousSend; });
   assert.equal((await POST(request(details, "https://foreign.example"))).status, 403);
   assert.equal(saved, undefined);
   const invalid = await POST(request({ ...details, email: "invalid" })); assert.equal(invalid.status, 400); assert.equal(saved, undefined);
@@ -32,6 +34,8 @@ test("contact API saves guest messages in the admin inbox and reports failures w
   const record = saved as unknown as { data: { action: string; details: unknown } };
   assert.equal(record.data.action, "CONTACT_REQUEST");
   assert.deepEqual(record.data.details, details);
+  assert.equal((emailed as { replyTo: string }).replyTo, details.email);
+  assert.equal((emailed as { to: string }).to, process.env.SUPPORT_EMAIL || "support@zerasworld.in");
   assert.equal((await POST(request({ ...details, website: "spam.example" }))).status, 200);
   assert.equal(saved, record);
   fail = true;

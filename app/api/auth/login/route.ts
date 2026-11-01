@@ -9,6 +9,7 @@ import bcrypt from "bcryptjs";
 import { AUTH_COOKIE, signSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isProductionSecureContext } from "@/lib/site";
+import { issueCustomerOtp, OTP_COOKIE, OTP_TTL_SECONDS } from "@/lib/customer-otp";
 
 const loginSchema = z.object({
   portal: z.enum(["CUSTOMER", "SUPPLIER", "ADMIN"]).optional(),
@@ -45,6 +46,17 @@ export async function POST(request: Request) {
 
     if (!passwordValid) {
       return NextResponse.json({ message: "Invalid credentials." }, { status: 401 });
+    }
+
+    // Enforce verification by the database role, even if a caller omits the portal field.
+    if (user.role === "CUSTOMER") {
+      let challengeId: string | null;
+      try { challengeId = await issueCustomerOtp(user); }
+      catch { return NextResponse.json({ message: "We could not send your verification email. Please wait a minute and try again." }, { status: 503 }); }
+      if (!challengeId) return NextResponse.json({ message: "Please wait before requesting another code. Maximum five emails per hour." }, { status: 429 });
+      const response = NextResponse.json({ requiresOtp: true, challengeId, message: "We emailed you a six-digit code. It expires in 10 minutes." });
+      response.cookies.set(OTP_COOKIE, challengeId, { httpOnly: true, secure: isProductionSecureContext(), sameSite: "lax", path: "/api/auth", maxAge: OTP_TTL_SECONDS });
+      return response;
     }
 
     if (parsed.data.portal === "SUPPLIER") {

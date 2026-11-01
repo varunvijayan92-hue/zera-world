@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { contactSchema } from "@/lib/contact";
 import { isSameOriginRequest } from "@/lib/request-origin";
 import { rateLimited } from "@/lib/rate-limit";
+import { emailDelivery } from "@/lib/email";
 
 export async function POST(request: Request) {
   if (!isSameOriginRequest(request)) return NextResponse.json({ message: "Invalid request origin." }, { status: 403 });
@@ -19,6 +20,11 @@ export async function POST(request: Request) {
   try {
     const { website, ...details } = parsed.data;
     await prisma.auditLog.create({ data: { action: "CONTACT_REQUEST", entityType: "ContactMessage", entityId: reference, details } });
+    try {
+      await emailDelivery.send({ to: process.env.SUPPORT_EMAIL || "support@zerasworld.in", replyTo: details.email, subject: `Customer enquiry: ${details.subject}`, text: `Reference: ${reference}\nName: ${details.fullName}\nEmail: ${details.email}\nOrder: ${details.orderNumber || "Not provided"}\n\n${details.message}` }, `contact/${reference}`);
+    } catch {
+      return NextResponse.json({ message: "Your enquiry is saved in our support inbox, but the email notification could not be sent.", reference }, { status: 201 });
+    }
     return NextResponse.json({ message: "Your message has been received by Zera's World support.", reference }, { status: 201 });
   } catch { return NextResponse.json({ message: "Your message could not be saved. Please try again later." }, { status: 503 }); }
 }

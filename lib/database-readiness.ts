@@ -10,6 +10,7 @@ export function databaseTargetFingerprint(connection = process.env.DATABASE_URL)
   } catch { return null; }
 }
 const required: Record<string, string[]> = {
+  CustomerLoginChallenge: ["userId", "challengeId", "digest", "expiresAt", "consumedAt"],
   User: ["loginId", "sessionVersion", "language", "notificationsEnabled"],
   StoreCategory: ["imageUrl", "imagePublicId"],
   Product: ["gstRate", "handlingCharge", "returnDays", "isReturnable"],

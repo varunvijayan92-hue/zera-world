@@ -30,6 +30,21 @@ model User {
   supportTickets       SupportTicket[]
   vouchers             CustomerVoucher[]
   customerReturns      ReturnRequest[]
+  loginChallenge       CustomerLoginChallenge?
+}
+
+model CustomerLoginChallenge {
+  userId         String   @id
+  challengeId    String   @unique
+  digest         String
+  sessionVersion Int
+  attempts       Int      @default(0)
+  expiresAt      DateTime
+  sentAt         DateTime
+  windowStart    DateTime
+  sendCount      Int      @default(1)
+  consumedAt     DateTime?
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model RolePermission {

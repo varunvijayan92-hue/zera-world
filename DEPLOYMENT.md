@@ -104,7 +104,7 @@ The storefront supports browsing products, a browser-local cart, guest checkout 
 
 Products, stock and order records remain in PostgreSQL. Protected management APIs remain available for a future trusted integration; they must not be made public to replace the removed dashboard. Automatic supplier API management is the selected operating model. The supplier and API documentation are still needed before implementing a live connector.
 
-Customer authentication, account order history, returns and supplier portals are implemented in the store expansion. Delhivery tracking requires a valid token. Automated supplier ordering, marketplace synchronization, outbound notifications and stock reservations during payment remain unimplemented. See STORE_EXPANSION.md for the current schema upgrade and configuration.
+Customer authentication, account order history, returns and supplier portals are implemented in the store expansion. Delhivery tracking requires a valid token. Automated supplier ordering, marketplace synchronization, order/shipment email notifications and stock reservations during payment remain unimplemented. Customer login verification and contact enquiry emails use Resend as described below.
 
 ## Razorpay Standard Checkout
 
@@ -116,4 +116,16 @@ See `STORE_ADMIN_SETUP.md` for administrator setup, menu/product editing, Cloudi
 
 ## Customer and supplier expansion
 
-Read STORE_EXPANSION.md before deployment. Configure INTEGRATION_ENCRYPTION_KEY in Vercel using the same stable 32-byte base64 key used to encrypt stored settings. Apply the reviewed SQL only after approval. New account, supplier, returns, finance export and API settings require this schema. Verify /api/health reports store-portals-v1 and the intended deployment commit. The Vercel hostname currently redirects to zerasworld.in; inspect the custom-domain deployment, not only the preview hostname. Local changes have not been published.
+Read STORE_EXPANSION.md before deployment. Configure INTEGRATION_ENCRYPTION_KEY in Vercel using the same stable 32-byte base64 key used to encrypt stored settings. New account, supplier, returns, finance export and API settings require this schema. Verify /api/health reports store-portals-v1 and the intended deployment commit. Check the custom domain zerasworld.in after deployment.
+
+## Customer email verification and enquiries
+
+Set server-only `RESEND_API_KEY`, `RESEND_FROM_EMAIL` and `SUPPORT_EMAIL` in the local private environment and Vercel Production. Use a sender on a domain verified by Resend. The configured support recipient is `support@zerasworld.in`. Never add the API key to a public environment variable.
+
+Apply the additive `prisma/customer-login-otp.sql` to the target database before deploying this update. It creates one challenge record per customer with a foreign key to the existing User table. No existing account data is changed. The Prisma schema includes the same model for new installations.
+
+Customer login checks the password, sends a six-digit email code, and issues the session only after `POST /api/auth/verify-otp` succeeds. Codes expire after ten minutes, are bound to the initiating browser, and can be consumed once. Database limits allow five attempts per code and five sends per account per hour, with a one-minute resend cooldown. Codes are stored as keyed digests and become unusable after a password/session-version reset. Admin and supplier login retain their existing flow. Registration creates the account; the following sign-in verifies email ownership. Existing signed-in sessions continue until logout or expiry.
+
+Contact submissions remain in the admin inbox and also email the support recipient, with the customer's email as Reply-To. If notification delivery fails, the response explicitly says the enquiry was saved but the email could not be sent. Contact notifications are synchronous and do not have an automatic background retry queue. This integration does not send order or shipment emails.
+
+To test, create a customer account at `/login`, sign in, enter the code received by email, and confirm `/account` opens. A wrong, expired or already-used code must fail. Submit `/contact` and confirm both the admin inbox record and support email arrive. Resend acceptance alone does not establish inbox delivery; check its delivery events when troubleshooting.
