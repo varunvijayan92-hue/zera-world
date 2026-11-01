@@ -115,9 +115,11 @@ export default async function ProductsPage({
 
                   <div className="mt-4 flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[0.65rem] font-medium uppercase tracking-[0.18em] text-[#173B35]/60">
-                        {product.category || "Featured"}
-                      </p>
+                      {product.category ? (
+                        <p className="text-[0.65rem] font-medium uppercase tracking-[0.18em] text-[#173B35]/60">
+                          {product.category}
+                        </p>
+                      ) : null}
                       <Link href={`/products/${product.id}`} className="mt-2 block text-lg font-bold text-[#173B35] hover:text-[#0f2a26]">
                         {product.name}
                       </Link>

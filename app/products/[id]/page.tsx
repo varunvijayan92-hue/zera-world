@@ -19,6 +19,15 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     notFound();
   }
 
+  const categoryLabel = (product.category || "").trim();
+  const gstValue = Number(product.gstRate ?? 0);
+  const handlingValue = Number(product.handlingCharge ?? 0);
+  const detailBits: string[] = [];
+  if (gstValue > 0) detailBits.push(`GST: ${gstValue}%`);
+  if (handlingValue > 0) detailBits.push(`Handling: INR ${handlingValue.toFixed(2)} per unit`);
+  if (product.isReturnable && Number(product.returnDays ?? 0) > 0) detailBits.push(`Returns within ${product.returnDays} days after delivery.`);
+  else if (!product.isReturnable) detailBits.push("This product cannot be returned.");
+
   return (
     <main className="min-h-screen bg-[#F7F4ED] px-4 py-8 text-[#173B35] md:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
@@ -31,7 +40,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <ProductGallery images={product.imageUrls} name={product.name} />
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#173B35]/60">{product.category || "Featured product"}</p>
+            {categoryLabel ? <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#173B35]/60">{categoryLabel}</p> : null}
             <h1 className="mt-3 text-4xl font-black tracking-[-0.07em] text-[#173B35]">{product.name}</h1>
 
             <div className="mt-4 flex items-center gap-3 text-sm text-[#173B35]/70">
@@ -55,7 +64,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               </div>
             </div>
 
-            <p className="mt-4 text-sm">GST: {Number(product.gstRate)}% ? Handling: INR {Number(product.handlingCharge).toFixed(2)} per unit. {product.isReturnable ? `Returns within ${product.returnDays} days after delivery.` : "This product cannot be returned."}</p>
+            {detailBits.length ? <p className="mt-4 text-sm">{detailBits.join(" • ")}</p> : null}
             <div className="mt-6">
               <CartButton product={{
                 id: product.id,
