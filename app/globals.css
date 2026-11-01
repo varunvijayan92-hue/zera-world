@@ -700,6 +700,12 @@ img {
   }
 }
 /* Supplied lifestyle reference, cropped in the layout to its photograph area. */
+@media (min-width: 1024px) {
+  .tokoo-hero-wrap { width: 50%; margin-inline: auto; }
+  .tokoo-hero-wrap .premium-living-hero { padding: 1.5rem; }
+  .tokoo-hero-wrap .premium-living-hero h1 { font-size: 2.5rem; }
+  .tokoo-hero-wrap .premium-living-hero p { font-size: .85rem; }
+}
 .premium-living-hero { min-height: 480px; background: #103c2f; padding: 3rem; isolation: isolate; }
 .premium-living-photo { position: absolute; inset: 0 0 0 40%; z-index: -2; background-image: url('/branding/premium-living-reference.png'); background-size: auto 168.008%; background-position: 88% 45.266%; background-repeat: no-repeat; }
 .premium-living-hero::before { inset: 0; width: 64%; height: 100%; border-radius: 0 0 65% 0; background: linear-gradient(100deg,#103c2f 65%,rgba(16,60,47,.93)); z-index: -1; border-right: 2px solid #d8ad54; }
