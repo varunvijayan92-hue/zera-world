@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Heart, Search, ShoppingBag, Truck, UserRound } from "lucide-react";
+import { ChevronDown, Heart, ShoppingBag, Truck, UserRound } from "lucide-react";
 import ZeraWorldLogo from "./zera-logo";
 import { footerNavigation, storefrontNavigation, isInternalPortal } from "@/lib/storefront-navigation";
 
@@ -57,9 +57,6 @@ export function StorefrontHeader() {
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <Link href="/products#catalog-search" aria-label="Search products" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#173B35]/15 bg-white text-[#173B35] transition hover:bg-[#173B35]/5">
-              <Search size={18} />
-            </Link>
             <Link href="/account" aria-label="My account" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#173B35]/15 bg-white text-[#173B35] transition hover:bg-[#173B35]/5">
               <UserRound size={18} />
             </Link>
