@@ -18,8 +18,15 @@ export async function POST(request: Request) {
   try {
     const user = await consumeCustomerOtp(parsed.data.challengeId, parsed.data.code);
     if (!user) return NextResponse.json({ message: "Invalid or expired code. After five attempts, request a new code." }, { status: 400 });
+    if (!user.isActive) {
+      if (!prisma) throw new Error("Database unavailable.");
+      await prisma.user.update({ where: { id: user.id }, data: { isActive: true } });
+      const response = NextResponse.json({ success: true, message: "Account verified. You can now sign in with your email and password." });
+      response.cookies.set(OTP_COOKIE, "", { httpOnly: true, secure: isProductionSecureContext(), sameSite: "lax", path: "/api/auth", maxAge: 0 });
+      return response;
+    }
     const token = await signSession({ userId: user.id, email: user.email, role: user.role, fullName: user.fullName, version: user.sessionVersion });
-    const response = NextResponse.json({ success: true });
+    const response = NextResponse.json({ success: true, message: "Verified. Welcome back." });
     response.cookies.set(AUTH_COOKIE, token, { httpOnly: true, secure: isProductionSecureContext(), sameSite: "lax", path: "/", maxAge: 60 * 60 * 12 });
     response.cookies.set(OTP_COOKIE, "", { httpOnly: true, secure: isProductionSecureContext(), sameSite: "lax", path: "/api/auth", maxAge: 0 });
     return response;

@@ -7,6 +7,7 @@ import { createPaymentSession } from "@/lib/payment";
 import { gatewayError, GatewayError } from "@/lib/razorpay";
 import { priceCheckout } from "@/lib/checkout";
 import { checkoutRequestSchema } from "@/lib/validators";
+import { buildSupplierOrderEmailText, emailDelivery } from "@/lib/email";
 
 export async function POST(request: Request) {
   const parsed = checkoutRequestSchema.safeParse(await request.json().catch(() => null));
@@ -67,6 +68,87 @@ export async function POST(request: Request) {
       return { order, transaction, amount };
     });
     if (!result) return NextResponse.json({ message: "This checkout has already been submitted." }, { status: 409 });
+
+    try {
+      const supplierIds = [...new Set(result.order.orderItems.map((item) => item.supplierId).filter((id): id is string => Boolean(id)))];
+      if (supplierIds.length > 0) {
+        const suppliers = await prisma.supplier.findMany({
+          where: { id: { in: supplierIds } },
+          select: { id: true, companyName: true, email: true, contactName: true },
+        });
+        const byId = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+        const itemsBySupplier = new Map<string, typeof result.order.orderItems>();
+        for (const item of result.order.orderItems) {
+          if (!item.supplierId) continue;
+          const existing = itemsBySupplier.get(item.supplierId) || [];
+          existing.push(item);
+          itemsBySupplier.set(item.supplierId, existing);
+        }
+        for (const [supplierId, items] of itemsBySupplier) {
+          const supplier = byId.get(supplierId);
+          if (!supplier || !supplier.email) continue;
+          const productIds = items.map((item) => item.productId).filter((id): id is string => Boolean(id));
+          const productDetails = await prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, name: true, sku: true, sellingPrice: true, gstRate: true, handlingCharge: true },
+          });
+          const productMap = new Map(productDetails.map((product) => [product.id, product]));
+          const itemRows = items.map((item) => {
+            const productId = item.productId;
+            if (!productId) return null;
+            const product = productMap.get(productId);
+            const unitPrice = Number(product?.sellingPrice ?? item.unitPrice ?? 0);
+            const gstRate = Number(product?.gstRate ?? item.gstRate ?? 0);
+            const handlingCharge = Number(product?.handlingCharge ?? item.handlingCharge ?? 0);
+            const lineSubtotal = unitPrice * item.quantity;
+            const lineTax = lineSubtotal * gstRate / 100;
+            const lineHandling = handlingCharge * item.quantity;
+            const lineTotal = lineSubtotal + lineTax + lineHandling;
+            return {
+              productName: product?.name || item.marketplaceSku || "Product",
+              sku: String(product?.sku ?? item.marketplaceSku ?? productId ?? "N/A"),
+              quantity: item.quantity,
+              unitPrice,
+              gstRate,
+              handlingCharge,
+              lineTotal,
+            };
+          }).filter((row): row is { productName: string; sku: string; quantity: number; unitPrice: number; gstRate: number; handlingCharge: number; lineTotal: number } => row !== null);
+          const supplierTotals = itemRows.reduce((total, item) => {
+            const lineSubtotal = item.unitPrice * item.quantity;
+            const lineTax = lineSubtotal * item.gstRate / 100;
+            const lineHandling = item.handlingCharge * item.quantity;
+            total.subtotal += lineSubtotal;
+            total.taxes += lineTax;
+            total.handling += lineHandling;
+            total.total += lineSubtotal + lineTax + lineHandling;
+            return total;
+          }, { subtotal: 0, taxes: 0, handling: 0, total: 0 });
+          const supplierOrderText = buildSupplierOrderEmailText({
+            supplierCompany: supplier.companyName,
+            supplierContact: supplier.contactName,
+            orderId: result.order.marketplaceOrderId,
+            customer: { fullName: shippingAddress.fullName, email: shippingAddress.email, phone: shippingAddress.phone },
+            shippingAddress,
+            items: itemRows,
+            totals: {
+              subtotal: supplierTotals.subtotal,
+              taxes: supplierTotals.taxes,
+              handling: supplierTotals.handling,
+              shipping: Number(result.order.shippingAmount),
+              total: supplierTotals.total + Number(result.order.shippingAmount),
+            },
+          });
+          await emailDelivery.send({
+            to: supplier.email,
+            subject: `New order for ${supplier.companyName} - ${result.order.marketplaceOrderId}`,
+            text: supplierOrderText,
+          }, `supplier-order/${result.order.id}/${supplierId}`);
+        }
+      }
+    } catch (error) {
+      console.error("Supplier order email could not be sent", error);
+    }
 
     let payment;
     try {

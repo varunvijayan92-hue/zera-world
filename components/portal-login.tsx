@@ -19,7 +19,12 @@ export function PortalLogin({ supplier = false }: { supplier?: boolean }) {
       const result = await response.json();
       if (!response.ok) throw Error(result.message);
       if (result.requiresOtp) { setChallenge(result.challengeId); setMessage(result.message); }
-      else if (register) { setRegister(false); setMessage(result.message); }
+      else if (challenge && result.success) {
+        setChallenge("");
+        setRegister(false);
+        setMessage(result.message || "Account verified successfully.");
+      }
+      else if (register) { setRegister(false); setMessage(result.message || "Account verified. You can now sign in."); }
       else window.location.assign(supplier ? "/suppliers/dashboard" : "/account");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Sign in failed."); }
     finally { setBusy(false); }

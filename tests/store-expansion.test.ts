@@ -16,6 +16,7 @@ import { POST as confirmDelivery } from "../app/api/admin/orders/[id]/delivery/r
 import { POST as requestRefund } from "../app/api/admin/returns/[id]/refund/route";
 import { razorpayGateway } from "../lib/razorpay";
 import { saveReturnRefund } from "../lib/return-refund";
+import { buildSupplierOrderEmailText } from "../lib/email";
 
 function identity(t: TestContext, role: UserRole = "CUSTOMER") {
   t.mock.method(authContext, "current", async () => ({ id: "actor", email: "actor@example.test", fullName: "Actor", isActive: true, role }));
@@ -46,6 +47,32 @@ test("checkout uses each product's GST and per-unit handling rather than a cart-
     { id: "b", sku: "B", status: "ACTIVE", sellingPrice: 200, gstRate: 5, handlingCharge: 5, inventory },
   ]);
   assert.deepEqual(result, { subtotal: 400, taxes: 46, handlingCharges: 11, shippingCharges: 120, total: 577, currency: "INR" });
+});
+test("supplier order emails include customer details, item lines and invoice totals", () => {
+  const text = buildSupplierOrderEmailText({
+    supplierCompany: "Leaf & Loom",
+    supplierContact: "Asha",
+    orderId: "ORDER-123",
+    customer: { fullName: "Rahul Sharma", email: "rahul@example.com", phone: "9999999999" },
+    shippingAddress: {
+      addressLine1: "42 Market Road",
+      addressLine2: "Near City Plaza",
+      city: "Bengaluru",
+      state: "Karnataka",
+      pincode: "560001",
+      country: "India",
+    },
+    items: [
+      { productName: "Cotton Kurta", sku: "CT-KURTA-01", quantity: 2, unitPrice: 2500, gstRate: 18, handlingCharge: 25, lineTotal: 5900 },
+      { productName: "Silk Scarf", sku: "SCARF-XL", quantity: 1, unitPrice: 1200, gstRate: 5, handlingCharge: 15, lineTotal: 1260 },
+    ],
+    totals: { subtotal: 6200, taxes: 960, handling: 65, shipping: 120, total: 7345 },
+  });
+  assert.match(text, /Rahul Sharma/);
+  assert.match(text, /42 Market Road/);
+  assert.match(text, /Cotton Kurta/);
+  assert.match(text, /Subtotal: ₹6,200\.00/);
+  assert.match(text, /Total for Leaf & Loom: ₹7,345\.00/);
 });
 test("return windows start at delivery and reject nonreturnable, expired and legacy unknown policies", () => {
   const delivered = new Date("2026-10-01T10:00:00Z"); const policy = { isReturnable: true, returnDays: 7 };

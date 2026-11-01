@@ -1,4 +1,16 @@
-export const adminNavigation = [
+type AdminNavItem = {
+  label: string;
+  href: string;
+  icon: string;
+  badge?: string;
+};
+
+type AdminNavSection = {
+  label: string;
+  items: AdminNavItem[];
+};
+
+export const adminNavigation: AdminNavSection[] = [
   { label: "Overview", items: [
     { label: "Dashboard", href: "/admin/dashboard", icon: "dashboard" },
     { label: "Analytics", href: "/admin/analytics", icon: "analytics" },
@@ -6,6 +18,7 @@ export const adminNavigation = [
   { label: "Commerce", items: [
     { label: "Products", href: "/admin/products", icon: "products" },
     { label: "Orders", href: "/admin/orders", icon: "orders" },
+    { label: "Notifications", href: "/admin/returns", icon: "orders", badge: "New" },
     { label: "Contact requests", href: "/admin/contact-messages", icon: "customers" },
     { label: "Customers", href: "/admin/customers", icon: "customers" },
     { label: "Inventory", href: "/admin/inventory", icon: "inventory" },
@@ -28,7 +41,7 @@ export const adminNavigation = [
     { label: "Settings", href: "/admin/settings", icon: "settings" },
     { label: "Users & Roles", href: "/admin/users", icon: "users" },
   ] },
-] as const;
+];
 
 export function isAdminNavActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
