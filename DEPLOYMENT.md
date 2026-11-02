@@ -151,3 +151,11 @@ The supplied logo and homepage reference are stored under `public/branding`. The
 Contact submissions remain in the admin inbox and also email the support recipient, with the customer's email as Reply-To. If notification delivery fails, the response explicitly says the enquiry was saved but the email could not be sent. Contact notifications are synchronous and do not have an automatic background retry queue. This integration does not send order or shipment emails.
 
 To test, create a customer account at `/login`, sign in, enter the code received by email, and confirm `/account` opens. A wrong, expired or already-used code must fail. Submit `/contact` and confirm both the admin inbox record and support email arrive. Resend acceptance alone does not establish inbox delivery; check its delivery events when troubleshooting.
+# Shiprocket shipping connection
+
+- Open **Admin → Settings → SHIPROCKET**. Create a dedicated API user in Shiprocket Settings → API, then save its email and password here. Credentials use the existing server-side encrypted integration store; no database migration or public environment variables are needed.
+- Use **Manage Shiprocket pickup addresses** to open the pickup-address page in Shiprocket. Optionally save the exact registered pickup-location name for reference.
+- After saving, click **Check connection & pickup locations** to verify authentication and list pickup-location names. This check does not create shipments or schedule pickups.
+- Book the shipment in Shiprocket, then select **Shiprocket** and enter the issued AWB under **Admin → Tracking**, or under the supplier portal's **Shipments & Tracking**. The existing paid-order and supplier-ownership checks still apply.
+- Refresh live tracking in the admin, supplier or customer tracking page. Provider scans are saved as tracking events; confirming delivery remains an audited admin action. Automatic booking, label generation, pickup scheduling and tracking webhooks are not part of this connection.
+- API reference: https://apidocs.shiprocket.in/

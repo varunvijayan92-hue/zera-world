@@ -7,7 +7,7 @@ import { integrationFields } from "@/lib/integration-settings";
 import { AccessError, apiError } from "@/lib/portal-access";
 import { isSameOriginRequest } from "@/lib/request-origin";
 
-const schema = z.object({ provider: z.enum(["RAZORPAY", "DELHIVERY", "AMAZON", "FLIPKART"]), credentials: z.record(z.string().trim().max(4096)) });
+const schema = z.object({ provider: z.enum(["RAZORPAY", "DELHIVERY", "SHIPROCKET", "AMAZON", "FLIPKART"]), credentials: z.record(z.string().max(4096)) });
 export async function POST(request: Request) {
   try {
     const user = await getCurrentUser();
@@ -17,9 +17,13 @@ export async function POST(request: Request) {
     const { provider, credentials } = parsed.data;
     const existing = await prisma.integrationSetting.findUnique({ where: { provider } });
     const merged = existing ? decryptCredentials(existing.encryptedCredentials) : {};
-    for (const key of integrationFields[provider]) if (credentials[key]) merged[key] = credentials[key];
+    for (const key of integrationFields[provider]) {
+      const value = provider === "SHIPROCKET" && key === "password" ? credentials[key] : credentials[key]?.trim();
+      if (value) merged[key] = value;
+    }
     const required = integrationFields[provider].filter((key) => !["webhookSecret", "pickupLocation"].includes(key));
     if (required.some((key) => !merged[key])) throw new AccessError("Complete the required API credentials. Blank fields preserve previously saved values.");
+    if (provider === "SHIPROCKET" && !z.string().email().safeParse(merged.email).success) throw new AccessError("Enter a valid Shiprocket API user email.");
     const encryptedCredentials = encryptCredentials(merged);
     await prisma.$transaction([
       prisma.integrationSetting.upsert({ where: { provider }, create: { provider, encryptedCredentials }, update: { encryptedCredentials } }),

@@ -4,6 +4,7 @@ import { decryptCredentials } from "./integration-crypto";
 export const integrationFields = {
   RAZORPAY: ["keyId", "keySecret", "webhookSecret"],
   DELHIVERY: ["apiToken", "pickupLocation"],
+  SHIPROCKET: ["email", "password", "pickupLocation"],
   AMAZON: ["sellerId", "marketplaceId", "clientId", "clientSecret", "refreshToken"],
   FLIPKART: ["sellerId", "clientId", "clientSecret"],
 } as const;

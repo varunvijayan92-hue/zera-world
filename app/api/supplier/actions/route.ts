@@ -6,7 +6,7 @@ import { supplierAccess, AccessError, apiError } from "@/lib/portal-access";
 const actions = z.discriminatedUnion("action", [
   z.object({ action: z.literal("RETURN_RECEIVED"), returnId: z.string().min(1) }),
   z.object({ action: z.literal("ORDER"), itemId: z.string(), status: z.enum(["ACCEPTED", "REJECTED", "PROCESSING", "PACKED"]) }),
-  z.object({ action: z.literal("SHIPMENT"), itemId: z.string(), awb: z.string().regex(/^[a-zA-Z0-9-]{5,40}$/) }),
+  z.object({ action: z.literal("SHIPMENT"), itemId: z.string(), courierName: z.enum(["Delhivery", "Shiprocket"]).default("Delhivery"), awb: z.string().regex(/^[a-zA-Z0-9-]{5,40}$/) }),
   z.object({ action: z.literal("STOCK"), productId: z.string(), stock: z.coerce.number().int().min(0).max(1000000), costPrice: z.coerce.number().finite().min(0).max(1000000) }),
   z.object({ action: z.literal("PRODUCT"), name: z.string().trim().min(2).max(150), sku: z.string().trim().min(1).max(80), description: z.string().max(5000), costPrice: z.coerce.number().finite().min(0).max(1000000), stock: z.coerce.number().int().min(0).max(1000000) }),
   z.object({ action: z.literal("PROFILE"), contactName: z.string().trim().max(100), phone: z.string().max(30), pickupAddress: z.string().trim().max(1000), gstNumber: z.string().trim().max(50).optional().or(z.literal("")), gstRegistered: z.coerce.boolean().optional().default(false), gstRate: z.coerce.number().finite().min(0).max(100).optional() }),
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
           if (item.fulfillmentStatus !== "PACKED") throw new AccessError("Pack and confirm this item before dispatch.");
           const existing = await tx.shipment.findFirst({ where: { trackingNumber: body.awb } });
           if (existing) throw new AccessError("This AWB is already recorded. Review the existing shipment.", 409);
-          await tx.shipment.create({ data: { customerOrderId: item.customerOrderId, supplierId: supplier.id, courierName: "Delhivery", trackingNumber: body.awb, status: "IN_TRANSIT", trackingEvents: { create: { eventType: "DISPATCHED", description: "Supplier entered the shipment AWB." } } } });
+          await tx.shipment.create({ data: { customerOrderId: item.customerOrderId, supplierId: supplier.id, courierName: body.courierName, trackingNumber: body.awb, status: "IN_TRANSIT", trackingEvents: { create: { eventType: "DISPATCHED", description: "Supplier entered the shipment AWB." } } } });
           await tx.orderItem.update({ where: { id: item.id }, data: { fulfillmentStatus: "SHIPPED", status: "SHIPPED" } });
           if (!await tx.orderItem.count({ where: { customerOrderId: item.customerOrderId, status: { not: "SHIPPED" } } })) await tx.customerOrder.update({ where: { id: item.customerOrderId }, data: { status: "SHIPPED" } });
         }
