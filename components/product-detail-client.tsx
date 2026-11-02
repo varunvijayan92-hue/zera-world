@@ -169,19 +169,14 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
               {detailBits.length ? <p>{detailBits.join(" • ")}</p> : null}
             </div>
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <div className="flex-1">
-                <CartButton product={{
-                  id: product.id,
-                  name: product.name,
-                  sku: product.sku,
-                  sellingPrice: Number(product.sellingPrice ?? 0),
-                  imageUrls: product.imageUrls,
-                }} />
-              </div>
-              <button type="button" className="inline-flex flex-1 items-center justify-center rounded-xl bg-[#173B35] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(23,59,53,0.20)] transition hover:bg-[#0f2a26]">
-                Buy at ₹{Number(product.sellingPrice ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-              </button>
+            <div className="mt-6">
+              <CartButton product={{
+                id: product.id,
+                name: product.name,
+                sku: product.sku,
+                sellingPrice: Number(product.sellingPrice ?? 0),
+                imageUrls: product.imageUrls,
+              }} label={`Buy at ₹${Number(product.sellingPrice ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`} />
             </div>
           </div>
         </div>
