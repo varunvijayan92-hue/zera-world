@@ -1,12 +1,12 @@
 
-import { Resend } from "resend";
+import { supportMailClient } from "@/lib/support-mail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const INBOUND =
   process.env.RESEND_INBOUND_ADDRESS ??
-  "support@support.zerasworld.in";
+  "support@zerasworld.in";
 
 const FORWARD_TO =
   process.env.RESEND_FORWARD_TO ??
@@ -14,7 +14,7 @@ const FORWARD_TO =
 
 const FORWARD_FROM =
   process.env.RESEND_FORWARD_FROM ??
-  "forwarder@support.zerasworld.in";
+  "support@zerasworld.in";
 
 function emailAddress(value: string): string {
   const match = value.match(/<([^>]+)>/);
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     return new Response("Configuration error", { status: 500 });
   }
 
-  const resend = new Resend(apiKey);
+  const resend = supportMailClient.create(apiKey);
 
   // Verify the original request, not re-serialized JSON.
   let event;
@@ -69,17 +69,6 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, ignored: true });
   }
 
-  // Basic forwarding-loop protection.
-  const sender = emailAddress(from);
-
-  if (
-    sender === emailAddress(FORWARD_FROM) ||
-    sender === emailAddress(FORWARD_TO) ||
-    sender === emailAddress(INBOUND)
-  ) {
-    return Response.json({ ok: true, ignored: true });
-  }
-
   try {
     // The webhook contains metadata, not the email body.
     const { data: email, error: readError } =
@@ -87,6 +76,11 @@ export async function POST(request: Request) {
 
     if (readError || !email) {
       throw new Error("Failed to retrieve received email");
+    }
+    // Allow customers writing from the Gmail destination, and website enquiries
+    // sent from support itself. Use a forwarding marker instead of blocking senders.
+    if (Object.entries(email.headers || {}).some(([name, value]) => name.toLowerCase() === "x-zera-support-forwarded" && value === "1")) {
+      return Response.json({ ok: true, ignored: true });
     }
 
     const { data: attachmentList, error: attachmentError } =
@@ -106,14 +100,10 @@ export async function POST(request: Request) {
       0
     );
 
-    if (totalSize > MAX_TOTAL_BYTES) {
-      throw new Error("Attachments exceed forwarding limit");
-    }
-
     const attachments = [];
 
-    for (const attachment of attachmentList.data) {
-      const response = await fetch(attachment.download_url);
+    for (const attachment of totalSize <= MAX_TOTAL_BYTES ? attachmentList.data : []) {
+      const response = await fetch(attachment.download_url, { signal: AbortSignal.timeout(15000) });
 
       if (!response.ok) {
         throw new Error("Attachment download failed");
@@ -127,7 +117,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const originalSender = emailAddress(email.from);
+    const originalSender = emailAddress(email.reply_to?.[0] || email.from);
     const body =
       email.text ||
       "This message contained HTML content only. " +
@@ -139,6 +129,7 @@ export async function POST(request: Request) {
       `From: ${email.from}`,
       `To: ${email.to.join(", ")}`,
       `Subject: ${email.subject ?? "(No subject)"}`,
+      ...(totalSize > MAX_TOTAL_BYTES ? ["Attachments exceed 10 MB and remain available in the Resend inbox."] : []),
       "",
       "----- ORIGINAL MESSAGE -----",
       body,
@@ -151,6 +142,8 @@ export async function POST(request: Request) {
         replyTo: originalSender,
         subject: `Fwd: ${email.subject || "(No subject)"}`,
         text: forwardedText,
+        ...(email.html ? { html: (totalSize > MAX_TOTAL_BYTES ? "<p>Attachments exceed 10 MB and remain available in the Resend inbox.</p>" : "") + email.html } : {}),
+        headers: { "X-Zera-Support-Forwarded": "1" },
         attachments,
       },
       {
@@ -164,7 +157,7 @@ export async function POST(request: Request) {
 
     return Response.json({ ok: true, forwarded: true });
   } catch (error) {
-    console.error("Support email forwarding failed", error);
+    console.error("Support email forwarding failed");
 
     // Non-2xx response lets Resend retry failed webhook delivery.
     return new Response("Forwarding failed", { status: 500 });
