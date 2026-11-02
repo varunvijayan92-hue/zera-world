@@ -28,7 +28,7 @@ async function token() {
 
 export async function shiprocketPickupLocations() {
   const data = await call("/settings/company/pickup", { headers: { Authorization: `Bearer ${await token()}` } });
-  const addresses = data?.data?.shipping_address;
+  const addresses = data?.data?.shipping_address === null ? [] : data?.data?.shipping_address;
   if (!Array.isArray(addresses)) throw new AccessError("Shiprocket returned an invalid pickup address response.", 502);
   return addresses.slice(0, 500).map((entry) => ({ name: String(entry.pickup_location || "Unnamed pickup location").slice(0, 200) }));
 }

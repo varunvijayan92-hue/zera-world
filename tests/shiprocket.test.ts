@@ -17,6 +17,12 @@ function setup(t: TestContext) {
 }
 const request = (body?: unknown, origin = "https://store.example") => new Request("https://store.example/api/admin/integrations", { method: "POST", headers: { origin, "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
 
+test("Shiprocket accounts without pickup addresses return an empty location list", async t => {
+  setup(t);
+  t.mock.method(globalThis, "fetch", async (url: string) => url.endsWith("/auth/login") ? Response.json({ token: "private-token" }) : Response.json({ data: { shipping_address: null, recent_addresses: [] } }));
+  assert.deepEqual(await shiprocketPickupLocations(), []);
+});
+
 test("Shiprocket authenticates server-side and normalizes AWB scans with Indian local dates", async t => {
   setup(t);
   const calls: string[] = [];
