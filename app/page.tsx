@@ -109,6 +109,7 @@ export default async function HomePage() {
                       <Link href={`/products/${product.id}`} className="tokoo-product-name">
                         {product.name}
                       </Link>
+                      {product.size?.trim() ? <p className="mt-1 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-[#173B35]/60">Size: {product.size.trim()}</p> : null}
                     </div>
                     <Link href={`/products/${product.id}`} className="tokoo-mini-cart" aria-label={`View ${product.name}`}>
                       <ShoppingBag size={16} />

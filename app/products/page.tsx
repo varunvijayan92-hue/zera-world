@@ -137,6 +137,7 @@ export default async function ProductsPage({
                       <Link href={`/products/${product.id}`} className="mt-2 block text-lg font-bold text-[#173B35] hover:text-[#0f2a26]">
                         {product.name}
                       </Link>
+                      {product.size?.trim() ? <p className="mt-2 text-xs font-medium text-[#173B35]/70">Size: {product.size.trim()}</p> : null}
                     </div>
                     <Link href={`/products/${product.id}`} className="rounded-full bg-[#173B35] p-2 text-white" aria-label={`View ${product.name}`}>
                       <ShoppingBag size={16} />

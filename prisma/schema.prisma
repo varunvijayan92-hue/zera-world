@@ -183,6 +183,7 @@ model Product {
   categoryId              String?
   storeCategory           StoreCategory?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   brand                   String?
+  size                    String?
   status                  ProductStatus               @default(DRAFT)
   costPrice               Decimal?                    @db.Decimal(12, 2)
   sellingPrice            Decimal?                    @db.Decimal(12, 2)

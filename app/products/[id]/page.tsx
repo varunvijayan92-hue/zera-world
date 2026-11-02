@@ -67,6 +67,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               {extras?.hsnCode ? <span className="rounded-full bg-[#F7F4ED] px-2.5 py-1">HSN: {extras.hsnCode}</span> : null}
             </div>
 
+            {product.size?.trim() ? <p className="mt-4 text-sm font-semibold text-[#173B35]/75">Size: {product.size.trim()}</p> : null}
             <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} mrp={extras?.mrp} className="mt-5" priceClassName="text-3xl font-black text-[#173B35]" />
 
             <div className="mt-6 space-y-3 text-sm text-[#173B35]/75">

@@ -6,6 +6,12 @@ import { validateMrp, saveProductExtras } from "../lib/product-pricing";
 import { showStruckMrp } from "../lib/product-pricing-display";
 import { priceCheckout } from "../lib/checkout";
 
+test("Product size is optional, trimmed, and stored for assorted dress sizing", () => {
+  const fields = productSchema.partial().parse({ size: " S, M, L, XL " });
+  assert.equal(fields.size, "S, M, L, XL");
+  assert.equal(productSchema.partial().parse({ size: "" }).size, null);
+});
+
 test("MRP and HSN are optional, clearable, and preserve leading-zero HSN codes", () => {
   const fields = productSchema.partial().parse({ mrp: "150.50", hsnCode: "00123456" });
   assert.equal(fields.mrp, 150.5); assert.equal(fields.hsnCode, "00123456");

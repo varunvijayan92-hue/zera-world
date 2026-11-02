@@ -15,7 +15,7 @@ const required: Record<string, string[]> = {
   CustomerLoginChallenge: ["userId", "challengeId", "digest", "expiresAt", "consumedAt", "purpose"],
   User: ["loginId", "sessionVersion", "language", "notificationsEnabled"],
   StoreCategory: ["imageUrl", "imagePublicId", "parentId"],
-  Product: ["gstRate", "handlingCharge", "returnDays", "isReturnable", "mrp", "hsnCode"],
+  Product: ["gstRate", "handlingCharge", "returnDays", "isReturnable", "size", "mrp", "hsnCode"],
   Supplier: ["sourceType", "pickupAddress", "gstNumber", "gstRegistered", "gstRate"],
   CustomerOrder: ["customerId", "deliveredAt", "taxAmount", "handlingAmount"],
   OrderItem: ["costPrice", "gstRate", "handlingCharge", "isReturnable", "returnDays", "fulfillmentStatus"],
