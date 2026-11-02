@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { STORE_DESCRIPTION } from "@/lib/seo";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Zera's World",
     short_name: "Zera's World",
-    description: "Premium ecommerce and supplier-to-marketplace integration.",
+    description: STORE_DESCRIPTION,
     start_url: "/",
     display: "standalone",
     background_color: "#F7F4ED",

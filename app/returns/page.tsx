@@ -1,3 +1,5 @@
+import { publicPageMetadata } from "@/lib/seo";
+export const metadata = publicPageMetadata("Return & Refund Policy","Read Zera's World's product return and refund policy.","/returns");
 import Link from "next/link";
 
 export default function ReturnsPage() {

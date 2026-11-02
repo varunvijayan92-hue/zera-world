@@ -7,15 +7,24 @@ import { CartButton } from "@/components/cart-button";
 import { prisma } from "@/lib/prisma";
 import { getMenuCategories } from "@/lib/category-data";
 import { categoryLink } from "@/lib/category";
+import { cache } from "react";
+import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+const getProduct = cache((id: string) => prisma.product.findUnique({ where: { id }, include: { supplier: true } }));
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const product = await getProduct(id);
+  if (!product || product.status !== "ACTIVE") return { title: "Product not found", robots: { index: false, follow: false } };
+  const metadata = publicPageMetadata(product.name, product.description?.trim().slice(0, 160) || `Discover ${product.name} at Zera's World. View product details and shop online.`, `/products/${encodeURIComponent(id)}`);
+  return { ...metadata, openGraph: { ...metadata.openGraph, ...(product.imageUrls.length ? { images: product.imageUrls.map(url => ({ url, alt: product.name })) } : {}) } };
+}
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const product = await prisma.product.findUnique({
-    where: { id },
-    include: { supplier: true },
-  });
+  const product = await getProduct(id);
 
   if (!product || product.status !== "ACTIVE") {
     notFound();

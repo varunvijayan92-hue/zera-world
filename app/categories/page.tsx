@@ -1,9 +1,10 @@
+import { publicPageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { getMenuCategories } from "@/lib/category-data";
 import { categoryLink, visibleMenuCategories } from "@/lib/category";
 import { ProductImage } from "@/components/product-image";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Categories", description: "Explore Zera's World categories and subcategories." };
+export const metadata = publicPageMetadata("Categories","Explore Zera's World categories and subcategories.","/categories");
 export default async function CategoriesPage() {
   const categories = visibleMenuCategories(await getMenuCategories());
   const roots = categories.filter(category => !category.parentId);

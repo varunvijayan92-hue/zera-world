@@ -20,7 +20,7 @@ export function categoryDisplayName(category: MenuCategory, categories: MenuCate
   const parent = categories.find(entry => entry.id === category.parentId);
   return parent ? `${parent.name} / ${category.name}` : category.name;
 }
-export function visibleMenuCategories(categories: MenuCategory[]) {
+export function visibleMenuCategories<T extends MenuCategory>(categories: T[]) {
   return categories.filter(category => category.isVisible && (!category.parentId || categories.some(parent => parent.id === category.parentId && parent.isVisible && !parent.parentId)));
 }
 export function categoryProductIds(category: MenuCategory, categories: MenuCategory[]) {

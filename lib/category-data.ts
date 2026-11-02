@@ -25,7 +25,7 @@ export async function saveMenuCategory(input: Partial<z.infer<typeof categorySch
     const saved = id
       ? await tx.storeCategory.update({ where: { id }, data: fields })
       : await tx.storeCategory.create({ data: { name: input.name!, slug: input.slug!, ...fields } });
-    await tx.$executeRaw`UPDATE "StoreCategory" SET "parentId" = ${parentId} WHERE "id" = ${saved.id}`;
+    await tx.$executeRaw`UPDATE "StoreCategory" SET "parentId" = ${parentId}, "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = ${saved.id}`;
     if (current && saved.name !== current.name) await tx.product.updateMany({ where: { categoryId: saved.id }, data: { category: saved.name } });
     return { ...saved, parentId };
   }, { isolationLevel: "Serializable" });

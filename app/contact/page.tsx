@@ -1,7 +1,8 @@
+import { publicPageMetadata } from "@/lib/seo";
 import { StoreInformationPage } from "@/components/store-information-page";
 import { ContactForm } from "@/components/contact-form";
 import { publicSupportDetails } from "@/lib/contact";
-export const metadata = { title: "Contact Us", description: "Contact Zera's World for product, order, payment, shipping and return enquiries." };
+export const metadata = publicPageMetadata("Contact Us","Contact Zera's World for product, order, payment, shipping and return enquiries.","/contact");
 export default function ContactPage() {
   const support = publicSupportDetails();
   return <StoreInformationPage title="Contact Us" introduction="We’re Here to Help">

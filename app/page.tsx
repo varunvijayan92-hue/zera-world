@@ -6,6 +6,9 @@ import Link from "next/link";
 
 import { prisma } from "@/lib/prisma";
 import { getMenuCategories } from "@/lib/category-data";
+import { siteUrl } from "@/lib/seo";
+
+export const metadata = { alternates: { canonical: siteUrl("/") } };
 
 const categoryBannerImages = [
   "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80",

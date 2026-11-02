@@ -1,5 +1,6 @@
+import { publicPageMetadata } from "@/lib/seo";
 import { StoreInformationPage } from "@/components/store-information-page";
-export const metadata = { title: "About Zera's World", description: "Discover More. Live Better. Learn about Zera's World and our approach to everyday shopping." };
+export const metadata = publicPageMetadata("About Zera's World","Discover More. Live Better. Learn about Zera's World and our approach to everyday shopping.","/about");
 export default function AboutPage() {
   return <StoreInformationPage title="About Zera’s World" introduction="Discover More. Live Better.">
     <section><p>Welcome to <strong>Zera&apos;s World</strong>, your online destination for practical, stylish, and thoughtfully selected products that make everyday living easier.</p><p className="mt-4">At Zera&apos;s World, we believe shopping should be simple, convenient, and enjoyable. Our goal is to bring together a diverse collection of useful products at accessible prices, helping you discover items that fit your lifestyle and needs.</p></section>

@@ -1,3 +1,5 @@
+import { publicPageMetadata } from "@/lib/seo";
+export const metadata = publicPageMetadata("Privacy Policy","Read how Zera's World handles your personal information and shopping data.","/privacy");
 import Link from "next/link";
 
 export default function PrivacyPage() {

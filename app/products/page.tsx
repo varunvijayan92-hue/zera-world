@@ -7,8 +7,20 @@ import { ShoppingBag, Truck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getMenuCategories } from "@/lib/category-data";
 import { categoryDisplayName, categoryProductIds, categoryLink, visibleMenuCategories } from "@/lib/category";
+import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ searchParams }: { searchParams?: Promise<{ q?: string; category?: string; sort?: string }> }): Promise<Metadata> {
+  const params = searchParams ? await searchParams : {};
+  const categories = await getMenuCategories();
+  const selected = categories.find(category => category.slug === params.category || category.name.toLowerCase() === params.category?.toLowerCase());
+  const path = selected ? categoryLink(selected.slug) : params.sort === "newest" ? "/new-arrivals" : "/products";
+  const title = selected ? categoryDisplayName(selected, categories) : "Shop";
+  const description = selected?.description || `Shop ${selected?.name || "home, kitchen, travel and lifestyle essentials"} at Zera's World.`;
+  return { ...publicPageMetadata(title, description, path), ...(params.q?.trim() || (params.category && params.category !== "all" && !selected) ? { robots: { index: false, follow: true } } : {}) };
+}
 
 export default async function ProductsPage({
   searchParams,

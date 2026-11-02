@@ -30,6 +30,7 @@ const nextConfig: NextConfig = {
     }
 
     return [
+      { source: "/:section(admin|dashboard|supplier|suppliers|account|checkout|cart|login|forgot-password|track-order|api)/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       {
         source: "/:path*",
         headers: [
