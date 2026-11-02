@@ -34,6 +34,7 @@ async function getHomeProducts() {
       id: string;
       name: string;
       category?: string | null;
+      size?: string | null;
       sellingPrice?: number | string | null;
       imageUrls?: string[];
     }>;
@@ -52,6 +53,7 @@ export default async function HomePage() {
     id: string;
     name: string;
     category?: string | null;
+    size?: string | null;
     sellingPrice?: number | string | null;
     imageUrls?: string[];
   }>;

@@ -45,6 +45,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   if (handlingValue > 0) detailBits.push(`Handling: INR ${handlingValue.toFixed(2)} per unit`);
   if (product.isReturnable && Number(product.returnDays ?? 0) > 0) detailBits.push(`Returns within ${product.returnDays} days after delivery.`);
   else if (!product.isReturnable) detailBits.push("This product cannot be returned.");
+  const normalizedSizeValues = (product.size || "")
+    .split(",")
+    .map(part => part.trim())
+    .filter(Boolean);
 
   return (
     <main className="min-h-screen bg-[#F7F4ED] px-4 py-8 text-[#173B35] md:px-6 lg:px-8">
@@ -54,30 +58,54 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           Back to products
         </Link>
 
-        <div className="grid gap-8 rounded-[32px] border border-[#173B35]/10 bg-white p-5 shadow-[0_18px_48px_rgba(23,59,53,0.06)] lg:grid-cols-[1.1fr_0.9fr] lg:p-8">
+        <div className="grid gap-8 rounded-[32px] border border-[#173B35]/10 bg-white p-5 shadow-[0_18px_48px_rgba(23,59,53,0.06)] lg:grid-cols-[1.15fr_0.85fr] lg:p-8">
           <ProductGallery images={product.imageUrls} name={product.name} />
 
-          <div>
+          <div className="flex flex-col justify-center">
             {assignedCategory ? <nav aria-label="Product category" className="flex flex-wrap gap-2 text-xs font-semibold text-[#173B35]/60">{parentCategory ? <><Link href={categoryLink(parentCategory.slug)}>{parentCategory.name}</Link><span aria-hidden="true">/</span></> : null}<Link href={categoryLink(assignedCategory.slug)}>{assignedCategory.name}</Link></nav> : categoryLabel ? <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#173B35]/60">{categoryLabel}</p> : null}
-            <h1 className="mt-3 break-words text-3xl font-black tracking-[-0.07em] text-[#173B35] sm:text-4xl">{product.name}</h1>
-            {product.brand?.trim() ? <p className="mt-3 text-sm">Brand: {product.brand}</p> : null}
 
-            <div className="mt-4 flex flex-wrap items-center gap-3 break-all text-sm text-[#173B35]/70">
+            <h1 className="mt-3 break-words text-3xl font-black tracking-[-0.07em] text-[#173B35] sm:text-4xl">{product.name}</h1>
+
+            {product.brand?.trim() ? <p className="mt-3 text-sm text-[#173B35]/70">Brand: {product.brand}</p> : null}
+
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-[#173B35]/70">
               <span className="rounded-full bg-[#B38A45]/10 px-2.5 py-1 font-medium text-[#173B35]">SKU: {product.sku}</span>
               {extras?.hsnCode ? <span className="rounded-full bg-[#F7F4ED] px-2.5 py-1">HSN: {extras.hsnCode}</span> : null}
             </div>
 
-            {product.size?.trim() ? <p className="mt-4 text-sm font-semibold text-[#173B35]/75">Size: {product.size.trim()}</p> : null}
-            <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} mrp={extras?.mrp} className="mt-5" priceClassName="text-3xl font-black text-[#173B35]" />
+            <div className="mt-6 flex items-center justify-between gap-3 rounded-2xl bg-[#F7F4ED] px-4 py-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#173B35]/60">Price</p>
+                <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} mrp={extras?.mrp} className="mt-1" priceClassName="text-3xl font-black text-[#173B35]" />
+              </div>
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#173B35]/5 px-2.5 py-1 text-xs font-semibold text-[#173B35]">
+                <Truck size={14} />
+                Fast dispatch
+              </span>
+            </div>
+
+            {normalizedSizeValues.length ? <div className="mt-6">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#173B35]/60">Select size</p>
+                <span className="text-xs text-[#173B35]/60">{normalizedSizeValues.join(" • ")}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {normalizedSizeValues.map((size) => (
+                  <button key={size} type="button" className="min-w-[52px] rounded-xl border border-[#173B35]/20 bg-white px-3 py-2 text-sm font-semibold text-[#173B35] transition hover:border-[#173B35] hover:bg-[#F7F4ED]">
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div> : null}
 
             <div className="mt-6 space-y-3 text-sm text-[#173B35]/75">
+              {detailBits.length ? <p>{detailBits.join(" • ")}</p> : null}
               <div className="flex items-center gap-2">
                 <Truck size={16} className="text-[#173B35]" />
-                <span>Fast dispatch and marketplace-ready shipping</span>
+                <span>Marketplace-ready shipping and secure checkout</span>
               </div>
             </div>
 
-            {detailBits.length ? <p className="mt-4 text-sm">{detailBits.join(" • ")}</p> : null}
             <div className="mt-6">
               <CartButton product={{
                 id: product.id,
@@ -90,9 +118,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
             {description ? <div className="mt-8 rounded-2xl border border-[#173B35]/10 bg-[#F7F4ED] p-4 text-sm text-[#173B35]/75">
               <p className="font-semibold text-[#173B35]">Product overview</p>
-              <p className="mt-2 leading-6">
-                {description}
-              </p>
+              <p className="mt-2 leading-6">{description}</p>
             </div> : null}
           </div>
         </div>
