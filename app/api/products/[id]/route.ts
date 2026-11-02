@@ -5,6 +5,9 @@ import { CatalogError, resolveProductCategory } from "@/lib/catalog";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validators";
 import { saveProductExtras } from "@/lib/product-pricing";
+import { getCurrentUser } from "@/lib/auth";
+import { isSameOriginRequest } from "@/lib/request-origin";
+import { deleteUnusedProduct } from "@/lib/product-deletion";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const denied = await authorizeManagement();
@@ -28,5 +31,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   } catch (error) {
     if (error instanceof CatalogError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: "Product could not be saved. Check that its SKU is unique." }, { status: 409 });
+  }
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!isSameOriginRequest(request)) return NextResponse.json({ message: "Invalid origin." }, { status: 403 });
+  const actor = await getCurrentUser();
+  if (!actor) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
+  if (!["ADMIN", "MANAGER"].includes(actor.role)) return NextResponse.json({ message: "Management access required." }, { status: 403 });
+  const { id } = await params;
+  try {
+    await deleteUnusedProduct(id, actor.id);
+    for (const path of ["/", "/products", "/new-arrivals", `/products/${id}`, "/admin/products", "/sitemap.xml"]) revalidatePath(path);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof CatalogError) return NextResponse.json({ message: error.message }, { status: error.status });
+    return NextResponse.json({ message: "Product could not be deleted. Refresh and try again, or archive it if it has linked records." }, { status: 409 });
   }
 }
