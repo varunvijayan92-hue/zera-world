@@ -157,5 +157,12 @@ To test, create a customer account at `/login`, sign in, enter the code received
 - Use **Manage Shiprocket pickup addresses** to open the pickup-address page in Shiprocket. Optionally save the exact registered pickup-location name for reference.
 - After saving, click **Check connection & pickup locations** to verify authentication and list pickup-location names. This check does not create shipments or schedule pickups.
 - Book the shipment in Shiprocket, then select **Shiprocket** and enter the issued AWB under **Admin → Tracking**, or under the supplier portal's **Shipments & Tracking**. The existing paid-order and supplier-ownership checks still apply.
-- Refresh live tracking in the admin, supplier or customer tracking page. Provider scans are saved as tracking events; confirming delivery remains an audited admin action. Automatic booking, label generation, pickup scheduling and tracking webhooks are not part of this connection.
+- Refresh live tracking in the admin, supplier or customer tracking page. Provider scans are saved as tracking events; confirming delivery remains an audited admin action. Automatic booking, label generation and pickup scheduling are not part of this connection.
 - API reference: https://apidocs.shiprocket.in/
+
+## Automatic courier tracking webhooks
+
+- In Admin > Settings > SHIPROCKET, an administrator can click **Show webhook setup** to copy the URL and dedicated token. The setup endpoint is administrator-only and uses no-store caching. API passwords are never included.
+- In Shiprocket Webhooks, enter URL `https://zerasworld.in/api/webhooks/delivery`, select Auth Token Type `x-api-key`, and paste the dedicated webhook token. Enable the webhook, click **Test Webhook**, then **Save**.
+- The webhook token is generated securely in the encrypted SHIPROCKET integration credentials as `webhookToken`. Preserve it when editing API credentials. It must match the value configured in Shiprocket.
+- Valid test requests and unmatched AWBs receive HTTP 200. Valid updates match only existing Shiprocket shipments and save tracking events idempotently. Unknown AWBs never create orders or shipments. Delivery confirmation and financial transitions remain admin actions. Invalid authentication is rejected; temporary database failures return a retryable response.
