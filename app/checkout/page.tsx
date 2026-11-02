@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowRight, Trash2 } from "lucide-react";
-import { readCart, writeCart, type CartItem } from "@/lib/cart";
+import { ArrowRight, Minus, Plus, Trash2 } from "lucide-react";
+import { MAX_CART_UNITS, readCart, writeCart, type CartItem } from "@/lib/cart";
 import { CHECKOUT_DRAFT_KEY, SAVED_ADDRESS_KEY, emptyAddress, readCheckoutDraft, readSavedAddress, rememberAddress, type DeliveryAddress, type CheckoutDraft } from "@/lib/checkout-storage";
 import { checkoutAddressSchema } from "@/lib/validators";
 import { DeliveryAddressFields } from "@/components/delivery-address-fields";
@@ -29,6 +29,7 @@ export default function CheckoutPage() {
   const [continuing, setContinuing] = useState(false);
   const requestBody = JSON.stringify({ cart: items.map((item) => ({ productId: item.id, sku: item.sku, quantity: item.quantity })) });
   const currentQuote = quote?.fingerprint === requestBody ? quote : null;
+  const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
 
   useEffect(() => {
     setItems(readCart(localStorage));
@@ -63,7 +64,8 @@ export default function CheckoutPage() {
   }, [requestBody, ready, retry]);
 
   function changeItems(next: CartItem[]) {
-    if (next.reduce((sum, item) => sum + item.quantity, 0) > 10) { setMessage("A cart can contain a maximum of 10 units."); return; }
+    if (next.some(item => !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > MAX_CART_UNITS)) return;
+    if (next.reduce((sum, item) => sum + item.quantity, 0) > MAX_CART_UNITS) { setMessage("A cart can contain a maximum of 10 units."); return; }
     setMessage("");
     setItems(next);
     try { writeCart(localStorage, next); } catch { setMessage("Your browser could not save the cart. Enable browser storage to continue."); }
@@ -97,13 +99,14 @@ export default function CheckoutPage() {
       <form onSubmit={confirm} className="grid items-start gap-6 lg:grid-cols-[1.4fr_0.8fr]">
         <div className="space-y-6">
           <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 md:p-7">
-            <h2 className="text-xl font-bold">1. Check items & quantity</h2><p className="mt-1 text-sm text-[#173B35]/65">Choose how many you need. The amount updates with your quantity.</p>
-            <div className="mt-5 space-y-4">{(currentQuote?.items || items).map((item) => <div key={item.id} className="flex flex-wrap items-center gap-4 rounded-2xl border border-[#173B35]/10 p-4">
-              <div className="min-w-0 flex-1"><Link href={`/products/${item.id}`} className="font-bold hover:underline">{item.name}</Link><p className="mt-1 text-sm text-[#173B35]/65">{money(item.sellingPrice)} each</p></div>
-              <label className="text-xs font-semibold">Quantity<input aria-label={`Quantity for ${item.name}`} type="number" min="1" max="10" step="1" required value={item.quantity} onChange={(event) => {
-                const quantity = event.target.valueAsNumber;
-                if (Number.isFinite(quantity)) changeItems(items.map((entry) => entry.id === item.id ? { ...entry, quantity } : entry));
-              }} className="mt-1 block w-20 rounded-lg border border-[#173B35]/20 px-2 py-2 text-base" /></label>
+            <h2 className="text-xl font-bold">1. Check items & quantity</h2><p id="checkout-quantity-limit" className="mt-1 text-sm text-[#173B35]/65">Use the minus and plus buttons to choose your quantity. Maximum 10 units per cart; the amount updates automatically.</p>
+            <div className="mt-5 space-y-4">{(currentQuote?.items || items).map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#173B35]/10 p-4">
+              <div className="min-w-0 basis-full sm:flex-1 sm:basis-0"><Link href={`/products/${item.id}`} className="break-words font-bold hover:underline">{item.name}</Link><p className="mt-1 text-sm text-[#173B35]/65">{money(item.sellingPrice)} each</p></div>
+              <div role="group" aria-label={`Quantity for ${item.name}`} aria-describedby="checkout-quantity-limit"><p className="mb-1 text-xs font-semibold">Quantity</p><div className="inline-flex items-center rounded-lg border border-[#173B35]/20">
+                <button type="button" aria-label={`Decrease quantity for ${item.name}`} disabled={item.quantity <= 1 || continuing} onClick={() => changeItems(items.map(entry => entry.id === item.id ? { ...entry, quantity: entry.quantity - 1 } : entry))} className="flex h-11 w-11 items-center justify-center rounded-l-lg hover:bg-[#F7F4ED] disabled:opacity-30"><Minus size={18} /></button>
+                <output aria-live="polite" aria-label={`Selected quantity for ${item.name}`} className="w-7 text-center font-semibold tabular-nums">{item.quantity}</output>
+                <button type="button" aria-label={`Increase quantity for ${item.name}`} disabled={totalUnits >= MAX_CART_UNITS || continuing} onClick={() => changeItems(items.map(entry => entry.id === item.id ? { ...entry, quantity: entry.quantity + 1 } : entry))} className="flex h-11 w-11 items-center justify-center rounded-r-lg hover:bg-[#F7F4ED] disabled:opacity-30"><Plus size={18} /></button>
+              </div></div>
               <div className="min-w-20 text-right"><p className="font-bold">{money(item.sellingPrice * item.quantity)}</p><button type="button" aria-label={`Remove ${item.name}`} onClick={() => changeItems(items.filter((entry) => entry.id !== item.id))} className="mt-2 inline-flex items-center gap-1 text-xs text-red-700"><Trash2 size={13} /> Remove</button></div>
             </div>)}</div>
           </section>
