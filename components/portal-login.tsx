@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { getPostLoginRedirectPath } from "@/lib/navigation-paths";
 import { useClientReady } from "./use-client-ready";
-export function PortalLogin({ supplier = false }: { supplier?: boolean }) {
+export function PortalLogin({ supplier = false, next }: { supplier?: boolean; next?: string }) {
   const ready = useClientReady();
   const [register, setRegister] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -26,7 +26,7 @@ export function PortalLogin({ supplier = false }: { supplier?: boolean }) {
         setMessage(result.message || "Account verified successfully.");
       }
       else if (register) { setRegister(false); setMessage(result.message || "Account verified. You can now sign in."); }
-      else window.location.assign(getPostLoginRedirectPath(supplier));
+      else window.location.assign(getPostLoginRedirectPath(supplier, next));
     } catch (error) { setMessage(error instanceof Error ? error.message : "Sign in failed."); }
     finally { setBusy(false); }
   }

@@ -14,3 +14,9 @@ test("suppliers still go to the supplier dashboard after login", () => {
 test("successful payments send customers to their order history", () => {
   assert.equal(getPostPaymentRedirectPath(), "/account");
 });
+
+test("only the checkout payment return path is accepted for customers", () => {
+ assert.equal(getPostLoginRedirectPath(false, "/checkout/payment"), "/checkout/payment");
+ for (const path of ["https://evil.example", "//evil.example", "/admin", "/checkout/payment?next=evil"]) assert.equal(getPostLoginRedirectPath(false, path), "/");
+ assert.equal(getPostLoginRedirectPath(true, "/checkout/payment"), "/suppliers/dashboard");
+});

@@ -1,2 +1,5 @@
 import { PortalLogin } from "@/components/portal-login";
-export default function LoginPage() { return <PortalLogin />; }
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const { next } = await searchParams;
+  return <PortalLogin next={next === "/checkout/payment" ? next : undefined} />;
+}

@@ -1,3 +1,4 @@
+import { authContext, AUTH_COOKIE } from "../lib/auth";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { integrationStore } from "../lib/integration-settings";
@@ -21,10 +22,11 @@ const fields = {
 };
 
 function request(body: unknown) {
-  return new Request("http://localhost/api/verify-payment", { method: "POST", body: JSON.stringify(body) });
+  return new Request("http://localhost/api/verify-payment", { method: "POST", headers: { cookie: `${AUTH_COOKIE}=test` }, body: JSON.stringify(body) });
 }
 
 function setup(t: TestContext) {
+  t.mock.method(authContext, "current", async () => ({ id: "customer1", email: "test@example.com", fullName: "Test", role: "CUSTOMER", isActive: true }));
   t.mock.method(integrationStore, "find", async () => null);
   // Prisma exposes model delegates through proxies; replace the delegates with
   // plain stubs so node:test can track method calls without opening a database.
@@ -155,4 +157,13 @@ test("a changed total requires fresh confirmation before an order or payment is 
   assert.equal(result.status, 409);
   assert.equal(createLocal.mock.callCount(), 0);
   assert.equal(createGateway.mock.callCount(), 0);
+});
+
+test("checkout requires a customer login before creating orders", async (t) => {
+  setup(t);
+  const create = t.mock.method(prisma.customerOrder, "create", async () => ({}));
+  t.mock.method(authContext, "current", async () => null);
+  const response = await createOrder(request({ cart: [{ productId: "p1", sku: "SKU", quantity: 1 }], shippingAddress: { fullName: "Test", email: "test@example.com", phone: "9999999999", addressLine1: "Street", city: "City", state: "State", pincode: "560001", country: "India" }, paymentMethod: "razorpay" }));
+  assert.equal(response.status, 401);
+  assert.equal(create.mock.callCount(), 0);
 });

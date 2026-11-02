@@ -85,7 +85,10 @@ export default function CheckoutPage() {
       writeCart(localStorage, currentQuote.items);
       rememberAddress(localStorage, parsed.data, saveAddress);
       sessionStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify({ items: currentQuote.items, amount: currentQuote.amount, shippingAddress: parsed.data, createdAt: Date.now() }));
-      router.push("/checkout/payment");
+      const auth = await fetch("/api/auth/me", { cache: "no-store" });
+      if (!auth.ok) throw Error("Unable to check your login. Please try again.");
+      const { user } = await auth.json();
+      router.push(user?.role === "CUSTOMER" ? "/checkout/payment" : "/login?next=%2Fcheckout%2Fpayment");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Checkout details could not be saved."); setContinuing(false); }
   }
 

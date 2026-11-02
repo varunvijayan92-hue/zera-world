@@ -32,7 +32,15 @@ export default function PaymentPage() {
   useEffect(() => {
     const stored = readCheckoutDraft(sessionStorage);
     if (!stored) { router.replace("/checkout"); return; }
-    setDraft(stored);
+    let active = true;
+    fetch("/api/auth/me", { cache: "no-store" }).then(async (response) => {
+      if (!response.ok) throw Error("Unable to check your login. Please reload to try again.");
+      const { user } = await response.json();
+      if (!active) return;
+      if (user?.role !== "CUSTOMER") { router.replace("/login?next=%2Fcheckout%2Fpayment"); return; }
+      setDraft(stored);
+    }).catch((error) => { if (active) setMessage(error.message); });
+    return () => { active = false; };
   }, [router]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -65,6 +73,7 @@ export default function PaymentPage() {
             body: JSON.stringify({ ...requestBody, idempotencyKey: submissionKey.current }),
           });
           const payload = await response.json();
+          if (response.status === 401) { router.push("/login?next=%2Fcheckout%2Fpayment"); return; }
           if (!response.ok) throw new Error(payload?.message || "Checkout could not be started.");
           session = payload as CheckoutSession;
           cachedCheckout.current = { fingerprint, session };
@@ -104,7 +113,7 @@ export default function PaymentPage() {
     }
   };
 
-  if (!draft) return <main className="min-h-screen bg-[#F7F4ED] p-10 text-center text-[#173B35]" role="status">Loading your confirmed order...</main>;
+  if (!draft) return <main className="min-h-screen bg-[#F7F4ED] p-10 text-center text-[#173B35]" role="status">{message || "Loading your confirmed order..."}</main>;
   const address = draft.shippingAddress;
   return <main className="min-h-screen bg-[#F7F4ED] px-4 py-8 text-[#173B35] md:px-8">
     <div className="mx-auto max-w-6xl">

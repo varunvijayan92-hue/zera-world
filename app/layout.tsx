@@ -18,9 +18,11 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: "Zera's World", description: STORE_DESCRIPTION, images: ["/branding/zera-botanical-logo.png"] },
   verification: { google: process.env.GOOGLE_SITE_VERIFICATION || undefined, ...(process.env.BING_SITE_VERIFICATION ? { other: { "msvalidate.01": process.env.BING_SITE_VERIFICATION } } : {}) },
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/favicon.svg",
-    apple: "/icon.svg",
+    icon: [
+      { url: "/zerasworld-icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    shortcut: "/zerasworld-icon.png",
+    apple: "/zerasworld-icon.png",
   },
 };
 

@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: parsed.error.issues[0]?.message || "Invalid checkout." }, { status: 400 });
   }
   const user = request.headers.get("cookie")?.includes(AUTH_COOKIE) ? await getCurrentUser() : null;
+  if (!user || user.role !== "CUSTOMER") return NextResponse.json({ message: "Please sign in as a customer to continue to payment." }, { status: 401 });
   const { cart, shippingAddress, paymentMethod } = parsed.data;
   const idempotencyKey = parsed.data.idempotencyKey || randomUUID();
   try {
