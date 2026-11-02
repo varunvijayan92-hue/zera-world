@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { productSchema } from "@/lib/validators";
+import { updateSupplierCatalog } from "@/lib/supplier-catalog";
+import { updateSupplierProfile } from "@/lib/supplier-profile";
 import { shipmentPickupLocation } from "@/lib/supplier-pickup";
 import { supplierAccess, AccessError, apiError } from "@/lib/portal-access";
 
@@ -8,14 +11,14 @@ const actions = z.discriminatedUnion("action", [
   z.object({ action: z.literal("RETURN_RECEIVED"), returnId: z.string().min(1) }),
   z.object({ action: z.literal("ORDER"), itemId: z.string(), status: z.enum(["ACCEPTED", "REJECTED", "PROCESSING", "PACKED"]) }),
   z.object({ action: z.literal("SHIPMENT"), itemId: z.string(), courierName: z.enum(["Delhivery", "Shiprocket"]).default("Delhivery"), awb: z.string().regex(/^[a-zA-Z0-9-]{5,40}$/) }),
-  z.object({ action: z.literal("STOCK"), productId: z.string(), stock: z.coerce.number().int().min(0).max(1000000), costPrice: z.coerce.number().finite().min(0).max(1000000) }),
-  z.object({ action: z.literal("PRODUCT"), name: z.string().trim().min(2).max(150), sku: z.string().trim().min(1).max(80), description: z.string().max(5000), costPrice: z.coerce.number().finite().min(0).max(1000000), stock: z.coerce.number().int().min(0).max(1000000) }),
+  z.object({ action: z.literal("STOCK"), productId: z.string(), stock: z.coerce.number().int().min(0).max(1000000), hsnCode: productSchema.shape.hsnCode, costPrice: z.coerce.number().finite().min(0).max(1000000).multipleOf(0.01) }),
+  z.object({ action: z.literal("PRODUCT"), name: z.string().trim().min(2).max(150), sku: z.string().trim().min(1).max(80), description: z.string().max(5000), hsnCode: productSchema.shape.hsnCode, costPrice: z.coerce.number().finite().min(0).max(1000000).multipleOf(0.01), stock: z.coerce.number().int().min(0).max(1000000) }),
   z.object({
     action: z.literal("PROFILE"),
-    contactName: z.string().trim().max(100),
-    phone: z.string().max(30),
+    contactName: z.string().trim().max(100).optional(),
+    phone: z.string().max(30).optional(),
     companyPhone: z.string().max(30).optional().or(z.literal("")),
-    companyEmail: z.string().trim().max(200).optional().or(z.literal("")),
+    companyEmail: z.string().trim().email().max(200).optional().or(z.literal("")),
     pickupAddress: z.string().trim().max(1000).optional().or(z.literal("")),
     pickupAddressLine1: z.string().trim().max(200).optional().or(z.literal("")),
     pickupAddressLine2: z.string().trim().max(200).optional().or(z.literal("")),
@@ -38,7 +41,7 @@ const actions = z.discriminatedUnion("action", [
     companyLicenseNumber: z.string().trim().max(100).optional().or(z.literal("")),
     companyProfileNotes: z.string().trim().max(2000).optional().or(z.literal("")),
     gstNumber: z.string().trim().max(50).optional().or(z.literal("")),
-    gstRegistered: z.coerce.boolean().optional().default(false),
+    gstRegistered: z.coerce.boolean().optional(),
     gstRate: z.coerce.number().finite().min(0).max(100).optional()
   }),
 ]);
@@ -73,74 +76,11 @@ export async function POST(request: Request) {
         if (entry.supplierReceivedAt) throw new AccessError("Receipt has already been recorded.", 409);
         await tx.returnRequest.update({ where: { id: entry.id }, data: { supplierReceivedAt: new Date() } });
       } else if (body.action === "STOCK") {
-        const product = await tx.product.findFirst({ where: { id: body.productId, supplierId: supplier.id } });
-        if (!product) throw new AccessError("Product not found.", 404);
-        // Supplier feed stock is separate from warehouse stock and cannot overwrite reserved stock.
-        await tx.supplierProduct.upsert({ where: { supplierId_supplierProductCode: { supplierId: supplier.id, supplierProductCode: product.sku } }, create: { supplierId: supplier.id, productId: product.id, supplierProductCode: product.sku, purchasePrice: body.costPrice }, update: { purchasePrice: body.costPrice, lastUpdatedAt: new Date() } });
-        const rows = await tx.inventory.findMany({ where: { productId: product.id, supplierId: supplier.id, warehouseId: null } });
-        if (rows.length > 1) throw new AccessError("Multiple inventory rows require admin review.");
-        if (rows[0]) {
-          if (body.stock < rows[0].reservedQty) throw new AccessError("Stock cannot be lower than reserved quantity.");
-          await tx.inventory.update({ where: { id: rows[0].id }, data: { availableQty: body.stock } });
-        } else await tx.inventory.create({ data: { productId: product.id, supplierId: supplier.id, availableQty: body.stock } });
+        await updateSupplierCatalog(tx, supplier.id, body);
       } else if (body.action === "PRODUCT") {
-        await tx.product.create({ data: { supplierId: supplier.id, name: body.name, sku: body.sku, description: body.description, costPrice: body.costPrice, status: "DRAFT", inventory: { create: { supplierId: supplier.id, availableQty: body.stock } } } });
+        await tx.product.create({ data: { supplierId: supplier.id, name: body.name, sku: body.sku, description: body.description, hsnCode: body.hsnCode || null, costPrice: body.costPrice, status: "DRAFT", supplierProducts: { create: { supplierId: supplier.id, supplierProductCode: body.sku, purchasePrice: body.costPrice } }, inventory: { create: { supplierId: supplier.id, availableQty: body.stock } } } });
       } else {
-        const formattedPickupAddress = [
-          body.pickupAddressLine1,
-          body.pickupAddressLine2,
-          body.pickupCity || body.pickupDistrict,
-          body.pickupState,
-          body.pickupCountry,
-          body.pickupLandmark,
-          body.pickupPincode,
-        ].filter((value): value is string => Boolean(value && value.trim())).join(", ");
-        const pickupAddress = (formattedPickupAddress || body.pickupAddress || "").trim() || null;
-
-        const formattedCompanyAddress = [
-          body.companyAddressLine1,
-          body.companyAddressLine2,
-          body.companyCity || body.companyDistrict,
-          body.companyState,
-          body.companyCountry,
-          body.companyLandmark,
-          body.companyPincode,
-        ].filter((value): value is string => Boolean(value && value.trim())).join(", ");
-        const companyAddress = (formattedCompanyAddress || body.companyAddress || "").trim() || null;
-
-        await tx.supplier.update({
-          where: { id: supplier.id },
-          data: {
-            contactName: body.contactName,
-            phone: body.phone,
-            companyPhone: body.companyPhone || null,
-            companyEmail: body.companyEmail || null,
-            pickupAddress,
-            pickupAddressLine1: body.pickupAddressLine1 || null,
-            pickupAddressLine2: body.pickupAddressLine2 || null,
-            pickupCity: body.pickupCity || null,
-            pickupDistrict: body.pickupDistrict || null,
-            pickupState: body.pickupState || null,
-            pickupCountry: body.pickupCountry || null,
-            pickupLandmark: body.pickupLandmark || null,
-            pickupPincode: body.pickupPincode || null,
-            companyAddress,
-            companyAddressLine1: body.companyAddressLine1 || null,
-            companyAddressLine2: body.companyAddressLine2 || null,
-            companyCity: body.companyCity || null,
-            companyDistrict: body.companyDistrict || null,
-            companyState: body.companyState || null,
-            companyCountry: body.companyCountry || null,
-            companyLandmark: body.companyLandmark || null,
-            companyPincode: body.companyPincode || null,
-            companyRegistrationNumber: body.companyRegistrationNumber || null,
-            companyLicenseNumber: body.companyLicenseNumber || null,
-            companyProfileNotes: body.companyProfileNotes || null,
-            gstNumber: body.gstNumber || null,
-            gstRegistered: body.gstRegistered ?? supplier.gstRegistered,
-            gstRate: body.gstRate ?? supplier.gstRate ?? null,
-          }
-        });
+        await updateSupplierProfile(tx, supplier.id, body);
       }
       await tx.auditLog.create({ data: { userId: user.id, action: `SUPPLIER_${body.action}`, entityType: "Supplier", entityId: supplier.id } });
     }, { isolationLevel: "Serializable" });

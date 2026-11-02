@@ -174,3 +174,11 @@ To test, create a customer account at `/login`, sign in, enter the code received
 - Under Admin > Tracking, select the order supplier and Shiprocket, then enter the AWB issued when booking the shipment. Suppliers use their own assigned orders and mapping in their portal. An active supplier with a mapping is required for new Shiprocket shipment records.
 - The server copies the saved pickup name onto the shipment alongside the AWB. Later mapping edits do not alter that shipment snapshot. Existing shipments without a snapshot remain trackable.
 - This associates references in the store. It does not create a pickup address, issue an AWB, validate the AWB's upstream pickup address or move an existing booking. Verify the actual pickup address in Shiprocket when booking. Update both the registered address and the mapping if a supplier moves.
+
+## Supplier catalogue and company-profile updates
+
+- Apply `prisma/supplier-company-profile.sql` and regenerate Prisma Client for the optional company and structured pickup address fields introduced by the company-profile update.
+- Supplier Products & Inventory supports HSN (2?8 digits, preserving leading zeroes), whole stock units and supply price in INR. Saving an assigned product updates Product.costPrice, Product.hsnCode, SupplierProduct.purchasePrice and the supplier inventory together in a serializable transaction. Blank HSN clears it; omitted HSN preserves it.
+- Stock units are gross units including reservations. Supplier updates cannot lower stock below reserved units or change warehouse stock. A single unassigned default opening-stock row is adopted to avoid double counting. Conflicting or duplicate default-stock rows require admin review.
+- Supplier product submissions include HSN and supply price, create their stock/feed records together, and remain drafts pending admin approval. Retail selling prices and historical order costs are preserved.
+- Pickup and company-profile forms update only submitted fields, so saving one form preserves the other form's data and GST registration. Changing the pickup address clears its Shiprocket mapping for administrator re-verification.

@@ -1,0 +1,23 @@
+-- Optional fields added by the supplier company-profile update.
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "pickupAddressLine1" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "pickupAddressLine2" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "pickupCity" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "pickupDistrict" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "pickupState" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "pickupCountry" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "pickupLandmark" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "pickupPincode" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyAddress" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyAddressLine1" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyAddressLine2" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyCity" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyDistrict" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyState" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyCountry" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyLandmark" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyPincode" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyPhone" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyEmail" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyRegistrationNumber" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyLicenseNumber" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "companyProfileNotes" TEXT;
