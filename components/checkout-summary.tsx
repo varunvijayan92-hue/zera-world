@@ -24,8 +24,8 @@ export function CheckoutSummary({ amount }: { amount: CheckoutDraft["amount"] | 
       <dl className="space-y-2 text-sm text-[#173B35]/70">
         <div className="flex justify-between"><dt>Items subtotal</dt><dd>{money(amount.subtotal)}</dd></div>
         <div className="flex justify-between"><dt>Delivery</dt><dd>{money(amount.shippingCharges)}</dd></div>
-        <div className="flex justify-between"><dt>GST</dt><dd>{money(amount.taxes)}</dd></div>
-        <div className="flex justify-between"><dt>Handling</dt><dd>{money(amount.handlingCharges || 0)}</dd></div>
+        {amount.taxes > 0 ? <div className="flex justify-between"><dt>GST</dt><dd>{money(amount.taxes)}</dd></div> : null}
+        {(amount.handlingCharges || 0) > 0 ? <div className="flex justify-between"><dt>Handling</dt><dd>{money(amount.handlingCharges || 0)}</dd></div> : null}
       </dl>
       <div className="flex items-center justify-between border-t border-[#173B35]/10 pt-4"><span className="font-semibold">Total to pay</span><strong className="text-2xl">{money(amount.total)}</strong></div>
     </> : <p role="status" className="py-4 text-sm text-[#173B35]/70">Checking the latest prices and available quantity…</p>}

@@ -57,7 +57,7 @@ export const productSchema = z.object({
   categoryId: z.string().optional(),
   availableQty: z.coerce.number().int().min(0).max(1000000).optional(),
   brand: z.string().optional(),
-  supplierId: z.string().optional(),
+  supplierId: z.preprocess(value => value === "" ? null : value, z.string().nullable().optional()),
   gstRate: z.coerce.number().finite().min(0).max(100).optional(),
   handlingCharge: z.coerce.number().finite().min(0).max(100000).optional(),
   returnDays: z.coerce.number().int().min(0).max(365).optional(),

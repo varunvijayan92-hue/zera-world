@@ -701,13 +701,13 @@ img {
 }
 /* Supplied lifestyle reference, cropped in the layout to its photograph area. */
 @media (min-width: 1024px) {
-  .tokoo-hero-wrap { width: 50%; margin-inline: auto; }
+  .tokoo-hero-wrap { width: 100%; margin-inline: auto; }
   .tokoo-hero-wrap .premium-living-hero { padding: 1rem 1.5rem; }
   .tokoo-hero-wrap .premium-living-hero h1 { font-size: 1.65rem; }
   .tokoo-hero-wrap .premium-living-hero p { font-size: .75rem; }
 }
 .premium-living-hero { min-height: 240px; background: #103c2f; padding: 1rem 1.5rem; isolation: isolate; }
-.premium-living-photo { position: absolute; inset: 0 0 0 40%; z-index: -2; background-image: url('/branding/premium-living-reference.png'); background-size: auto 168.008%; background-position: 88% 45.266%; background-repeat: no-repeat; }
+.premium-living-photo { position: absolute; inset: 0 0 0 40%; z-index: -2; background-image: url('/branding/premium-living-reference.png'); background-size: 200% auto; background-position: 88% 45.266%; background-repeat: no-repeat; }
 .premium-living-hero::before { inset: 0; width: 64%; height: 100%; border-radius: 0 0 65% 0; background: linear-gradient(100deg,#103c2f 65%,rgba(16,60,47,.93)); z-index: -1; border-right: 2px solid #d8ad54; }
 .premium-living-copy { max-width: 56%; }
 .premium-living-hero h1 { margin-top: .65rem; font-family: Georgia, 'Times New Roman', serif; letter-spacing: -.045em; font-size: clamp(1.65rem,2.5vw,2.3rem); line-height: 1.04; }
@@ -723,4 +723,5 @@ img {
   .premium-living-copy { max-width: 100%; }
   .premium-living-hero h1 { margin-top: .65rem; font-size: 1.8rem; }
   .premium-living-hero .tokoo-micro-meta { gap: .5rem; font-size: .6rem; }
+  .premium-living-copy > .mt-6 a { display: inline-flex; min-height: 44px; align-items: center; font-size: .8rem; }
 }

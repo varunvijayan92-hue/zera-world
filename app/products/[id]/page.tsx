@@ -5,6 +5,8 @@ import { ArrowLeft, ShieldCheck, ShoppingBag, Truck } from "lucide-react";
 
 import { CartButton } from "@/components/cart-button";
 import { prisma } from "@/lib/prisma";
+import { getMenuCategories } from "@/lib/category-data";
+import { categoryLink } from "@/lib/category";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   }
 
   const categoryLabel = (product.category || "").trim();
+  const categories = product.categoryId ? await getMenuCategories() : [];
+  const assignedCategory = categories.find(category => category.id === product.categoryId);
+  const parentCategory = categories.find(category => category.id === assignedCategory?.parentId);
+  const description = product.description?.trim();
   const gstValue = Number(product.gstRate ?? 0);
   const handlingValue = Number(product.handlingCharge ?? 0);
   const detailBits: string[] = [];
@@ -40,15 +46,16 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <ProductGallery images={product.imageUrls} name={product.name} />
 
           <div>
-            {categoryLabel ? <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#173B35]/60">{categoryLabel}</p> : null}
-            <h1 className="mt-3 text-4xl font-black tracking-[-0.07em] text-[#173B35]">{product.name}</h1>
+            {assignedCategory ? <nav aria-label="Product category" className="flex flex-wrap gap-2 text-xs font-semibold text-[#173B35]/60">{parentCategory ? <><Link href={categoryLink(parentCategory.slug)}>{parentCategory.name}</Link><span aria-hidden="true">/</span></> : null}<Link href={categoryLink(assignedCategory.slug)}>{assignedCategory.name}</Link></nav> : categoryLabel ? <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#173B35]/60">{categoryLabel}</p> : null}
+            <h1 className="mt-3 break-words text-3xl font-black tracking-[-0.07em] text-[#173B35] sm:text-4xl">{product.name}</h1>
+            {product.brand?.trim() ? <p className="mt-3 text-sm">Brand: {product.brand}</p> : null}
 
-            <div className="mt-4 flex items-center gap-3 text-sm text-[#173B35]/70">
+            <div className="mt-4 flex flex-wrap items-center gap-3 break-all text-sm text-[#173B35]/70">
               <span className="rounded-full bg-[#B38A45]/10 px-2.5 py-1 font-medium text-[#173B35]">SKU: {product.sku}</span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 font-medium text-emerald-700">
+              {product.supplier ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 font-medium text-emerald-700">
                 <ShieldCheck size={14} />
                 Verified supplier
-              </span>
+              </span> : null}
             </div>
 
             <p className="mt-5 text-3xl font-black text-[#173B35]">₹{Number(product.sellingPrice ?? 0).toLocaleString("en-IN")}</p>
@@ -58,10 +65,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 <Truck size={16} className="text-[#173B35]" />
                 <span>Fast dispatch and marketplace-ready shipping</span>
               </div>
-              <div className="flex items-center gap-2">
+              {product.supplier?.companyName?.trim() ? <div className="flex items-center gap-2">
                 <ShoppingBag size={16} className="text-[#173B35]" />
-                <span>Supplier: {product.supplier?.companyName || "ZeraWorld Marketplace"}</span>
-              </div>
+                <span>Supplier: {product.supplier.companyName}</span>
+              </div> : null}
             </div>
 
             {detailBits.length ? <p className="mt-4 text-sm">{detailBits.join(" • ")}</p> : null}
@@ -75,12 +82,12 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               }} />
             </div>
 
-            <div className="mt-8 rounded-2xl border border-[#173B35]/10 bg-[#F7F4ED] p-4 text-sm text-[#173B35]/75">
+            {description ? <div className="mt-8 rounded-2xl border border-[#173B35]/10 bg-[#F7F4ED] p-4 text-sm text-[#173B35]/75">
               <p className="font-semibold text-[#173B35]">Product overview</p>
               <p className="mt-2 leading-6">
-                {product.description || "Premium quality product curated for ZeraWorld customers and synced to sales channel inventory flows."}
+                {description}
               </p>
-            </div>
+            </div> : null}
           </div>
         </div>
       </div>

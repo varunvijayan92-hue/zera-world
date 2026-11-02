@@ -18,7 +18,7 @@ export function StorefrontHeader() {
             <span>Free Shipping in India on Orders Above ₹999</span>
           </div>
 
-          <div className="hidden items-center gap-5 text-[11px] sm:flex">
+          <div className="hidden items-center gap-5 text-[11px] md:flex">
             <Link href="/track-order" className="transition hover:text-white/85">Track Order</Link>
             <Link href="/contact" className="transition hover:text-white/85">Help &amp; Support</Link>
             <button type="button" className="inline-flex items-center gap-1 transition hover:text-white/85">
@@ -34,7 +34,7 @@ export function StorefrontHeader() {
 
       <div className="border-b border-[#173B35]/10 bg-[#FAF9F5]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" aria-label="Zera's World home" className="shrink-0">
+          <Link href="/" aria-label="Zera's World home" className="min-w-0">
             <ZeraWorldLogo compact />
           </Link>
 
@@ -56,7 +56,7 @@ export function StorefrontHeader() {
             ))}
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <Link href="/account" aria-label="My account" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#173B35]/15 bg-white text-[#173B35] transition hover:bg-[#173B35]/5">
               <UserRound size={18} />
             </Link>
@@ -68,6 +68,7 @@ export function StorefrontHeader() {
             </Link>
           </div>
         </div>
+        <nav aria-label="Mobile navigation" className="flex justify-center gap-4 overflow-x-auto border-t border-[#173B35]/10 px-3 text-xs font-semibold lg:hidden">{storefrontNavigation.map(link => <Link key={link.href} href={link.href} aria-current={pathname === link.href ? "page" : undefined} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent aria-[current=page]:border-[#B38A45]">{link.label}</Link>)}</nav>
       </div>
     </header>
   );

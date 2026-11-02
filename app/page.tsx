@@ -99,7 +99,7 @@ export default async function HomePage() {
 
                   <div className="tokoo-product-meta">
                     <div>
-                      <p className="tokoo-product-category">{product.category || "Featured"}</p>
+                      {product.category?.trim() ? <p className="tokoo-product-category">{product.category}</p> : null}
                       <Link href={`/products/${product.id}`} className="tokoo-product-name">
                         {product.name}
                       </Link>
