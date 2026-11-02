@@ -18,6 +18,9 @@ type ProductDetailRecord = {
   description?: string | null;
   specifications?: string | null;
   manufacturerInfo?: string | null;
+  warranty?: string | null;
+  trend?: string | null;
+  inTheBox?: string | null;
   category?: string | null;
   categoryId?: string | null;
   imageUrls: string[];
@@ -105,6 +108,11 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
   const [selectedSize, setSelectedSize] = useState(sizeOptions[0] ?? "");
   const [activeTab, setActiveTab] = useState<"specifications" | "description" | "manufacturer">("specifications");
   const specificationSections = useMemo(() => parseSpecificationSections(product.specifications), [product.specifications]);
+  const extraMetadata = [
+    product.warranty?.trim() ? { key: "Warranty", value: product.warranty.trim() } : null,
+    product.trend?.trim() ? { key: "Trend", value: product.trend.trim() } : null,
+    product.inTheBox?.trim() ? { key: "In the box", value: product.inTheBox.trim() } : null,
+  ].filter(Boolean) as Array<{ key: string; value: string }>;
 
   return (
     <main className="min-h-screen bg-[#f4f1eb] px-4 py-8 text-[#173B35] md:px-6 lg:px-8">
@@ -134,7 +142,15 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
               <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} mrp={extras?.mrp} className="" priceClassName="text-3xl font-black tracking-[-0.06em] text-[#173B35]" />
             </div>
 
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#173B35]/10 bg-[#F7F4ED] px-2.5 py-1 text-[0.62rem] font-bold uppercase tracking-[0.11em] text-[#173B35]">
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#173B35] text-[10px] font-black text-white" aria-hidden="true">✓</span>
+              Manufacturer verified product
+            </div>
+
             {Number(product.deliveryCharge ?? 0) > 0 ? <p className="mt-3 text-sm font-medium text-[#173B35]/75">Delivery charge: ₹{Number(product.deliveryCharge).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</p> : null}
+            {product.warranty?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Warranty: {product.warranty.trim()}</p> : null}
+            {product.trend?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Trend: {product.trend.trim()}</p> : null}
+            {product.inTheBox?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">In the box: {product.inTheBox.trim()}</p> : null}
 
             {sizeOptions.length ? (
               <div className="mt-6">
@@ -202,6 +218,19 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
           <div className="mt-6">
             {activeTab === "specifications" ? (
               <div className="space-y-8">
+                {extraMetadata.length ? (
+                  <div className="rounded-2xl border border-[#173B35]/10 bg-[#F7F4ED] p-4">
+                    <h3 className="mb-4 text-xl font-bold text-[#173B35]">Product details</h3>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {extraMetadata.map((row) => (
+                        <div key={row.key} className="border-b border-[#173B35]/12 pb-3 text-sm">
+                          <div className="text-[#173B35]/70">{row.key}</div>
+                          <div className="mt-1 text-[#173B35]">{row.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {specificationSections.length ? (
                   specificationSections.map((section) => (
                     <div key={section.title || section.rows[0]?.key || "section"}>

@@ -12,6 +12,13 @@ test("Product size is optional, trimmed, and stored for assorted dress sizing", 
   assert.equal(productSchema.partial().parse({ size: "" }).size, null);
 });
 
+test("product metadata fields accept warranty, trend, and in-the-box details", () => {
+  const fields = productSchema.partial().parse({ warranty: " 1 Year ", trend: " Minimalist ", inTheBox: "T-shirt, Tags" });
+  assert.equal(fields.warranty, "1 Year");
+  assert.equal(fields.trend, "Minimalist");
+  assert.equal(fields.inTheBox, "T-shirt, Tags");
+});
+
 test("MRP and HSN are optional, clearable, and preserve leading-zero HSN codes", () => {
   const fields = productSchema.partial().parse({ mrp: "150.50", hsnCode: "00123456" });
   assert.equal(fields.mrp, 150.5); assert.equal(fields.hsnCode, "00123456");

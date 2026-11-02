@@ -186,6 +186,9 @@ model Product {
   storeCategory           StoreCategory?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   brand                   String?
   size                    String?
+  warranty                String?
+  trend                   String?
+  inTheBox               String?
   status                  ProductStatus               @default(DRAFT)
   costPrice               Decimal?                    @db.Decimal(12, 2)
   sellingPrice            Decimal?                    @db.Decimal(12, 2)
