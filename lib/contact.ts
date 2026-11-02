@@ -7,6 +7,36 @@ export const contactSchema = z.object({
   message: z.string().trim().min(10, "Enter a message of at least 10 characters.").max(3000),
   website: z.string().max(200).default(""),
 });
-export function publicSupportDetails() {
-  return { email: process.env.SUPPORT_EMAIL || "", phone: process.env.SUPPORT_PHONE || "", address: process.env.BUSINESS_ADDRESS || "", hours: process.env.SUPPORT_HOURS || "", responseTime: process.env.SUPPORT_RESPONSE_TIME || "" };
+
+type PublicSupportProfile = Partial<{
+  companyAddress: string | null;
+  companyAddressLine1: string | null;
+  companyAddressLine2: string | null;
+  companyCity: string | null;
+  companyDistrict: string | null;
+  companyState: string | null;
+  companyCountry: string | null;
+  companyLandmark: string | null;
+  companyPincode: string | null;
+  companyPhone: string | null;
+}>;
+
+export function publicSupportDetails(supplier?: PublicSupportProfile) {
+  const formattedAddress = [
+    supplier?.companyAddressLine1,
+    supplier?.companyAddressLine2,
+    supplier?.companyCity,
+    supplier?.companyDistrict,
+    supplier?.companyState,
+    supplier?.companyCountry,
+    supplier?.companyLandmark,
+    supplier?.companyPincode,
+  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join(", ");
+  return {
+    email: process.env.SUPPORT_EMAIL || "",
+    phone: supplier?.companyPhone?.trim() || process.env.SUPPORT_PHONE || "",
+    address: supplier?.companyAddress?.trim() || formattedAddress || process.env.BUSINESS_ADDRESS || "",
+    hours: process.env.SUPPORT_HOURS || "",
+    responseTime: process.env.SUPPORT_RESPONSE_TIME || "",
+  };
 }

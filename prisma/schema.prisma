@@ -97,6 +97,28 @@ model Supplier {
   id                      String                   @id @default(cuid())
   sourceType              String                   @default("DIRECT")
   pickupAddress           String?
+  pickupAddressLine1      String?
+  pickupAddressLine2      String?
+  pickupCity              String?
+  pickupDistrict          String?
+  pickupState             String?
+  pickupCountry           String?
+  pickupLandmark          String?
+  pickupPincode           String?
+  companyAddress          String?
+  companyAddressLine1     String?
+  companyAddressLine2     String?
+  companyCity             String?
+  companyDistrict         String?
+  companyState            String?
+  companyCountry          String?
+  companyLandmark         String?
+  companyPincode          String?
+  companyPhone            String?
+  companyEmail            String?
+  companyRegistrationNumber String?
+  companyLicenseNumber    String?
+  companyProfileNotes     String?
   shiprocketPickupLocation String?
   companyName             String
   contactName             String?

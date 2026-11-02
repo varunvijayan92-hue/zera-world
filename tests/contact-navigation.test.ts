@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { prisma } from "../lib/prisma";
-import { contactSchema } from "../lib/contact";
+import { contactSchema, publicSupportDetails } from "../lib/contact";
 import { storefrontNavigation, footerNavigation, isInternalPortal } from "../lib/storefront-navigation";
 import { POST } from "../app/api/contact/route";
 import { emailDelivery } from "../lib/email";
@@ -20,6 +20,24 @@ test("contact validation requires real form details and accepts an optional orde
   assert.equal(contactSchema.safeParse(details).success, true);
   assert.equal(contactSchema.safeParse({ ...details, orderNumber: undefined }).success, true);
   for (const patch of [{ fullName: " " }, { email: "invalid" }, { subject: "x" }, { message: "short" }, { message: "x".repeat(3001) }]) assert.equal(contactSchema.safeParse({ ...details, ...patch }).success, false);
+});
+test("public support details expose only contact address and phone for a saved company profile", () => {
+  const publicDetails = contactSchema.safeParse(details);
+  assert.equal(publicDetails.success, true);
+  const supplierProfile = {
+    companyName: "Zera's World Suppliers",
+    companyPhone: "+91 98765 43210",
+    companyAddress: "12, MG Road, Bengaluru, Karnataka 560001",
+    gstNumber: "29ABCDE1234F1Z5",
+    companyRegistrationNumber: "U74999KA2020PTC123456",
+    companyLicenseNumber: "KA-XYZ-12345",
+    companyProfileNotes: "Certified supplier for kitchen and lifestyle essentials",
+  };
+  const result = publicSupportDetails(supplierProfile);
+  assert.equal(result.phone, supplierProfile.companyPhone);
+  assert.equal(result.address, supplierProfile.companyAddress);
+  assert.equal(result.email, process.env.SUPPORT_EMAIL || "");
+  assert.deepEqual(Object.keys(result).sort(), ["address", "email", "hours", "phone", "responseTime"].sort());
 });
 test("contact API saves guest messages in the admin inbox and reports failures without claiming success", async (t) => {
   const previous = prisma.auditLog; const previousSend = emailDelivery.send; let saved: unknown; let fail = false; let emailed: unknown;
