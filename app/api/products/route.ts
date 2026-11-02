@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { categoryId, category, availableQty, mrp, hsnCode, ...data } = parsed.data;
+    const { categoryId, category, availableQty, mrp, hsnCode, deliveryCharge, ...data } = parsed.data;
     if (data.status === "ACTIVE" && Number(data.sellingPrice) <= 0) throw new CatalogError("An active product needs a selling price greater than zero.");
     const product = await prisma.$transaction(async tx => {
       const saved = await tx.product.create({
@@ -41,6 +41,7 @@ export async function POST(request: Request) {
           ...data, ...await resolveProductCategory(categoryId, category),
           status: data.status || "DRAFT",
           costPrice: data.costPrice ?? null, sellingPrice: data.sellingPrice ?? null,
+          deliveryCharge: deliveryCharge ?? 0,
           ...(availableQty !== undefined ? { inventory: { create: { availableQty } } } : {}),
         },
       });

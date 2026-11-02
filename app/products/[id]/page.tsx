@@ -43,7 +43,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   const clientProduct = {
     ...product,
+    specifications: product.specifications ?? null,
+    manufacturerInfo: product.manufacturerInfo ?? null,
     sellingPrice: product.sellingPrice == null ? null : Number(product.sellingPrice),
+    deliveryCharge: product.deliveryCharge == null ? null : Number(product.deliveryCharge),
     gstRate: product.gstRate == null ? null : Number(product.gstRate),
     handlingCharge: product.handlingCharge == null ? null : Number(product.handlingCharge),
     returnDays: product.returnDays == null ? null : Number(product.returnDays),

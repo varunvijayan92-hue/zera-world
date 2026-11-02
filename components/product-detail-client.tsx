@@ -16,16 +16,82 @@ type ProductDetailRecord = {
   sku: string;
   brand?: string | null;
   description?: string | null;
+  specifications?: string | null;
+  manufacturerInfo?: string | null;
   category?: string | null;
   categoryId?: string | null;
   imageUrls: string[];
   size?: string | null;
+  deliveryCharge?: number | string | null;
   sellingPrice?: number | string | null;
   gstRate?: number | string | null;
   handlingCharge?: number | string | null;
   returnDays?: number | string | null;
   isReturnable?: boolean | null;
 };
+
+function parseSpecificationSections(raw?: string | null): Array<{ title: string; rows: Array<{ key: string; value: string }> }> {
+  if (!raw) return [];
+
+  const sections: Array<{ title: string; rows: Array<{ key: string; value: string }> }> = [];
+  let current: { title: string; rows: Array<{ key: string; value: string }> } = { title: "", rows: [] };
+
+  const closeCurrent = () => {
+    if (current.title || current.rows.length) {
+      sections.push(current);
+    }
+    current = { title: "", rows: [] };
+  };
+
+  const splitKeyValue = (line: string) => {
+    const separators = [":", " - ", " | ", " – ", " — "];
+    for (const separator of separators) {
+      const index = line.indexOf(separator);
+      if (index > 0 && index < line.length - separator.length) {
+        const key = line.slice(0, index).trim();
+        const value = line.slice(index + separator.length).trim();
+        if (key && value) return { key, value };
+      }
+    }
+
+    const spaced = line.split(/\s{2,}/);
+    if (spaced.length > 1) {
+      const [key, ...rest] = spaced;
+      const value = rest.join(" ").trim();
+      if (key && value) return { key: key.trim(), value };
+    }
+
+    return null;
+  };
+
+  for (const rawLine of raw.split(/\r?\n|\r/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const parsedRow = splitKeyValue(line);
+    if (parsedRow) {
+      current.rows.push(parsedRow);
+      continue;
+    }
+
+    const heading = line.replace(/\s+/g, " ").trim();
+    if (!heading) continue;
+
+    if (current.title || current.rows.length) {
+      closeCurrent();
+    }
+
+    current.title = heading;
+  }
+
+  closeCurrent();
+
+  if (!sections.length) {
+    return [{ title: "Specifications", rows: raw.split(/\r?\n|\r/).map(line => line.trim()).filter(Boolean).map(line => ({ key: "Details", value: line })) }];
+  }
+
+  return sections;
+}
 
 export function ProductDetailClient({ product, assignedCategory, parentCategory, categoryLabel, extras, detailBits }: {
   product: ProductDetailRecord;
@@ -37,6 +103,8 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
 }) {
   const sizeOptions = useMemo(() => product.size ? product.size.split(",").map(size => size.trim()).filter(Boolean) : [], [product.size]);
   const [selectedSize, setSelectedSize] = useState(sizeOptions[0] ?? "");
+  const [activeTab, setActiveTab] = useState<"specifications" | "description" | "manufacturer">("specifications");
+  const specificationSections = useMemo(() => parseSpecificationSections(product.specifications), [product.specifications]);
 
   return (
     <main className="min-h-screen bg-[#f4f1eb] px-4 py-8 text-[#173B35] md:px-6 lg:px-8">
@@ -65,6 +133,8 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
             <div className="mt-5">
               <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} mrp={extras?.mrp} className="" priceClassName="text-3xl font-black tracking-[-0.06em] text-[#173B35]" />
             </div>
+
+            {Number(product.deliveryCharge ?? 0) > 0 ? <p className="mt-3 text-sm font-medium text-[#173B35]/75">Delivery charge: ₹{Number(product.deliveryCharge).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</p> : null}
 
             {sizeOptions.length ? (
               <div className="mt-6">
@@ -113,11 +183,63 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
                 Buy at ₹{Number(product.sellingPrice ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
               </button>
             </div>
+          </div>
+        </div>
 
-            {product.description?.trim() ? <div className="mt-8 rounded-2xl border border-[#173B35]/10 bg-[#F7F4ED] p-4 text-sm text-[#173B35]/75">
-              <p className="font-semibold text-[#173B35]">Product overview</p>
-              <p className="mt-2 leading-6">{product.description.trim()}</p>
-            </div> : null}
+        <div className="mx-auto mt-10 max-w-5xl rounded-[26px] border border-[#173B35]/10 bg-white p-4 sm:p-5">
+          <div className="flex flex-wrap gap-3">
+            {[
+              { id: "specifications", label: "Specifications" },
+              { id: "description", label: "Description" },
+              { id: "manufacturer", label: "Manufacturer info" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={`rounded-[14px] border px-5 py-3 text-sm font-semibold transition ${activeTab === tab.id ? "border-[#173B35] bg-[#173B35] text-white" : "border-[#173B35]/15 bg-[#F7F4ED] text-[#173B35] hover:border-[#173B35]/30"}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6">
+            {activeTab === "specifications" ? (
+              <div className="space-y-8">
+                {specificationSections.length ? (
+                  specificationSections.map((section) => (
+                    <div key={section.title || section.rows[0]?.key || "section"}>
+                      {section.title ? <h3 className="mb-4 text-xl font-bold text-[#173B35]">{section.title}</h3> : null}
+                      {section.rows.length ? (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {section.rows.map((row) => (
+                            <div key={`${section.title}-${row.key}-${row.value}`} className="border-b border-[#173B35]/12 pb-3 text-sm">
+                              <div className="text-[#173B35]/70">{row.key}</div>
+                              <div className="mt-1 text-[#173B35]">{row.value}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-[#173B35]/65">No detailed specifications have been added for this product yet.</p>
+                )}
+              </div>
+            ) : null}
+
+            {activeTab === "description" ? (
+              <div className="space-y-4 text-sm leading-7 text-[#173B35]/75">
+                {product.description?.trim() ? <p>{product.description.trim()}</p> : <p>No long description has been added for this product.</p>}
+              </div>
+            ) : null}
+
+            {activeTab === "manufacturer" ? (
+              <div className="space-y-4 text-sm leading-7 text-[#173B35]/75">
+                {product.manufacturerInfo?.trim() ? <p>{product.manufacturerInfo.trim()}</p> : <p>No manufacturer information has been added for this product.</p>}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

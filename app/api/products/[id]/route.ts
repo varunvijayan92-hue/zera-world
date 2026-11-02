@@ -18,12 +18,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const current = await prisma.product.findUnique({ where: { id } });
     if (!current) return NextResponse.json({ message: "Product not found." }, { status: 404 });
-    const { categoryId, category, availableQty, imageUrls, mrp, hsnCode, ...data } = parsed.data;
+    const { categoryId, category, availableQty, imageUrls, mrp, hsnCode, deliveryCharge, ...data } = parsed.data;
     if (availableQty !== undefined || imageUrls !== undefined) throw new CatalogError("Use the inventory or photo tools to change stock or photos.");
     if ((data.status || current.status) === "ACTIVE" && Number(data.sellingPrice ?? current.sellingPrice) <= 0) throw new CatalogError("An active product needs a selling price greater than zero.");
     const categoryFields = await resolveProductCategory(categoryId, category);
     const product = await prisma.$transaction(async tx => {
-      const saved = await tx.product.update({ where: { id }, data: { ...data, ...categoryFields } });
+      const saved = await tx.product.update({ where: { id }, data: { ...data, ...categoryFields, ...(deliveryCharge !== undefined ? { deliveryCharge } : {}) } });
       return { ...saved, ...await saveProductExtras(tx, id, { mrp, hsnCode }, saved.sellingPrice) };
     });
     for (const path of ["/", "/products", `/products/${id}`, "/admin/products"]) revalidatePath(path);
