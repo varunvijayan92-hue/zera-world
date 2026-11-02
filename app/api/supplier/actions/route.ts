@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { shipmentPickupLocation } from "@/lib/supplier-pickup";
 import { supplierAccess, AccessError, apiError } from "@/lib/portal-access";
 
 const actions = z.discriminatedUnion("action", [
@@ -31,7 +32,8 @@ export async function POST(request: Request) {
           if (item.fulfillmentStatus !== "PACKED") throw new AccessError("Pack and confirm this item before dispatch.");
           const existing = await tx.shipment.findFirst({ where: { trackingNumber: body.awb } });
           if (existing) throw new AccessError("This AWB is already recorded. Review the existing shipment.", 409);
-          await tx.shipment.create({ data: { customerOrderId: item.customerOrderId, supplierId: supplier.id, courierName: body.courierName, trackingNumber: body.awb, status: "IN_TRANSIT", trackingEvents: { create: { eventType: "DISPATCHED", description: "Supplier entered the shipment AWB." } } } });
+          const pickupLocation = await shipmentPickupLocation(tx, supplier.id, body.courierName);
+          await tx.shipment.create({ data: { customerOrderId: item.customerOrderId, supplierId: supplier.id, pickupLocation, courierName: body.courierName, trackingNumber: body.awb, status: "IN_TRANSIT", trackingEvents: { create: { eventType: "DISPATCHED", description: "Supplier entered the shipment AWB." } } } });
           await tx.orderItem.update({ where: { id: item.id }, data: { fulfillmentStatus: "SHIPPED", status: "SHIPPED" } });
           if (!await tx.orderItem.count({ where: { customerOrderId: item.customerOrderId, status: { not: "SHIPPED" } } })) await tx.customerOrder.update({ where: { id: item.customerOrderId }, data: { status: "SHIPPED" } });
         }

@@ -166,3 +166,11 @@ To test, create a customer account at `/login`, sign in, enter the code received
 - In Shiprocket Webhooks, enter URL `https://zerasworld.in/api/webhooks/delivery`, select Auth Token Type `x-api-key`, and paste the dedicated webhook token. Enable the webhook, click **Test Webhook**, then **Save**.
 - The webhook token is generated securely in the encrypted SHIPROCKET integration credentials as `webhookToken`. Preserve it when editing API credentials. It must match the value configured in Shiprocket.
 - Valid test requests and unmatched AWBs receive HTTP 200. Valid updates match only existing Shiprocket shipments and save tracking events idempotently. Unknown AWBs never create orders or shipments. Delivery confirmation and financial transitions remain admin actions. Invalid authentication is rejected; temporary database failures return a retryable response.
+
+## Supplier pickup locations and AWBs
+
+- Apply `prisma/supplier-pickup-mapping.sql` before deploying the Prisma schema changes. The migration adds nullable fields and preserves existing supplier and shipment data. Regenerate Prisma Client.
+- Register each supplier collection address in Shiprocket, using a unique pickup-location name (for example `SUPPLIER_001`). In Admin > Suppliers > Shiprocket pickup, open **Edit pickup mapping**, reload registered locations, select the matching location and save. Only admin/manager roles can edit this mapping; the server verifies the selected name against Shiprocket.
+- Under Admin > Tracking, select the order supplier and Shiprocket, then enter the AWB issued when booking the shipment. Suppliers use their own assigned orders and mapping in their portal. An active supplier with a mapping is required for new Shiprocket shipment records.
+- The server copies the saved pickup name onto the shipment alongside the AWB. Later mapping edits do not alter that shipment snapshot. Existing shipments without a snapshot remain trackable.
+- This associates references in the store. It does not create a pickup address, issue an AWB, validate the AWB's upstream pickup address or move an existing booking. Verify the actual pickup address in Shiprocket when booking. Update both the registered address and the mapping if a supplier moves.

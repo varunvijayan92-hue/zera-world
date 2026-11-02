@@ -97,6 +97,7 @@ model Supplier {
   id                      String                   @id @default(cuid())
   sourceType              String                   @default("DIRECT")
   pickupAddress           String?
+  shiprocketPickupLocation String?
   companyName             String
   contactName             String?
   email                   String?
@@ -507,6 +508,7 @@ model Shipment {
   supplierId        String?
   courierName       String?
   trackingNumber    String?
+  pickupLocation    String?
   estimatedDelivery DateTime?
   status            ShipmentStatus  @default(PENDING)
   shipmentCost      Decimal?        @db.Decimal(12, 2)
