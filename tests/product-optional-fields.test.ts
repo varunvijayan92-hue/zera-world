@@ -17,3 +17,9 @@ test("cleared GST and handling do not add charges to checkout", () => {
   assert.equal(quote.handlingCharges, 0);
   assert.equal(quote.total, 320);
 });
+
+test("empty optional product detail fields can be cleared with null", () => {
+ const parsed = productSchema.parse({ name: "Product", sku: "SKU", specifications: null, manufacturerInfo: null });
+ assert.equal(parsed.specifications, null);
+ assert.equal(parsed.manufacturerInfo, null);
+});
