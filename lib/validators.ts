@@ -64,6 +64,8 @@ export const productSchema = z.object({
   isReturnable: z.boolean().optional(),
   costPrice: z.coerce.number().min(0).optional(),
   sellingPrice: z.coerce.number().min(0).optional(),
+  mrp: z.preprocess(value => value === "" ? null : value, z.coerce.number().finite().positive().max(9999999999.99).multipleOf(0.01).nullable().optional()),
+  hsnCode: z.string().trim().regex(/^\d{2,8}$/, "Enter an HSN code with 2 to 8 digits.").nullable().optional().or(z.literal("").transform(() => null)),
   imageUrls: z.array(z.string().url()).optional().default([]),
   status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),
 });

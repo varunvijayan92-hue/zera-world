@@ -4,6 +4,7 @@ import { authorizeManagement } from "@/lib/api-auth";
 import { CatalogError, resolveProductCategory } from "@/lib/catalog";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validators";
+import { saveProductExtras } from "@/lib/product-pricing";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const denied = await authorizeManagement();
@@ -14,10 +15,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const current = await prisma.product.findUnique({ where: { id } });
     if (!current) return NextResponse.json({ message: "Product not found." }, { status: 404 });
-    const { categoryId, category, availableQty, imageUrls, ...data } = parsed.data;
+    const { categoryId, category, availableQty, imageUrls, mrp, hsnCode, ...data } = parsed.data;
     if (availableQty !== undefined || imageUrls !== undefined) throw new CatalogError("Use the inventory or photo tools to change stock or photos.");
     if ((data.status || current.status) === "ACTIVE" && Number(data.sellingPrice ?? current.sellingPrice) <= 0) throw new CatalogError("An active product needs a selling price greater than zero.");
-    const product = await prisma.product.update({ where: { id }, data: { ...data, ...await resolveProductCategory(categoryId, category) } });
+    const categoryFields = await resolveProductCategory(categoryId, category);
+    const product = await prisma.$transaction(async tx => {
+      const saved = await tx.product.update({ where: { id }, data: { ...data, ...categoryFields } });
+      return { ...saved, ...await saveProductExtras(tx, id, { mrp, hsnCode }, saved.sellingPrice) };
+    });
     for (const path of ["/", "/products", `/products/${id}`, "/admin/products"]) revalidatePath(path);
     return NextResponse.json({ data: product });
   } catch (error) {

@@ -1,7 +1,7 @@
 import { ProductGallery } from "@/components/product-gallery";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ShieldCheck, ShoppingBag, Truck } from "lucide-react";
+import { ArrowLeft, Truck } from "lucide-react";
 
 import { CartButton } from "@/components/cart-button";
 import { prisma } from "@/lib/prisma";
@@ -10,9 +10,11 @@ import { categoryLink } from "@/lib/category";
 import { cache } from "react";
 import type { Metadata } from "next";
 import { publicPageMetadata } from "@/lib/seo";
+import { readProductExtras } from "@/lib/product-pricing";
+import { ProductPrice } from "@/components/product-price";
 
 export const dynamic = "force-dynamic";
-const getProduct = cache((id: string) => prisma.product.findUnique({ where: { id }, include: { supplier: true } }));
+const getProduct = cache((id: string) => prisma.product.findUnique({ where: { id } }));
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -35,6 +37,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const assignedCategory = categories.find(category => category.id === product.categoryId);
   const parentCategory = categories.find(category => category.id === assignedCategory?.parentId);
   const description = product.description?.trim();
+  const extras = (await readProductExtras([id])).get(id);
   const gstValue = Number(product.gstRate ?? 0);
   const handlingValue = Number(product.handlingCharge ?? 0);
   const detailBits: string[] = [];
@@ -61,23 +64,16 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
             <div className="mt-4 flex flex-wrap items-center gap-3 break-all text-sm text-[#173B35]/70">
               <span className="rounded-full bg-[#B38A45]/10 px-2.5 py-1 font-medium text-[#173B35]">SKU: {product.sku}</span>
-              {product.supplier ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 font-medium text-emerald-700">
-                <ShieldCheck size={14} />
-                Verified supplier
-              </span> : null}
+              {extras?.hsnCode ? <span className="rounded-full bg-[#F7F4ED] px-2.5 py-1">HSN: {extras.hsnCode}</span> : null}
             </div>
 
-            <p className="mt-5 text-3xl font-black text-[#173B35]">₹{Number(product.sellingPrice ?? 0).toLocaleString("en-IN")}</p>
+            <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} mrp={extras?.mrp} className="mt-5" priceClassName="text-3xl font-black text-[#173B35]" />
 
             <div className="mt-6 space-y-3 text-sm text-[#173B35]/75">
               <div className="flex items-center gap-2">
                 <Truck size={16} className="text-[#173B35]" />
                 <span>Fast dispatch and marketplace-ready shipping</span>
               </div>
-              {product.supplier?.companyName?.trim() ? <div className="flex items-center gap-2">
-                <ShoppingBag size={16} className="text-[#173B35]" />
-                <span>Supplier: {product.supplier.companyName}</span>
-              </div> : null}
             </div>
 
             {detailBits.length ? <p className="mt-4 text-sm">{detailBits.join(" • ")}</p> : null}

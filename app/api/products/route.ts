@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { syncProductToMarketplaces } from "@/lib/marketplace";
 import { productSchema } from "@/lib/validators";
+import { readProductExtras, saveProductExtras } from "@/lib/product-pricing";
 
 export async function GET() {
   const denied = await authorizeManagement();
@@ -14,7 +15,8 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json({ data: products });
+  const extras = await readProductExtras(products.map(product => product.id));
+  return NextResponse.json({ data: products.map(product => ({ ...product, ...extras.get(product.id) })) });
 }
 
 export async function POST(request: Request) {
@@ -31,15 +33,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const { categoryId, category, availableQty, ...data } = parsed.data;
+    const { categoryId, category, availableQty, mrp, hsnCode, ...data } = parsed.data;
     if (data.status === "ACTIVE" && Number(data.sellingPrice) <= 0) throw new CatalogError("An active product needs a selling price greater than zero.");
-    const product = await prisma.product.create({
-      data: {
-        ...data, ...await resolveProductCategory(categoryId, category),
-        status: data.status || "DRAFT",
-        costPrice: data.costPrice ?? null, sellingPrice: data.sellingPrice ?? null,
-        ...(availableQty !== undefined ? { inventory: { create: { availableQty } } } : {}),
-      },
+    const product = await prisma.$transaction(async tx => {
+      const saved = await tx.product.create({
+        data: {
+          ...data, ...await resolveProductCategory(categoryId, category),
+          status: data.status || "DRAFT",
+          costPrice: data.costPrice ?? null, sellingPrice: data.sellingPrice ?? null,
+          ...(availableQty !== undefined ? { inventory: { create: { availableQty } } } : {}),
+        },
+      });
+      return { ...saved, ...await saveProductExtras(tx, saved.id, { mrp, hsnCode }, saved.sellingPrice) };
     });
     for (const path of ["/", "/products", "/admin/products"]) revalidatePath(path);
 

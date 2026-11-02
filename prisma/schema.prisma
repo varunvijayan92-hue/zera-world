@@ -186,6 +186,8 @@ model Product {
   status                  ProductStatus               @default(DRAFT)
   costPrice               Decimal?                    @db.Decimal(12, 2)
   sellingPrice            Decimal?                    @db.Decimal(12, 2)
+  mrp                     Decimal?                    @db.Decimal(12, 2)
+  hsnCode                 String?
   gstRate                 Decimal                     @default(5) @db.Decimal(5, 2)
   handlingCharge          Decimal                     @default(0) @db.Decimal(12, 2)
   returnDays              Int                         @default(7)

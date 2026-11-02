@@ -7,6 +7,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getMenuCategories } from "@/lib/category-data";
 import { siteUrl } from "@/lib/seo";
+import { readProductExtras } from "@/lib/product-pricing";
+import { ProductPrice } from "@/components/product-price";
 
 export const metadata = { alternates: { canonical: siteUrl("/") } };
 
@@ -44,6 +46,7 @@ export default async function HomePage() {
     getMenuCategories().then(categories => categories.filter(category => category.isVisible && !category.parentId)).catch(() => []),
   ]);
   const categoryBanners = categories.map((category, index) => ({ id: category.id, title: category.name, subtitle: category.description || "Discover your next favorite", image: category.imageUrl || categoryBannerImages[index] || null, href: categoryLink(category.slug) }));
+  const extras = await readProductExtras(products.map(product => product.id));
 
   const productCards = products as Array<{
     id: string;
@@ -113,7 +116,7 @@ export default async function HomePage() {
                   </div>
 
                   <div className="tokoo-price-row">
-                    <span>₹{price.toLocaleString("en-IN")}</span>
+                    <ProductPrice sellingPrice={price} mrp={extras.get(product.id)?.mrp} />
                     <span className="tokoo-shipping-tag">
                       <Truck size={12} />
                       Ready to ship

@@ -9,6 +9,8 @@ import { getMenuCategories } from "@/lib/category-data";
 import { categoryDisplayName, categoryProductIds, categoryLink, visibleMenuCategories } from "@/lib/category";
 import type { Metadata } from "next";
 import { publicPageMetadata } from "@/lib/seo";
+import { readProductExtras } from "@/lib/product-pricing";
+import { ProductPrice } from "@/components/product-price";
 
 export const dynamic = "force-dynamic";
 
@@ -55,8 +57,8 @@ export default async function ProductsPage({
         : {}),
     },
     orderBy: { createdAt: "desc" },
-    include: { supplier: true },
   });
+  const extras = await readProductExtras(products.map(product => product.id));
 
   return (
     <main className="min-h-screen bg-[#F7F4ED] px-4 py-8 text-[#173B35] md:px-6 lg:px-8">
@@ -142,7 +144,7 @@ export default async function ProductsPage({
                   </div>
 
                   <div className="mt-4 flex items-center justify-between">
-                    <span className="text-xl font-black text-[#173B35]">₹{Number(product.sellingPrice ?? 0).toLocaleString("en-IN")}</span>
+                    <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} mrp={extras.get(product.id)?.mrp} priceClassName="text-xl font-black text-[#173B35]" />
                     <span className="inline-flex items-center gap-1 rounded-full bg-[#B38A45]/10 px-2 py-1 text-[0.7rem] font-medium text-[#173B35]">
                       <Truck size={12} />
                       Ready to ship

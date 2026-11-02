@@ -3,6 +3,7 @@ export type AdminProduct = {
   categoryId: string | null; category: string | null;
   supplierId: string | null; supplierName: string | null;
   sellingPrice: number; costPrice: number; status: "DRAFT" | "ACTIVE" | "ARCHIVED";
+  mrp?: number | null; hsnCode?: string | null;
   gstRate: number; handlingCharge: number; returnDays: number; isReturnable: boolean;
   imageUrls: string[]; availableQty: number;
 };
