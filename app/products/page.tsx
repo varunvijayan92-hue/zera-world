@@ -145,13 +145,13 @@ export default async function ProductsPage({
                   </div>
 
                   <div className="mt-4 flex items-center justify-between">
-                    <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} mrp={extras.get(product.id)?.mrp} priceClassName="text-xl font-black text-[#173B35]" />
+                    <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} gstRate={product.gstRate == null ? null : Number(product.gstRate)} handlingCharge={Number(product.handlingCharge || 0)} mrp={extras.get(product.id)?.mrp} priceClassName="text-xl font-black text-[#173B35]" />
                     <span className="inline-flex items-center gap-1 rounded-full bg-[#B38A45]/10 px-2 py-1 text-[0.7rem] font-medium text-[#173B35]">
                       <Truck size={12} />
                       Ready to ship
                     </span>
                   </div>
-                  <div className="mt-4"><CartButton product={{ id: product.id, name: product.name, sku: product.sku, sellingPrice: Number(product.sellingPrice), imageUrls: product.imageUrls }} /></div>
+                  <div className="mt-4"><CartButton product={{ id: product.id, name: product.name, sku: product.sku, sellingPrice: Number(product.sellingPrice), gstRate: product.gstRate == null ? null : Number(product.gstRate), handlingCharge: Number(product.handlingCharge || 0), imageUrls: product.imageUrls }} /></div>
                 </article>
               );
             })

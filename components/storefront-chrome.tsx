@@ -1,8 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Truck, UserRound } from "lucide-react";
-import { ORDER_SHIPPING_CHARGE } from "@/lib/shipping";
+import { ShoppingBag, UserRound } from "lucide-react";
 import ZeraWorldLogo from "./zera-logo";
 import { footerNavigation, storefrontNavigation, isInternalPortal } from "@/lib/storefront-navigation";
 
@@ -12,13 +11,8 @@ export function StorefrontHeader() {
 
   return (
     <header className="border-b border-[#173B35]/10 bg-[#F7F4ED] text-[#173B35]">
-      <div className="bg-[#173B35] text-[#EAF3EE]">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 text-[11px] font-medium sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2 font-semibold">
-            <Truck size={14} className="text-[#D9C089]" />
-            <span>Shipping across India: ₹{ORDER_SHIPPING_CHARGE} per order</span>
-          </div>
-
+      <div className="hidden bg-[#173B35] text-[#EAF3EE] md:block">
+        <div className="mx-auto flex max-w-7xl items-center justify-end gap-3 px-4 py-2 text-[11px] font-medium sm:px-6 lg:px-8">
           <div className="hidden items-center gap-5 text-[11px] md:flex">
             <Link href="/track-order" className="transition hover:text-white/85">Track Order</Link>
             <Link href="/contact" className="transition hover:text-white/85">Help &amp; Support</Link>

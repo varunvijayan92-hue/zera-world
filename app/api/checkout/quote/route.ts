@@ -21,6 +21,8 @@ export async function POST(request: Request) {
     if (error instanceof Error && ["Cart must", "One or more", "Product price", "Requested quantity"].some((prefix) => error.message.startsWith(prefix))) {
       return NextResponse.json({ message: error.message }, { status: 400 });
     }
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "UNKNOWN";
+    console.error(JSON.stringify({ event: "checkout_quote_failed", code }));
     return NextResponse.json({ message: "We could not check the order amount. Please try again." }, { status: 500 });
   }
 }

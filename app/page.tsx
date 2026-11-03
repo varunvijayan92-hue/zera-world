@@ -35,7 +35,7 @@ async function getHomeProducts() {
       name: string;
       category?: string | null;
       size?: string | null;
-      sellingPrice?: number | string | null;
+      sellingPrice?: number | string | null; gstRate?: number | string | null; handlingCharge?: number | string | null;
       imageUrls?: string[];
     }>;
   }
@@ -54,7 +54,7 @@ export default async function HomePage() {
     name: string;
     category?: string | null;
     size?: string | null;
-    sellingPrice?: number | string | null;
+    sellingPrice?: number | string | null; gstRate?: number | string | null; handlingCharge?: number | string | null;
     imageUrls?: string[];
   }>;
 
@@ -119,7 +119,7 @@ export default async function HomePage() {
                   </div>
 
                   <div className="tokoo-price-row">
-                    <ProductPrice sellingPrice={price} mrp={extras.get(product.id)?.mrp} />
+                    <ProductPrice sellingPrice={price} gstRate={product.gstRate == null ? null : Number(product.gstRate)} handlingCharge={Number(product.handlingCharge || 0)} mrp={extras.get(product.id)?.mrp} />
                     <span className="tokoo-shipping-tag">
                       <Truck size={12} />
                       Ready to ship

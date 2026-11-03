@@ -8,7 +8,7 @@ import { MAX_CART_UNITS, readCart, writeCart, type CartItem } from "@/lib/cart";
 import { CHECKOUT_DRAFT_KEY, SAVED_ADDRESS_KEY, emptyAddress, readCheckoutDraft, readSavedAddress, rememberAddress, type DeliveryAddress, type CheckoutDraft } from "@/lib/checkout-storage";
 import { checkoutAddressSchema } from "@/lib/validators";
 import { DeliveryAddressFields } from "@/components/delivery-address-fields";
-import { CheckoutProgress, CheckoutSummary, money } from "@/components/checkout-summary";
+import { CheckoutProgress, CheckoutSummary } from "@/components/checkout-summary";
 
 type Quote = { fingerprint: string; items: CartItem[]; amount: CheckoutDraft["amount"] };
 
@@ -101,13 +101,13 @@ export default function CheckoutPage() {
           <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 md:p-7">
             <h2 className="text-xl font-bold">1. Check items & quantity</h2><p id="checkout-quantity-limit" className="mt-1 text-sm text-[#173B35]/65">Use the minus and plus buttons to choose your quantity. Maximum 10 units per cart; the amount updates automatically.</p>
             <div className="mt-5 space-y-4">{(currentQuote?.items || items).map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#173B35]/10 p-4">
-              <div className="min-w-0 basis-full sm:flex-1 sm:basis-0"><Link href={`/products/${item.id}`} className="break-words font-bold hover:underline">{item.name}</Link><p className="mt-1 text-sm text-[#173B35]/65">{money(item.sellingPrice)} each</p></div>
+              <div className="min-w-0 basis-full sm:flex-1 sm:basis-0"><Link href={`/products/${item.id}`} className="break-words font-bold hover:underline">{item.name}</Link></div>
               <div role="group" aria-label={`Quantity for ${item.name}`} aria-describedby="checkout-quantity-limit"><p className="mb-1 text-xs font-semibold">Quantity</p><div className="inline-flex items-center rounded-lg border border-[#173B35]/20">
                 <button type="button" aria-label={`Decrease quantity for ${item.name}`} disabled={item.quantity <= 1 || continuing} onClick={() => changeItems(items.map(entry => entry.id === item.id ? { ...entry, quantity: entry.quantity - 1 } : entry))} className="flex h-11 w-11 items-center justify-center rounded-l-lg hover:bg-[#F7F4ED] disabled:opacity-30"><Minus size={18} /></button>
                 <output aria-live="polite" aria-label={`Selected quantity for ${item.name}`} className="w-7 text-center font-semibold tabular-nums">{item.quantity}</output>
                 <button type="button" aria-label={`Increase quantity for ${item.name}`} disabled={totalUnits >= MAX_CART_UNITS || continuing} onClick={() => changeItems(items.map(entry => entry.id === item.id ? { ...entry, quantity: entry.quantity + 1 } : entry))} className="flex h-11 w-11 items-center justify-center rounded-r-lg hover:bg-[#F7F4ED] disabled:opacity-30"><Plus size={18} /></button>
               </div></div>
-              <div className="min-w-20 text-right"><p className="font-bold">{money(item.sellingPrice * item.quantity)}</p><button type="button" aria-label={`Remove ${item.name}`} onClick={() => changeItems(items.filter((entry) => entry.id !== item.id))} className="mt-2 inline-flex items-center gap-1 text-xs text-red-700"><Trash2 size={13} /> Remove</button></div>
+              <div className="min-w-20 text-right"><button type="button" aria-label={`Remove ${item.name}`} onClick={() => changeItems(items.filter((entry) => entry.id !== item.id))} className="mt-2 inline-flex items-center gap-1 text-xs text-red-700"><Trash2 size={13} /> Remove</button></div>
             </div>)}</div>
           </section>
           <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 md:p-7">

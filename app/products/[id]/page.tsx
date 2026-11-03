@@ -34,11 +34,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const assignedCategory = categories.find(category => category.id === product.categoryId);
   const parentCategory = categories.find(category => category.id === assignedCategory?.parentId);
   const extras = (await readProductExtras([id])).get(id);
-  const gstValue = Number(product.gstRate ?? 0);
-  const handlingValue = Number(product.handlingCharge ?? 0);
   const detailBits: string[] = [];
-  if (gstValue > 0) detailBits.push(`GST: ${gstValue}%`);
-  if (handlingValue > 0) detailBits.push(`Handling: INR ${handlingValue.toFixed(2)} per unit`);
   if (product.isReturnable && Number(product.returnDays ?? 0) > 0) detailBits.push(`Returns within ${product.returnDays} days after delivery.`);
   else if (!product.isReturnable) detailBits.push("This product cannot be returned.");
 

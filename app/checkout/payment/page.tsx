@@ -156,7 +156,7 @@ export default function PaymentPage() {
           </section>
           <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-6 md:p-7">
             <h2 className="text-xl font-bold">Delivery confirmed</h2><p className="mt-4 font-semibold">{address.fullName}</p><p className="mt-1 text-sm leading-relaxed text-[#173B35]/75">{[address.addressLine1, address.addressLine2, address.city, address.state, address.pincode, address.country].filter(Boolean).join(", ")}</p><p className="mt-2 text-sm text-[#173B35]/70">{address.phone} | {address.email}</p>
-            <div className="mt-5 space-y-3 border-t border-[#173B35]/10 pt-5">{draft.items.map((item) => <div key={item.id} className="flex justify-between gap-4 text-sm"><span>{item.name} <span className="text-[#173B35]/60">x {item.quantity}</span></span><strong>{money(item.sellingPrice * item.quantity)}</strong></div>)}</div>
+            <div className="mt-5 space-y-3 border-t border-[#173B35]/10 pt-5">{draft.items.map((item) => <div key={item.id} className="flex justify-between gap-4 text-sm"><span>{item.name} <span className="text-[#173B35]/60">x {item.quantity}</span></span></div>)}</div>
           </section>
         </div>
         <aside className="rounded-[28px] border border-[#173B35]/10 bg-white p-6 lg:sticky lg:top-6">

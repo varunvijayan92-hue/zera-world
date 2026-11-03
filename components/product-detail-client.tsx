@@ -1,6 +1,5 @@
 "use client";
 
-import { ORDER_SHIPPING_CHARGE } from "@/lib/shipping";
 import { ProductGallery } from "@/components/product-gallery";
 import { CartButton } from "@/components/cart-button";
 import { ProductPrice } from "@/components/product-price";
@@ -140,7 +139,7 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
             </div>
 
             <div className="mt-5">
-              <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} mrp={extras?.mrp} className="" priceClassName="text-3xl font-black tracking-[-0.06em] text-[#173B35]" />
+              <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} gstRate={product.gstRate} handlingCharge={product.handlingCharge} mrp={extras?.mrp} className="" priceClassName="text-3xl font-black tracking-[-0.06em] text-[#173B35]" />
             </div>
 
             <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#173B35]/10 bg-[#F7F4ED] px-2.5 py-1 text-[0.62rem] font-bold uppercase tracking-[0.11em] text-[#173B35]">
@@ -148,7 +147,6 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
               Manufacturer verified product
             </div>
 
-            <p className="mt-3 text-sm font-medium text-[#173B35]/75">Delivery charge: ₹{ORDER_SHIPPING_CHARGE} per order</p>
             {product.warranty?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Warranty: {product.warranty.trim()}</p> : null}
             {product.trend?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Trend: {product.trend.trim()}</p> : null}
             {product.inTheBox?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">In the box: {product.inTheBox.trim()}</p> : null}
@@ -191,9 +189,9 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
                 id: product.id,
                 name: product.name,
                 sku: product.sku,
-                sellingPrice: Number(product.sellingPrice ?? 0),
+                sellingPrice: Number(product.sellingPrice ?? 0), gstRate: product.gstRate, handlingCharge: product.handlingCharge,
                 imageUrls: product.imageUrls,
-              }} label={`Buy at ₹${Number(product.sellingPrice ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`} />
+              }} />
             </div>
           </div>
         </div>
