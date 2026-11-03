@@ -36,18 +36,14 @@ export default function PaymentPage() {
     const stored = readCheckoutDraft(sessionStorage);
     if (!stored) { router.replace("/checkout"); return; }
     let active = true;
-    fetch("/api/auth/me", { cache: "no-store" }).then(async (response) => {
-      if (!response.ok) throw Error("Unable to check your login. Please reload to try again.");
-      const { user } = await response.json();
+    // CheckoutLayout already requires a signed-in customer. The create-order API
+    // validates the same session before creating an order or contacting Razorpay.
+    setDraft(stored);
+    fetch("/api/checkout/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cart: stored.items.map(item => ({ productId: item.id, sku: item.sku, quantity: item.quantity })) }) }).then(async response => {
+      const result = await response.json();
       if (!active) return;
-      if (user?.role !== "CUSTOMER") { router.replace("/login?next=%2Fcheckout"); return; }
-      setDraft(stored);
-      fetch("/api/checkout/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cart: stored.items.map(item => ({ productId: item.id, sku: item.sku, quantity: item.quantity })) }) }).then(async response => {
-        const result = await response.json();
-        if (!active) return;
-        setCodAvailable(response.ok && result.codAvailable === true); setCodChecked(true);
-      }).catch(() => { if (active) { setCodChecked(true); setCodAvailable(false); } });
-    }).catch((error) => { if (active) setMessage(error.message); });
+      setCodAvailable(response.ok && result.codAvailable === true); setCodChecked(true);
+    }).catch(() => { if (active) { setCodChecked(true); setCodAvailable(false); } });
     return () => { active = false; };
   }, [router]);
 

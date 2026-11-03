@@ -3,6 +3,8 @@ import { StoreInformationPage } from "@/components/store-information-page";
 import { ContactForm } from "@/components/contact-form";
 import { publicSupportDetails } from "@/lib/contact";
 import { prisma } from "@/lib/prisma";
+// Supplier contact details can change after deployment; read them per request.
+export const dynamic = "force-dynamic";
 export const metadata = publicPageMetadata("Contact Us","Contact Zera's World for product, order, payment, shipping and return enquiries.","/contact");
 export default async function ContactPage() {
   const supplier = await prisma.supplier.findFirst({
