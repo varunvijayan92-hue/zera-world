@@ -1,5 +1,6 @@
 import { integrationCredentials } from "./integration-settings";
 import { AccessError } from "./portal-access";
+import { courierDate } from "./courier-date";
 
 const API_URL = "https://apiv2.shiprocket.in/v1/external";
 
@@ -42,8 +43,8 @@ export async function trackShiprocket(awb: string) {
   for (const scan of (Array.isArray(tracking.shipment_track_activities) ? tracking.shipment_track_activities : []).slice(0, 50)) {
     // Shiprocket's date strings are Indian local time when an offset is absent.
     const value = String(scan?.date || "");
-    const date = new Date(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value) ? `${value.replace(" ", "T")}+05:30` : value);
-    if (!Number.isFinite(date.getTime())) continue;
+    const date = courierDate(value);
+    if (!date) continue;
     scans.push({ type: String(scan.status || "Update").slice(0, 100), description: [scan.location, scan.activity].filter(Boolean).join(" · ").slice(0, 500), date });
   }
   return { status: String(tracking.shipment_track[0].current_status || "Unknown").slice(0, 100), scans };

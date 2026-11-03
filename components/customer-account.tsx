@@ -1,6 +1,6 @@
 "use client";
 import { CustomerShipmentTracking, type CustomerShipment } from "./customer-shipment-tracking";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { DeliveryAddressFields } from "./delivery-address-fields";
 import { emptyAddress, type DeliveryAddress } from "@/lib/checkout-storage";
@@ -19,8 +19,21 @@ const tabs = ["Orders", "Addresses", "Profile & language", "Notifications", "Gif
 export function CustomerAccount() {
   const [data, setData] = useState<Account | null>(null); const [tab, setTab] = useState("Orders"); const [message, setMessage] = useState(""); const [busy, setBusy] = useState(false);
   const [address, setAddress] = useState<DeliveryAddress>({ ...emptyAddress }); const [addressId, setAddressId] = useState(""); const [label, setLabel] = useState("Home"); const [locating, setLocating] = useState(false);
-  async function load() { const response = await fetch("/api/account", { cache: "no-store" }); if (response.status === 401) { window.location.assign("/login"); return; } const result = await response.json(); if (!response.ok) throw Error(result.message); setData(result); }
-  useEffect(() => { void load().catch((error) => setMessage(error.message)); }, []);
+  const load = useCallback(async () => { const response = await fetch("/api/account", { cache: "no-store" }); if (response.status === 401) { window.location.assign("/login"); return; } const result = await response.json(); if (!response.ok) throw Error(result.message); setData(result); }, []);
+  useEffect(() => { void load().catch((error) => setMessage(error.message)); }, [load]);
+  useEffect(() => {
+    if (tab !== "Orders") return;
+    let pending = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || pending) return;
+      pending = true;
+      try { await load(); } catch { /* Keep the last successful timeline; manual refresh can retry. */ }
+      finally { pending = false; }
+    };
+    const timer = window.setInterval(() => { void refresh(); }, 30000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", refresh); };
+  }, [tab, load]);
   async function send(url: string, body: unknown, method = "POST") {
     setBusy(true); setMessage("");
     try { const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const result = await response.json(); if (!response.ok) throw Error(result.message); setMessage(result.message); await load(); return true; }

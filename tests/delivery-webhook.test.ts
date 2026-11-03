@@ -36,6 +36,10 @@ test("webhooks save scoped tracking events idempotently without confirming deliv
   assert.equal(saved.length, 2);
   assert.equal(saved[0].eventTime.toISOString(), "2026-11-02T04:30:00.000Z");
   assert.equal(saved[1].eventType, "DELIVERED");
+  assert.equal(await recordDeliveryWebhook({ awb: payload.awb, current_status: "OUT FOR DELIVERY", current_timestamp: "03 11 2026 14:30:00", scans: [{ date: "03 11 2026 13:00:00", "sr-status-label": "IN TRANSIT", activity: "At destination hub" }] }), true);
+  assert.equal(saved.length, 4);
+  assert.equal(saved[2].eventType, "IN TRANSIT");
+  assert.equal(saved[3].eventTime.toISOString(), "2026-11-03T09:00:00.000Z");
 });
 
 test("webhook connection tests and unmatched AWBs are acknowledged without inventing shipments", async t => {
