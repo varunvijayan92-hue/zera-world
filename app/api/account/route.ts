@@ -1,3 +1,4 @@
+import { customerOrderTracking } from "@/lib/customer-tracking";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -9,12 +10,12 @@ export async function GET() {
     const [profile, addresses, orders, tickets, vouchers] = await Promise.all([
       prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true, email: true, phone: true, language: true, notificationsEnabled: true } }),
       prisma.customerAddress.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" } }),
-      prisma.customerOrder.findMany({ where: { customerId: user.id }, orderBy: { createdAt: "desc" }, take: 100, select: { id: true, marketplaceOrderId: true, status: true, totalAmount: true, deliveredAt: true, createdAt: true, orderItems: { select: { id: true, quantity: true, unitPrice: true, isReturnable: true, returnDays: true, product: { select: { name: true, imageUrls: true } } } }, shipments: { select: { id: true, trackingNumber: true, courierName: true, status: true } }, returns: { select: { id: true, orderItemId: true, reason: true, quantity: true, status: true, adminNotes: true, refunds: { select: { id: true, amount: true, currency: true, status: true, gatewayRefundId: true } } } } } }),
+      prisma.customerOrder.findMany({ where: { customerId: user.id }, orderBy: { createdAt: "desc" }, take: 100, select: { id: true, marketplaceOrderId: true, status: true, totalAmount: true, deliveredAt: true, createdAt: true, orderItems: { select: { id: true, supplierId: true, status: true, fulfillmentStatus: true, quantity: true, unitPrice: true, isReturnable: true, returnDays: true, product: { select: { name: true, imageUrls: true } } } }, shipments: { orderBy: { createdAt: "desc" }, select: { id: true, supplierId: true, trackingNumber: true, courierName: true, status: true, estimatedDelivery: true, trackingEvents: { orderBy: { eventTime: "desc" }, take: 20, select: { id: true, eventType: true, description: true, eventTime: true } } } }, returns: { select: { id: true, orderItemId: true, reason: true, quantity: true, status: true, adminNotes: true, refunds: { select: { id: true, amount: true, currency: true, status: true, gatewayRefundId: true } } } } } }),
       prisma.supportTicket.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 50 }),
       prisma.customerVoucher.findMany({ where: { customerId: user.id }, select: { code: true, balance: true, expiresAt: true } }),
     ]);
     const codPayments = await prisma.paymentTransaction.findMany({ where: { orderId: { in: orders.map(order => order.id) }, provider: "COD" }, select: { orderId: true, paymentStatus: true } });
-    const customerOrders = orders.map(order => ({ ...order, codPaymentStatus: codPayments.find(payment => payment.orderId === order.id)?.paymentStatus || null }));
+    const customerOrders = orders.map(order => ({ ...customerOrderTracking(order), codPaymentStatus: codPayments.find(payment => payment.orderId === order.id)?.paymentStatus || null }));
     return NextResponse.json({ profile, addresses, orders: customerOrders, tickets, vouchers }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return apiError(error); }
 }

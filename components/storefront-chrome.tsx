@@ -14,7 +14,6 @@ export function StorefrontHeader() {
       <div className="hidden bg-[#173B35] text-[#EAF3EE] md:block">
         <div className="mx-auto flex max-w-7xl items-center justify-end gap-3 px-4 py-2 text-[11px] font-medium sm:px-6 lg:px-8">
           <div className="hidden items-center gap-5 text-[11px] md:flex">
-            <Link href="/track-order" className="transition hover:text-white/85">Track Order</Link>
             <Link href="/contact" className="transition hover:text-white/85">Help &amp; Support</Link>
             <span>INR (₹)</span>
             <Link href="/account" className="font-semibold transition hover:text-white/85">
