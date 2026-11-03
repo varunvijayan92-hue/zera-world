@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  getMarketplaceOverview,
   createSupplierOrderWorkflow,
   routeMarketplaceOrderToSuppliers,
   syncProductToMarketplaces,
@@ -10,7 +11,7 @@ import {
 import { calculateEstimatedProfit, getMarginState } from "../lib/profit";
 import { supplierSchema } from "../lib/validators";
 
-test("syncProductToMarketplaces publishes a product to Amazon and Flipkart", () => {
+test("product preparation never claims publication without a live marketplace connector", () => {
   const result = syncProductToMarketplaces({
     id: "prod_123",
     name: "ZeraBot Smart Fan",
@@ -32,8 +33,10 @@ test("syncProductToMarketplaces publishes a product to Amazon and Flipkart", () 
     result.map((item) => item.marketplace),
     ["AMAZON", "FLIPKART"]
   );
-  assert.ok(result.every((item) => item.status === "SYNCED"));
+  assert.ok(result.every((item) => item.status === "PENDING"));
   assert.equal(result[0].imageUrls.length, 2);
+  assert.ok(result.every(item => item.listingId === ""));
+  assert.ok(getMarketplaceOverview().every(item => !item.isConnected && item.lastSync === "Not synced"));
   assert.match(result[0].message, /photos/i);
   assert.match(result[1].message, /Flipkart/i);
 });
@@ -158,7 +161,7 @@ test("createSupplierOrderWorkflow routes unsupported or unapproved suppliers to 
   assert.equal(outcome.submittedToSupplier, false);
 });
 
-test("createSupplierOrderWorkflow prevents duplicate supplier jobs for the same order idempotency key", () => {
+test("supplier workflow previews do not invent durable jobs or automatic submissions", () => {
   const first = createSupplierOrderWorkflow({
     orderId: "ord_dup",
     marketplaceType: "FLIPKART",
@@ -204,8 +207,10 @@ test("createSupplierOrderWorkflow prevents duplicate supplier jobs for the same 
   });
 
   assert.equal(first.idempotencyKey, second.idempotencyKey);
-  assert.equal(second.duplicate, true);
-  assert.equal(second.status, "DUPLICATE");
+  assert.equal(second.duplicate, false);
+  assert.equal(first.durableJob, null);
+  assert.equal(second.submittedToSupplier, false);
+  assert.equal(second.status, "PENDING");
 });
 
 test("getMarginState flags negative profit estimates and calculates stable margins", () => {

@@ -69,24 +69,12 @@ export async function POST(request: Request) {
       productId: parsed.data.items?.[0]?.productId || "product-pending",
       totalAmount: Number(order.totalAmount ?? parsed.data.totalAmount ?? 0),
       shippingDestination: parsed.data.shippingAddress?.country || "India",
-      mapping: {
-        mappingStatus: "ACTIVE",
-        supplierAvailability: "IN_STOCK",
-        estimatedDeliveryDays: 7,
-        externalProductId: "SUP-AVAILABLE",
-        supplierSku: parsed.data.items?.[0]?.marketplaceSku || "SUP-DEFAULT",
-        purchaseCost: Number(parsed.data.totalAmount ?? 0) * 0.6,
-        shippingCost: Number(parsed.data.shippingAddress?.pincode ? 60 : 0),
-      },
-      supplier: {
-        connectionStatus: "PENDING",
-        autoOrderProcessing: false,
-        integrationType: "MANUAL",
-      },
+
     });
 
     return NextResponse.json({ data: order, supplierDispatches, supplierOrderWorkflow }, { status: 201 });
   } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "P2002") return NextResponse.json({ message: "This marketplace order is already saved." }, { status: 409 });
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Order creation failed." },
       { status: 500 }

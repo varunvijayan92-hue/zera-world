@@ -1,4 +1,3 @@
-import { calculateEstimatedProfit } from "./profit";
 
 export type MarketplaceType = "AMAZON" | "FLIPKART";
 
@@ -47,23 +46,12 @@ export type SupplierDispatchNotification = {
 };
 
 export function getMarketplaceStatus(type: MarketplaceType): MarketplaceStatus {
-  if (type === "AMAZON") {
-    return {
-      type,
-      name: "Amazon SP-API",
-      status: "Connected",
-      isConnected: true,
-      message: "Seller partner connection active. Inventory and order sync enabled.",
-      lastSync: "2 minutes ago",
-    };
-  }
-
   return {
     type,
-    name: "Flipkart Seller APIs",
-    status: "Configuration Required",
+    name: type === "AMAZON" ? "Amazon SP-API" : "Flipkart Seller APIs",
+    status: "Not Connected",
     isConnected: false,
-    message: "Credentials not configured. Add OAuth details and webhook verification before live sync.",
+    message: "No live marketplace connector is enabled. Saved credentials alone do not enable listing, order or return synchronization.",
     lastSync: "Not synced",
   };
 }
@@ -94,7 +82,7 @@ export function syncProductToMarketplaces(product: {
   const price = Number(numericPrice ?? 0);
   const imageUrls = Array.isArray(product.imageUrls) && product.imageUrls.length > 0
     ? product.imageUrls
-    : ["https://images.example.com/default-product.jpg"];
+    : [];
   const productSummary = [
     product.brand ? `Brand: ${product.brand}` : null,
     product.category ? `Category: ${product.category}` : null,
@@ -102,27 +90,27 @@ export function syncProductToMarketplaces(product: {
   ].filter(Boolean).join(" | ");
 
   const baseMessage = productSummary
-    ? `Product ${product.name} synced with photos and details (${productSummary}).`
-    : `Product ${product.name} synced with photos and product details.`;
+    ? `Product ${product.name} prepared with photos and details (${productSummary}).`
+    : `Product ${product.name} prepared with photos and product details.`;
 
   return [
     {
       marketplace: "AMAZON",
-      status: product.status === "ARCHIVED" ? "PENDING" : "SYNCED",
-      listingId: `AMZ-${product.id}`,
+      status: "PENDING",
+      listingId: "",
       sku: product.sku,
       price,
       imageUrls,
-      message: `${baseMessage} Sent to Amazon catalog and inventory feed.`,
+      message: `${baseMessage} Not published to Amazon: the live connector is not enabled.`,
     },
     {
       marketplace: "FLIPKART",
-      status: product.status === "ARCHIVED" ? "PENDING" : "SYNCED",
-      listingId: `FLP-${product.id}`,
+      status: "PENDING",
+      listingId: "",
       sku: product.sku,
       price,
       imageUrls,
-      message: `${baseMessage} Sent to Flipkart catalog and stock feed.`,
+      message: `${baseMessage} Not published to Flipkart: the live connector is not enabled.`,
     },
   ];
 }
@@ -158,7 +146,7 @@ export function routeMarketplaceOrderToSuppliers(order: {
     marketplaceType: order.marketplaceType,
     orderId: order.id,
     marketplaceOrderId: order.marketplaceOrderId,
-    message: `Marketplace order ${order.marketplaceOrderId} (${order.marketplaceType}) has been forwarded to ${supplier.supplierName}. Customer ${order.customerName || "Guest"} address: ${addressSummary}. Total amount: ₹${Number(order.totalAmount ?? 0).toLocaleString("en-IN")}.`,
+    message: `Marketplace order ${order.marketplaceOrderId} (${order.marketplaceType}) is prepared for ${supplier.supplierName}; it has not been submitted to the supplier. Customer ${order.customerName || "Guest"} address: ${addressSummary}. Total amount: ₹${Number(order.totalAmount ?? 0).toLocaleString("en-IN")}.`,
   }));
 }
 
@@ -202,7 +190,7 @@ export function validateSupplierProductMapping(input: {
   };
 }
 
-const seenSupplierFulfilmentJobs = new Map<string, string>();
+
 
 export function createSupplierOrderWorkflow(input: {
   orderId: string;
@@ -227,83 +215,16 @@ export function createSupplierOrderWorkflow(input: {
     integrationType?: string | null;
   } | null;
 }) {
-  const idempotencyKey = `${input.marketplaceType}:${input.orderId}:${input.supplierId}:${input.productId}`;
-  if (seenSupplierFulfilmentJobs.has(idempotencyKey)) {
-    return {
-      idempotencyKey,
-      duplicate: true,
-      status: "DUPLICATE",
-      action: "REJECTED",
-      submittedToSupplier: false,
-      supplierName: input.supplierName,
-      durableJob: {
-        jobId: `job-${idempotencyKey}`,
-        status: "DUPLICATE",
-        retryCount: 0,
-      },
-    };
-  }
-
-  const mappingValidation = validateSupplierProductMapping({
-    productId: input.productId,
-    supplierId: input.supplierId,
-    externalProductId: input.mapping?.externalProductId || null,
-    supplierSku: input.mapping?.supplierSku || null,
-    purchaseCost: input.mapping?.purchaseCost ?? null,
-    shippingCost: input.mapping?.shippingCost ?? null,
-    shippingDestination: input.shippingDestination || null,
-    estimatedDeliveryDays: input.mapping?.estimatedDeliveryDays ?? null,
-    supplierAvailability: input.mapping?.supplierAvailability || "UNKNOWN",
-    mappingStatus: input.mapping?.mappingStatus || "ACTIVE",
-  });
-
-  const totalAmount = Number(input.totalAmount ?? 0);
-  const estimatedProfit = calculateEstimatedProfit({
-    sellingPrice: totalAmount,
-    supplierCost: Number(input.mapping?.purchaseCost ?? 0),
-    shippingCost: Number(input.mapping?.shippingCost ?? 0),
-    marketplaceFeeRate: 8.5,
-    packagingCost: 35,
-    taxRate: 5,
-  });
-
-  const isApprovedSupplier = (input.supplier?.connectionStatus || "PENDING") === "CONNECTED";
-  const apiReady = (input.supplier?.integrationType || "MANUAL") === "API";
-  const autoApproved = Boolean(input.supplier?.autoOrderProcessing) && isApprovedSupplier && apiReady;
-
-  const durableJob = {
-    jobId: `job-${idempotencyKey}`,
-    status: "QUEUED",
-    retryCount: 0,
-  };
-
-  if (!mappingValidation.isValid || !isApprovedSupplier || !autoApproved || estimatedProfit.netProfit <= 0) {
-    seenSupplierFulfilmentJobs.set(idempotencyKey, "queued");
-    return {
-      idempotencyKey,
-      duplicate: false,
-      status: "PENDING",
-      action: "MANUAL_APPROVAL",
-      submittedToSupplier: false,
-      supplierName: input.supplierName,
-      message: "Supplier order is queued for manual approval because the mapping, connection, or margin check is not valid for automatic fulfilment.",
-      durableJob,
-    };
-  }
-
-  seenSupplierFulfilmentJobs.set(idempotencyKey, "queued");
+  // This legacy function prepares a review only. Durable jobs and supplier API
+  // submission require an implemented connector; never invent successful jobs.
   return {
-    idempotencyKey,
+    idempotencyKey: `${input.marketplaceType}:${input.orderId}:${input.supplierId}:${input.productId}`,
     duplicate: false,
-    status: "PENDING_CONFIRMATION",
-    action: "AUTO_SUBMIT",
+    status: "PENDING",
+    action: "MANUAL_APPROVAL",
     submittedToSupplier: false,
     supplierName: input.supplierName,
-    message: "Order prepared for supplier API submission. The supplier has not yet confirmed receipt, so the order is not marked as submitted.",
-    durableJob: {
-      ...durableJob,
-      status: "IN_PROGRESS",
-    },
-    supplierReference: `SUP-${input.orderId}`,
+    message: "Prepared for manual review only. No supplier job or shipment has been created.",
+    durableJob: null,
   };
 }
