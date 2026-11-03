@@ -40,7 +40,7 @@ export default function PaymentPage() {
       if (!response.ok) throw Error("Unable to check your login. Please reload to try again.");
       const { user } = await response.json();
       if (!active) return;
-      if (user?.role !== "CUSTOMER") { router.replace("/login?next=%2Fcheckout%2Fpayment"); return; }
+      if (user?.role !== "CUSTOMER") { router.replace("/login?next=%2Fcheckout"); return; }
       setDraft(stored);
       fetch("/api/checkout/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cart: stored.items.map(item => ({ productId: item.id, sku: item.sku, quantity: item.quantity })) }) }).then(async response => {
         const result = await response.json();
@@ -69,7 +69,7 @@ export default function PaymentPage() {
         sessionStorage.setItem(COD_REQUEST_KEY, JSON.stringify({ fingerprint, key }));
         const response = await fetch("/api/create-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, idempotencyKey: key }) });
         const result = await response.json();
-        if (response.status === 401) { router.push("/login?next=%2Fcheckout%2Fpayment"); return; }
+        if (response.status === 401) { router.push("/login?next=%2Fcheckout"); return; }
         if (!response.ok || result.data?.payment?.provider !== "COD") throw Error(result.message || "COD order could not be placed. Check your orders before retrying.");
         localStorage.removeItem("zeraworld-cart"); sessionStorage.removeItem(CHECKOUT_DRAFT_KEY); sessionStorage.removeItem(COD_REQUEST_KEY);
         window.location.assign(getPostPaymentRedirectPath());
@@ -97,7 +97,7 @@ export default function PaymentPage() {
             body: JSON.stringify({ ...requestBody, idempotencyKey: submissionKey.current }),
           });
           const payload = await response.json();
-          if (response.status === 401) { router.push("/login?next=%2Fcheckout%2Fpayment"); return; }
+          if (response.status === 401) { router.push("/login?next=%2Fcheckout"); return; }
           if (!response.ok) throw new Error(payload?.message || "Checkout could not be started.");
           session = payload as CheckoutSession;
           cachedCheckout.current = { fingerprint, session };

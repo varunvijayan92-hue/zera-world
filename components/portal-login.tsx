@@ -21,6 +21,7 @@ export function PortalLogin({ supplier = false, next }: { supplier?: boolean; ne
       if (!response.ok) throw Error(result.message);
       if (result.requiresOtp) { setChallenge(result.challengeId); setMessage(result.message); }
       else if (challenge && result.success) {
+        if (!register) { window.location.assign(getPostLoginRedirectPath(supplier, next)); return; }
         setChallenge("");
         setRegister(false);
         setMessage(result.message || "Account verified successfully.");

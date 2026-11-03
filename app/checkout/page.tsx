@@ -88,7 +88,7 @@ export default function CheckoutPage() {
       const auth = await fetch("/api/auth/me", { cache: "no-store" });
       if (!auth.ok) throw Error("Unable to check your login. Please try again.");
       const { user } = await auth.json();
-      router.push(user?.role === "CUSTOMER" ? "/checkout/payment" : "/login?next=%2Fcheckout%2Fpayment");
+      router.push(user?.role === "CUSTOMER" ? "/checkout/payment" : "/login?next=%2Fcheckout");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Checkout details could not be saved."); setContinuing(false); }
   }
 
@@ -115,10 +115,10 @@ export default function CheckoutPage() {
           </section>
           <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 md:p-7">
             <h2 className="text-xl font-bold">2. Confirm delivery address</h2>
-            {isCustomer ? <label className="mt-4 block text-sm font-semibold">Account addresses<select aria-label="Saved account address" className="mt-2 block w-full rounded-xl border p-3" defaultValue="" onChange={(event) => { const selected = accountAddresses.find((entry) => entry.id === event.target.value); if (selected) setAddress(selected.address); }}><option value="">Choose a saved address or enter a new one</option>{accountAddresses.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}: {entry.address.addressLine1}, {entry.address.city}</option>)}</select></label> : <p className="mt-4 text-sm"><Link href="/login" className="font-semibold underline">Sign in</Link> before placing the order to see it in your account and request returns.</p>}
+            {isCustomer ? <label className="mt-4 block text-sm font-semibold">Account addresses<select aria-label="Saved account address" className="mt-2 block w-full rounded-xl border p-3" defaultValue="" onChange={(event) => { const selected = accountAddresses.find((entry) => entry.id === event.target.value); if (selected) setAddress(selected.address); }}><option value="">Choose a saved address or enter a new one</option>{accountAddresses.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}: {entry.address.addressLine1}, {entry.address.city}</option>)}</select></label> : null}
             {savedAddress ? <div className="mt-4 rounded-2xl bg-[#F7F4ED] p-4"><p className="text-sm font-semibold">Saved address | {savedAddress.fullName}</p><p className="mt-1 text-sm text-[#173B35]/70">{savedAddress.addressLine1}, {savedAddress.city} {savedAddress.pincode}</p><div className="mt-3 flex gap-4 text-sm"><button type="button" onClick={() => { setAddress(savedAddress); setSaveAddress(true); }} className="font-semibold underline">Use saved address</button><button type="button" onClick={() => { try { localStorage.removeItem(SAVED_ADDRESS_KEY); setSavedAddress(null); setSaveAddress(false); } catch { setMessage("The saved address could not be removed. Try again."); } }} className="text-red-700 underline">Forget address</button></div></div> : null}
             <DeliveryAddressFields value={address} onChange={setAddress} onLocatingChange={setLocating} />
-            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl bg-[#F7F4ED] p-4 text-sm"><input type="checkbox" checked={saveAddress} onChange={(event) => setSaveAddress(event.target.checked)} className="mt-1 accent-[#173B35]" /><span><span className="font-semibold">Save this address for my next shipment</span><span className="mt-1 block text-xs text-[#173B35]/65">{isCustomer ? "Saved to your account and this browser for your next shipment." : "Saved on this browser. Sign in to save addresses to your account."}</span></span></label>
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl bg-[#F7F4ED] p-4 text-sm"><input type="checkbox" checked={saveAddress} onChange={(event) => setSaveAddress(event.target.checked)} className="mt-1 accent-[#173B35]" /><span><span className="font-semibold">Save this address for my next shipment</span><span className="mt-1 block text-xs text-[#173B35]/65">Saved to your account and this browser for your next shipment.</span></span></label>
           </section>
         </div>
         <aside className="rounded-[28px] border border-[#173B35]/10 bg-white p-6 lg:sticky lg:top-6">
