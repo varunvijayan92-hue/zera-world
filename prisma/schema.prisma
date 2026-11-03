@@ -222,6 +222,7 @@ model Product {
   handlingCharge          Decimal                     @default(0) @db.Decimal(12, 2)
   returnDays              Int                         @default(7)
   isReturnable            Boolean                     @default(true)
+  codAvailable            Boolean                     @default(false)
   dimensions              String?
   weightKg                Decimal?                    @db.Decimal(10, 3)
   taxClassification       String?
@@ -745,6 +746,7 @@ enum PaymentProvider {
   RAZORPAY
   STRIPE
   MANUAL
+  COD
 }
 
 enum PaymentStatus {

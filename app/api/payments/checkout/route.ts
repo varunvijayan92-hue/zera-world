@@ -1,3 +1,5 @@
+import { cashOnDeliveryAvailable, codShippingShare } from "@/lib/cash-on-delivery";
+import { isSameOriginRequest } from "@/lib/request-origin";
 import { AUTH_COOKIE, getCurrentUser } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
@@ -9,7 +11,12 @@ import { priceCheckout } from "@/lib/checkout";
 import { checkoutRequestSchema } from "@/lib/validators";
 import { buildSupplierOrderEmailText, emailDelivery } from "@/lib/email";
 
+function codResponse(order: { id: string; marketplaceOrderId: string; status: string; totalAmount: unknown }, repeated = false, paymentStatus = "PENDING") {
+  return NextResponse.json({ order_id: null, amount: Math.round(Number(order.totalAmount) * 100), currency: "INR", payment_status: paymentStatus, data: { order: { id: order.id, marketplaceOrderId: order.marketplaceOrderId, status: order.status, totalAmount: order.totalAmount }, payment: { provider: "COD", status: paymentStatus } } }, { status: repeated ? 200 : 201 });
+}
+
 export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) return NextResponse.json({ message: "Invalid origin." }, { status: 403 });
   const parsed = checkoutRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ message: parsed.error.issues[0]?.message || "Invalid checkout." }, { status: 400 });
@@ -17,6 +24,7 @@ export async function POST(request: Request) {
   const user = request.headers.get("cookie")?.includes(AUTH_COOKIE) ? await getCurrentUser() : null;
   if (!user || user.role !== "CUSTOMER") return NextResponse.json({ message: "Please sign in as a customer to continue to payment." }, { status: 401 });
   const { cart, shippingAddress, paymentMethod } = parsed.data;
+  if (paymentMethod === "cod" && !parsed.data.idempotencyKey) return NextResponse.json({ message: "Checkout reference missing. Refresh the payment page and try again." }, { status: 400 });
   const idempotencyKey = parsed.data.idempotencyKey || randomUUID();
   try {
     // Commit the order and its unique submission key together.
@@ -25,9 +33,10 @@ export async function POST(request: Request) {
       if (existing) return null;
       const products = await tx.product.findMany({
         where: { id: { in: cart.map((item) => item.productId) } },
-        include: { inventory: { where: { status: "AVAILABLE" } } },
+        include: { supplier: { select: { status: true, sourceType: true } }, inventory: { where: { status: "AVAILABLE" } } },
       });
       const amount = priceCheckout(cart, products);
+      if (paymentMethod === "cod" && !cashOnDeliveryAvailable(products)) throw new GatewayError("Cash on delivery is not available for every item in this cart. Choose prepaid payment or update your cart.", 400);
       if (parsed.data.expectedTotalPaise !== undefined && parsed.data.expectedTotalPaise !== Math.round(amount.total * 100)) {
         throw new GatewayError("The order amount has changed. Go back to review and confirm the updated amount.", 409);
       }
@@ -38,7 +47,7 @@ export async function POST(request: Request) {
           customerId: user?.role === "CUSTOMER" ? user.id : null,
           customerName: shippingAddress.fullName,
           shippingAddress,
-          status: "PENDING",
+          status: paymentMethod === "cod" ? "CONFIRMED" : "PENDING",
           subtotal: amount.subtotal, taxAmount: amount.taxes, handlingAmount: amount.handlingCharges,
           shippingAmount: amount.shippingCharges,
           totalAmount: amount.total,
@@ -51,6 +60,7 @@ export async function POST(request: Request) {
             returnDays: products.find((product) => product.id === item.productId)!.returnDays,
             isReturnable: products.find((product) => product.id === item.productId)!.isReturnable,
             productId: item.productId,
+            status: paymentMethod === "cod" ? "CONFIRMED" : "PENDING",
             marketplaceSku: products.find((product) => product.id === item.productId)!.sku,
             quantity: item.quantity,
             unitPrice: Number(products.find((product) => product.id === item.productId)!.sellingPrice),
@@ -60,15 +70,25 @@ export async function POST(request: Request) {
       });
       const transaction = await tx.paymentTransaction.create({ data: {
         orderId: order.id,
-        provider: paymentMethod === "manual" ? "MANUAL" : "RAZORPAY",
+        provider: paymentMethod === "cod" ? "COD" : paymentMethod === "manual" ? "MANUAL" : "RAZORPAY",
         amount: amount.total,
         currency: amount.currency,
-        paymentStatus: "CREATED",
+        paymentStatus: paymentMethod === "cod" ? "PENDING" : "CREATED",
         idempotencyKey,
       } });
       return { order, transaction, amount };
-    });
-    if (!result) return NextResponse.json({ message: "This checkout has already been submitted." }, { status: 409 });
+    }, { isolationLevel: "Serializable" });
+    if (!result) {
+      if (paymentMethod === "cod") {
+        const previous = await prisma.paymentTransaction.findUnique({ where: { idempotencyKey } });
+        const order = previous?.provider === "COD" ? await prisma.customerOrder.findFirst({ where: { id: previous.orderId, customerId: user.id, status: { in: ["CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED"] } }, include: { orderItems: true } }) : null;
+        const linesMatch = order && order.orderItems.length === cart.length && cart.every(item => order.orderItems.some(line => line.productId === item.productId && line.marketplaceSku === item.sku && line.quantity === item.quantity));
+        const address = order?.shippingAddress as Record<string, unknown> | undefined;
+        const addressMatches = address && Object.entries(shippingAddress).every(([key, value]) => address[key] === value);
+        if (order && previous && ["PENDING", "PAID"].includes(previous.paymentStatus) && linesMatch && addressMatches && (parsed.data.expectedTotalPaise === undefined || parsed.data.expectedTotalPaise === Math.round(Number(order.totalAmount) * 100))) return codResponse(order, true, previous.paymentStatus);
+      }
+      return NextResponse.json({ message: "This checkout has already been submitted. Check your orders before trying again." }, { status: 409 });
+    }
 
     try {
       const supplierIds = [...new Set(result.order.orderItems.map((item) => item.supplierId).filter((id): id is string => Boolean(id)))];
@@ -86,6 +106,7 @@ export async function POST(request: Request) {
           itemsBySupplier.set(item.supplierId, existing);
         }
         for (const [supplierId, items] of itemsBySupplier) {
+          const shippingShare = paymentMethod === "cod" ? codShippingShare(result.order.shippingAmount, itemsBySupplier.keys(), supplierId) : Number(result.order.shippingAmount);
           const supplier = byId.get(supplierId);
           if (!supplier || !supplier.email) continue;
           const productIds = items.map((item) => item.productId).filter((id): id is string => Boolean(id));
@@ -98,11 +119,11 @@ export async function POST(request: Request) {
             const productId = item.productId;
             if (!productId) return null;
             const product = productMap.get(productId);
-            const unitPrice = Number(product?.sellingPrice ?? item.unitPrice ?? 0);
-            const gstRate = Number(product?.gstRate ?? item.gstRate ?? 0);
-            const handlingCharge = Number(product?.handlingCharge ?? item.handlingCharge ?? 0);
+            const unitPrice = Number(item.unitPrice ?? product?.sellingPrice ?? 0);
+            const gstRate = Number(item.gstRate ?? product?.gstRate ?? 0);
+            const handlingCharge = Number(item.handlingCharge ?? product?.handlingCharge ?? 0);
             const lineSubtotal = unitPrice * item.quantity;
-            const lineTax = lineSubtotal * gstRate / 100;
+            const lineTax = Math.round(Math.round(lineSubtotal * 100) * gstRate / 100) / 100;
             const lineHandling = handlingCharge * item.quantity;
             const lineTotal = lineSubtotal + lineTax + lineHandling;
             return {
@@ -117,7 +138,7 @@ export async function POST(request: Request) {
           }).filter((row): row is { productName: string; sku: string; quantity: number; unitPrice: number; gstRate: number; handlingCharge: number; lineTotal: number } => row !== null);
           const supplierTotals = itemRows.reduce((total, item) => {
             const lineSubtotal = item.unitPrice * item.quantity;
-            const lineTax = lineSubtotal * item.gstRate / 100;
+            const lineTax = Math.round(Math.round(lineSubtotal * 100) * item.gstRate / 100) / 100;
             const lineHandling = item.handlingCharge * item.quantity;
             total.subtotal += lineSubtotal;
             total.taxes += lineTax;
@@ -136,20 +157,22 @@ export async function POST(request: Request) {
               subtotal: supplierTotals.subtotal,
               taxes: supplierTotals.taxes,
               handling: supplierTotals.handling,
-              shipping: Number(result.order.shippingAmount),
-              total: supplierTotals.total + Number(result.order.shippingAmount),
+              shipping: shippingShare,
+              total: supplierTotals.total + shippingShare,
             },
           });
           await emailDelivery.send({
             to: supplier.email,
-            subject: `New order for ${supplier.companyName} - ${result.order.marketplaceOrderId}`,
-            text: supplierOrderText,
+            subject: `${paymentMethod === "cod" ? "Cash on delivery - " : ""}New order for ${supplier.companyName} - ${result.order.marketplaceOrderId}`,
+            text: paymentMethod === "cod" ? `CASH ON DELIVERY: no online payment collected. Arrange COD collection through the courier when booking this supplier shipment.\n\n${supplierOrderText}` : supplierOrderText,
           }, `supplier-order/${result.order.id}/${supplierId}`);
         }
       }
     } catch (error) {
       console.error("Supplier order email could not be sent", error);
     }
+
+    if (paymentMethod === "cod") return codResponse(result.order);
 
     let payment;
     try {

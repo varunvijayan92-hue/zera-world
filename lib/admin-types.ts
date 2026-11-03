@@ -5,6 +5,6 @@ export type AdminProduct = {
   supplierId: string | null; supplierName: string | null;
   sellingPrice: number; costPrice: number; status: "DRAFT" | "ACTIVE" | "ARCHIVED";
   mrp?: number | null; hsnCode?: string | null; deliveryCharge?: number | null;
-  gstRate: number; handlingCharge: number; returnDays: number; isReturnable: boolean;
+  gstRate: number; handlingCharge: number; returnDays: number; isReturnable: boolean; codAvailable?: boolean;
   imageUrls: string[]; availableQty: number;
 };

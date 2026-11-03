@@ -1,3 +1,4 @@
+import { fulfilmentPaymentWhere } from "@/lib/cash-on-delivery";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
       const order = await tx.customerOrder.findUnique({ where: { id: body.orderId }, include: { orderItems: { select: { supplierId: true } } } });
       if (!order || !["CONFIRMED", "PROCESSING", "SHIPPED"].includes(order.status)) throw new AccessError("Confirmed order not found.");
       if (body.supplierId && !order.orderItems.some((item) => item.supplierId === body.supplierId)) throw new AccessError("This supplier is not assigned to the order.");
-      if (!await tx.paymentTransaction.findFirst({ where: { orderId: order.id, paymentStatus: "PAID" } })) throw new AccessError("A verified paid payment is required.");
+      if (!await tx.paymentTransaction.findFirst({ where: fulfilmentPaymentWhere(order.id) })) throw new AccessError("Verified prepaid payment or a confirmed cash-on-delivery order is required.");
       if (await tx.shipment.findFirst({ where: { trackingNumber: body.awb } })) throw new AccessError("This AWB is already recorded.", 409);
       const pickupLocation = await shipmentPickupLocation(tx, body.supplierId, body.courierName);
       await tx.shipment.create({ data: { customerOrderId: order.id, supplierId: body.supplierId || null, pickupLocation, courierName: body.courierName, trackingNumber: body.awb, shipmentCost: body.shipmentCost, status: "IN_TRANSIT", trackingEvents: { create: { eventType: "DISPATCHED", description: "Shipment recorded by store admin." } } } });

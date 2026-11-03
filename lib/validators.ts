@@ -69,6 +69,7 @@ export const productSchema = z.object({
   handlingCharge: z.coerce.number().finite().min(0).max(100000).optional(),
   returnDays: z.coerce.number().int().min(0).max(365).optional(),
   isReturnable: z.boolean().optional(),
+  codAvailable: z.boolean().optional(),
   costPrice: z.coerce.number().min(0).optional(),
   sellingPrice: z.coerce.number().min(0).optional(),
   mrp: z.preprocess(value => value === "" ? null : value, z.coerce.number().finite().positive().max(9999999999.99).multipleOf(0.01).nullable().optional()),
@@ -123,7 +124,7 @@ export const checkoutRequestSchema = z.object({
   }),
   shippingAddress: checkoutAddressSchema,
   expectedTotalPaise: z.number().int().min(100).optional(),
-  paymentMethod: z.enum(["razorpay", "manual"]).default("razorpay"),
+  paymentMethod: z.enum(["razorpay", "manual", "cod"]).default("razorpay"),
   idempotencyKey: z.string().min(16).max(128).optional(),
 });
 

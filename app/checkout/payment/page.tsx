@@ -1,4 +1,5 @@
 "use client";
+import { COD_REQUEST_KEY } from "@/lib/cash-on-delivery";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -19,7 +20,9 @@ type CheckoutSession = {
 export default function PaymentPage() {
   const router = useRouter();
   const [draft, setDraft] = useState<CheckoutDraft | null>(null);
-  const [paymentChoice, setPaymentChoice] = useState<"upi" | "qr">("upi");
+  const [paymentChoice, setPaymentChoice] = useState<"upi" | "qr" | "cod">("upi");
+  const [codAvailable, setCodAvailable] = useState(false);
+  const [codChecked, setCodChecked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [verificationPending, setVerificationPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -39,6 +42,11 @@ export default function PaymentPage() {
       if (!active) return;
       if (user?.role !== "CUSTOMER") { router.replace("/login?next=%2Fcheckout%2Fpayment"); return; }
       setDraft(stored);
+      fetch("/api/checkout/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cart: stored.items.map(item => ({ productId: item.id, sku: item.sku, quantity: item.quantity })) }) }).then(async response => {
+        const result = await response.json();
+        if (!active) return;
+        setCodAvailable(response.ok && result.codAvailable === true); setCodChecked(true);
+      }).catch(() => { if (active) { setCodChecked(true); setCodAvailable(false); } });
     }).catch((error) => { if (active) setMessage(error.message); });
     return () => { active = false; };
   }, [router]);
@@ -51,6 +59,22 @@ export default function PaymentPage() {
     setIsSubmitting(true);
     setMessage(null);
     try {
+      if (paymentChoice === "cod" && !pendingVerification.current) {
+        if (!codAvailable) throw Error("Cash on delivery is not available for this cart.");
+        const body = { cart: draft.items.map(item => ({ productId: item.id, sku: item.sku, quantity: item.quantity })), shippingAddress: draft.shippingAddress, paymentMethod: "cod", expectedTotalPaise: Math.round(draft.amount.total * 100) };
+        const fingerprint = JSON.stringify(body);
+        let stored: { fingerprint?: string; key?: string } | null = null;
+        try { stored = JSON.parse(sessionStorage.getItem(COD_REQUEST_KEY) || "null"); } catch { /* Create a new checkout reference below. */ }
+        const key = stored?.fingerprint === fingerprint && stored.key ? stored.key : crypto.randomUUID();
+        sessionStorage.setItem(COD_REQUEST_KEY, JSON.stringify({ fingerprint, key }));
+        const response = await fetch("/api/create-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, idempotencyKey: key }) });
+        const result = await response.json();
+        if (response.status === 401) { router.push("/login?next=%2Fcheckout%2Fpayment"); return; }
+        if (!response.ok || result.data?.payment?.provider !== "COD") throw Error(result.message || "COD order could not be placed. Check your orders before retrying.");
+        localStorage.removeItem("zeraworld-cart"); sessionStorage.removeItem(CHECKOUT_DRAFT_KEY); sessionStorage.removeItem(COD_REQUEST_KEY);
+        window.location.assign(getPostPaymentRedirectPath());
+        return;
+      }
       // A network error during verification must not start a second payment.
       if (!pendingVerification.current) {
         const requestBody = {
@@ -89,7 +113,7 @@ export default function PaymentPage() {
           description: "ZeraWorld order payment",
           prefill: { name: draft.shippingAddress.fullName, email: draft.shippingAddress.email, contact: draft.shippingAddress.phone },
           theme: { color: "#173B35" },
-          ...upiCheckoutDisplay(paymentChoice),
+          ...upiCheckoutDisplay(paymentChoice === "qr" ? "qr" : "upi"),
         });
       }
       setVerificationPending(true);
@@ -122,14 +146,15 @@ export default function PaymentPage() {
       <form onSubmit={handleSubmit} className="grid items-start gap-6 lg:grid-cols-[1.4fr_0.8fr]">
         <div className="space-y-6">
           <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-6 md:p-7">
-            <h2 className="text-xl font-bold">Payment options</h2><p className="mt-2 text-sm text-[#173B35]/65">Complete your payment securely with Razorpay.</p>
+            <h2 className="text-xl font-bold">Payment options</h2><p className="mt-2 text-sm text-[#173B35]/65">Pay securely with Razorpay, or choose cash on delivery when available for every item.</p>
             <fieldset disabled={isSubmitting || verificationPending} className="mt-5 space-y-3">
-              <legend className="sr-only">Choose UPI apps or UPI QR code</legend>
+              <legend className="sr-only">Choose your payment method</legend>
               {(["upi", "qr"] as const).map((choice) => <label key={choice} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 ${paymentChoice === choice ? "border-[#173B35] bg-[#F7F4ED]" : "border-[#173B35]/15"}`}>
                 <input type="radio" name="paymentChoice" value={choice} checked={paymentChoice === choice} onChange={() => setPaymentChoice(choice)} className="mt-1 accent-[#173B35]" />
                 {choice === "upi" ? <Smartphone className="mt-0.5 shrink-0" size={23} /> : <QrCode className="mt-0.5 shrink-0" size={23} />}
                 <span><span className="block font-bold">{choice === "upi" ? "UPI apps" : "Scan a UPI QR code"}</span><span className="mt-1 block text-sm text-[#173B35]/65">{choice === "upi" ? "Choose a supported UPI app in Razorpay and approve the payment." : "Open a UPI app on another device and scan the QR shown by Razorpay."}</span></span>
               </label>)}
+              {codAvailable ? <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 ${paymentChoice === "cod" ? "border-[#173B35] bg-[#F7F4ED]" : "border-[#173B35]/15"}`}><input type="radio" name="paymentChoice" value="cod" checked={paymentChoice === "cod"} onChange={() => setPaymentChoice("cod")} className="mt-1 accent-[#173B35]" /><span><span className="block font-bold">Cash on delivery</span><span className="mt-1 block text-sm text-[#173B35]/65">Place your order now and pay the courier on delivery. Your supplier can start processing it immediately.</span></span></label> : <p className="text-sm text-[#173B35]/65">{codChecked ? "Cash on delivery is unavailable for one or more items. You can use prepaid payment." : "Checking cash on delivery availability..."}</p>}
             </fieldset>
             <p className="mt-4 text-xs leading-relaxed text-[#173B35]/60">Available UPI apps and QR options depend on your device and Razorpay account. The payment amount is filled in automatically.</p>
           </section>
@@ -141,7 +166,7 @@ export default function PaymentPage() {
         <aside className="rounded-[28px] border border-[#173B35]/10 bg-white p-6 lg:sticky lg:top-6">
           <CheckoutSummary amount={draft.amount} />
           {message ? <p role="status" aria-live="polite" className="mt-4 rounded-xl bg-[#F7F4ED] p-3 text-sm">{message}</p> : null}
-          <button type="submit" disabled={isSubmitting} className="mt-6 w-full rounded-xl bg-[#173B35] px-4 py-4 text-sm font-semibold text-white disabled:opacity-50">{isSubmitting ? "Processing..." : verificationPending ? "Verify payment again" : `Pay ${money(draft.amount.total)} with ${paymentChoice === "qr" ? "QR code" : "UPI"}`}</button>
+          <button type="submit" disabled={isSubmitting} className="mt-6 w-full rounded-xl bg-[#173B35] px-4 py-4 text-sm font-semibold text-white disabled:opacity-50">{isSubmitting ? "Processing..." : verificationPending ? "Verify payment again" : paymentChoice === "cod" ? `Place order - pay ${money(draft.amount.total)} on delivery` : `Pay ${money(draft.amount.total)} with ${paymentChoice === "qr" ? "QR code" : "UPI"}`}</button>
           <p className="mt-4 text-xs leading-relaxed text-[#173B35]/60">By paying, you agree to our <Link href="/privacy" className="underline">privacy policy</Link> and <Link href="/returns" className="underline">return & refund policy</Link>.</p>
         </aside>
       </form>

@@ -1,3 +1,4 @@
+import { cashOnDeliveryAvailable } from "@/lib/cash-on-delivery";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { priceCheckout } from "@/lib/checkout";
@@ -8,14 +9,14 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ message: "Please check the items and quantities in your order." }, { status: 400 });
   try {
     const products = await prisma.product.findMany({
-      where: { id: { in: parsed.data.cart.map((item) => item.productId) } }, include: { inventory: { where: { status: "AVAILABLE" } } },
+      where: { id: { in: parsed.data.cart.map((item) => item.productId) } }, include: { supplier: { select: { status: true, sourceType: true } }, inventory: { where: { status: "AVAILABLE" } } },
     });
     const amount = priceCheckout(parsed.data.cart, products);
     const items = parsed.data.cart.map((item) => {
       const product = products.find((entry) => entry.id === item.productId)!;
       return { id: product.id, name: product.name, sku: product.sku, sellingPrice: Number(product.sellingPrice), quantity: item.quantity, imageUrls: product.imageUrls };
     });
-    return NextResponse.json({ amount, items }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ amount, items, codAvailable: cashOnDeliveryAvailable(products) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof Error && ["Cart must", "One or more", "Product price", "Requested quantity"].some((prefix) => error.message.startsWith(prefix))) {
       return NextResponse.json({ message: error.message }, { status: 400 });

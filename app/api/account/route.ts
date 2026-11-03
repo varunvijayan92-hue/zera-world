@@ -13,7 +13,9 @@ export async function GET() {
       prisma.supportTicket.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 50 }),
       prisma.customerVoucher.findMany({ where: { customerId: user.id }, select: { code: true, balance: true, expiresAt: true } }),
     ]);
-    return NextResponse.json({ profile, addresses, orders, tickets, vouchers }, { headers: { "Cache-Control": "no-store" } });
+    const codPayments = await prisma.paymentTransaction.findMany({ where: { orderId: { in: orders.map(order => order.id) }, provider: "COD" }, select: { orderId: true, paymentStatus: true } });
+    const customerOrders = orders.map(order => ({ ...order, codPaymentStatus: codPayments.find(payment => payment.orderId === order.id)?.paymentStatus || null }));
+    return NextResponse.json({ profile, addresses, orders: customerOrders, tickets, vouchers }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return apiError(error); }
 }
 export async function PATCH(request: Request) {

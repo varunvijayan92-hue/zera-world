@@ -1,3 +1,4 @@
+import { fulfilmentPaymentWhere } from "@/lib/cash-on-delivery";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
       if (body.action === "ORDER" || body.action === "SHIPMENT") {
         const item = await tx.orderItem.findFirst({ where: { id: body.itemId, supplierId: supplier.id }, include: { customerOrder: true } });
         if (!item) throw new AccessError("Assigned order item not found.", 404);
-        const paid = await tx.paymentTransaction.findFirst({ where: { orderId: item.customerOrderId, paymentStatus: "PAID" } });
+        const paid = await tx.paymentTransaction.findFirst({ where: fulfilmentPaymentWhere(item.customerOrderId) });
         if (!paid || ["CANCELLED", "REFUNDED", "DELIVERED", "RETURNED"].includes(item.customerOrder.status)) throw new AccessError("This order cannot be processed.");
         if (body.action === "ORDER") {
           const transitions: Record<string, string[]> = { PENDING: ["ACCEPTED", "REJECTED"], ACCEPTED: ["PROCESSING"], PROCESSING: ["PACKED"] };
