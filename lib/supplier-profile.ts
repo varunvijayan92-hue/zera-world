@@ -1,3 +1,4 @@
+import { formatSupplierPickupAddress } from "./supplier-address";
 import type { Prisma } from "@prisma/client";
 import { AccessError } from "./portal-access";
 
@@ -9,7 +10,7 @@ export async function updateSupplierProfile(tx: Prisma.TransactionClient, suppli
   const merged = { ...current, ...data } as Record<string, unknown>;
   for (const prefix of ["pickup", "company"]) {
     const fields = ["AddressLine1", "AddressLine2", "City", "District", "State", "Country", "Landmark", "Pincode"].map(suffix => prefix + suffix);
-    if (fields.some(key => Object.hasOwn(data, key))) data[prefix + "Address"] = fields.map(key => merged[key]).filter(value => typeof value === "string" && value.trim()).join(", ") || null;
+    if (fields.some(key => Object.hasOwn(data, key))) data[prefix + "Address"] = prefix === "pickup" ? formatSupplierPickupAddress(merged) : fields.map(key => merged[key]).filter(value => typeof value === "string" && value.trim()).join(", ") || null;
   }
   if (Object.hasOwn(data, "pickupAddress") && data.pickupAddress !== current.pickupAddress) data.shiprocketPickupLocation = null;
   await tx.supplier.update({ where: { id: supplierId }, data });

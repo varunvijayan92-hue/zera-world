@@ -1,3 +1,5 @@
+import { ORDER_SHIPPING_CHARGE } from "./shipping";
+
 type CartItem = { productId: string; sku: string; quantity: number };
 type Product = {
   id: string; sku: string; status: string; sellingPrice: unknown;
@@ -31,5 +33,5 @@ export function priceCheckout(cart: CartItem[], products: Product[]) {
   }
 
   return { subtotal: subtotalPaise / 100, taxes: taxesPaise / 100,
-    handlingCharges: handlingPaise / 100, shippingCharges: 120, total: (subtotalPaise + taxesPaise + handlingPaise + 12000) / 100, currency: "INR" };
+    handlingCharges: handlingPaise / 100, shippingCharges: ORDER_SHIPPING_CHARGE, total: (subtotalPaise + taxesPaise + handlingPaise + ORDER_SHIPPING_CHARGE * 100) / 100, currency: "INR" };
 }

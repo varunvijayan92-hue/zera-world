@@ -1,5 +1,6 @@
 "use client";
 
+import { ORDER_SHIPPING_CHARGE } from "@/lib/shipping";
 import { ProductGallery } from "@/components/product-gallery";
 import { CartButton } from "@/components/cart-button";
 import { ProductPrice } from "@/components/product-price";
@@ -147,7 +148,7 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
               Manufacturer verified product
             </div>
 
-            {Number(product.deliveryCharge ?? 0) > 0 ? <p className="mt-3 text-sm font-medium text-[#173B35]/75">Delivery charge: ₹{Number(product.deliveryCharge).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</p> : null}
+            <p className="mt-3 text-sm font-medium text-[#173B35]/75">Delivery charge: ₹{ORDER_SHIPPING_CHARGE} per order</p>
             {product.warranty?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Warranty: {product.warranty.trim()}</p> : null}
             {product.trend?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Trend: {product.trend.trim()}</p> : null}
             {product.inTheBox?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">In the box: {product.inTheBox.trim()}</p> : null}

@@ -1,0 +1,1 @@
+export const ORDER_SHIPPING_CHARGE = 120;

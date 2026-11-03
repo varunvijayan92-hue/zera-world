@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Heart, ShoppingBag, Truck, UserRound } from "lucide-react";
+import { ShoppingBag, Truck, UserRound } from "lucide-react";
+import { ORDER_SHIPPING_CHARGE } from "@/lib/shipping";
 import ZeraWorldLogo from "./zera-logo";
 import { footerNavigation, storefrontNavigation, isInternalPortal } from "@/lib/storefront-navigation";
 
@@ -15,16 +16,13 @@ export function StorefrontHeader() {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 text-[11px] font-medium sm:px-6 lg:px-8">
           <div className="flex items-center gap-2 font-semibold">
             <Truck size={14} className="text-[#D9C089]" />
-            <span>Free Shipping in India on Orders Above ₹999</span>
+            <span>Shipping across India: ₹{ORDER_SHIPPING_CHARGE} per order</span>
           </div>
 
           <div className="hidden items-center gap-5 text-[11px] md:flex">
             <Link href="/track-order" className="transition hover:text-white/85">Track Order</Link>
             <Link href="/contact" className="transition hover:text-white/85">Help &amp; Support</Link>
-            <button type="button" className="inline-flex items-center gap-1 transition hover:text-white/85">
-              INR <span className="text-[10px]">(₹)</span>
-              <ChevronDown size={12} />
-            </button>
+            <span>INR (₹)</span>
             <Link href="/account" className="font-semibold transition hover:text-white/85">
               Sign In / Register
             </Link>
@@ -62,9 +60,6 @@ export function StorefrontHeader() {
             </Link>
             <Link href="/cart" aria-label="Shopping cart" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#173B35] text-white shadow-[0_10px_22px_rgba(23,59,53,0.2)] transition hover:bg-[#0f2a26]">
               <ShoppingBag size={18} />
-            </Link>
-            <Link href="/account" aria-label="Wishlist" className="hidden items-center justify-center rounded-full border border-[#173B35]/15 bg-white p-2 text-[#173B35] transition hover:bg-[#173B35]/5 sm:inline-flex">
-              <Heart size={17} />
             </Link>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { supplierPickupAddressSchema } from "./supplier-address";
 
 export const supplierSchema = z.object({
   sourceType: z.enum(["DIRECT", "EXTERNAL_SITE"]).default("DIRECT"),
@@ -26,7 +27,7 @@ export const supplierSchema = z.object({
   returnPolicy: z.string().optional().or(z.literal("")),
   returnAddress: z.string().optional().or(z.literal("")),
   notes: z.string().optional(),
-});
+}).merge(supplierPickupAddressSchema);
 
 export const supplierProductMappingSchema = z.object({
   productId: z.string().min(1),
