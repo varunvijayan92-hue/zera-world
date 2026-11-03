@@ -1,5 +1,10 @@
 import { prisma } from "./prisma";
 import { AccessError } from "./portal-access";
+export function returnRefundControls(payments: { provider: string; paymentStatus: string; gatewayPaymentId?: string | null }[]) {
+  const isCod = payments.some(payment => payment.provider === "COD");
+  const canGatewayRefund = !isCod && payments.some(payment => payment.provider === "RAZORPAY" && ["PAID", "PARTIALLY_REFUNDED"].includes(payment.paymentStatus) && !!payment.gatewayPaymentId);
+  return { isCod, canGatewayRefund };
+}
 export async function saveReturnRefund(refundId: string, gateway: { id: string; payment_id: string; amount?: number | string; currency: string; status?: string }) {
   await prisma.$transaction(async (tx) => {
     const refund = await tx.refund.findUnique({ where: { id: refundId }, include: { returnRequest: { select: { customerOrderId: true } } } });

@@ -1,3 +1,4 @@
+import { publicProductDetails } from "@/lib/public-product";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProductDetailClient } from "@/components/product-detail-client";
@@ -41,19 +42,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   if (product.isReturnable && Number(product.returnDays ?? 0) > 0) detailBits.push(`Returns within ${product.returnDays} days after delivery.`);
   else if (!product.isReturnable) detailBits.push("This product cannot be returned.");
 
-  const clientProduct = {
-    ...product,
-    specifications: product.specifications ?? null,
-    manufacturerInfo: product.manufacturerInfo ?? null,
-    warranty: product.warranty ?? null,
-    trend: product.trend ?? null,
-    inTheBox: product.inTheBox ?? null,
-    sellingPrice: product.sellingPrice == null ? null : Number(product.sellingPrice),
-    deliveryCharge: product.deliveryCharge == null ? null : Number(product.deliveryCharge),
-    gstRate: product.gstRate == null ? null : Number(product.gstRate),
-    handlingCharge: product.handlingCharge == null ? null : Number(product.handlingCharge),
-    returnDays: product.returnDays == null ? null : Number(product.returnDays),
-  };
+  const clientProduct = publicProductDetails(product);
 
   return <ProductDetailClient product={clientProduct} assignedCategory={assignedCategory} parentCategory={parentCategory} categoryLabel={categoryLabel} extras={extras} detailBits={detailBits} />;
 }
