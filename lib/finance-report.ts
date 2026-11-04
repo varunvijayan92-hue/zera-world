@@ -28,8 +28,9 @@ export async function financeReport(from?: string, to?: string) {
   const handling = sales.reduce((sum, order) => sum + Number(order.handlingAmount || 0), 0);
   const costs = sales.reduce((sum, order) => sum + order.orderItems.reduce((line, item) => line + Number(item.costPrice || 0) * item.quantity, 0), 0);
   const shippingCosts = sales.reduce((sum, order) => sum + order.shipments.reduce((value, shipment) => value + Number(shipment.shipmentCost || 0), 0), 0);
-  const expenseTotal = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
-  const refundTotal = refunds.reduce((sum, refund) => sum + Number(refund.amount), 0);
+  const expenseTotal = expenses.filter(expense => expense.currency === "INR").reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const refundTotal = refunds.filter(refund => refund.currency === "INR").reduce((sum, refund) => sum + Number(refund.amount), 0);
   const missingCosts = sales.flatMap((order) => order.orderItems).filter((item) => item.costPrice === null).length;
-  return { ...period, sales, expenses, returns, refunds, gross, gst, handling, costs, shippingCosts, expenseTotal, refundTotal, missingCosts, estimatedProfit: gross - gst - costs - shippingCosts - expenseTotal - refundTotal };
+  const foreignCurrencyRecords = expenses.filter(expense => expense.currency !== "INR").length + refunds.filter(refund => refund.currency !== "INR").length;
+  return { ...period, foreignCurrencyRecords, sales, expenses, returns, refunds, gross, gst, handling, costs, shippingCosts, expenseTotal, refundTotal, missingCosts, estimatedProfit: gross - gst - costs - shippingCosts - expenseTotal - refundTotal };
 }

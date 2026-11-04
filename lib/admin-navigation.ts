@@ -33,6 +33,7 @@ export const adminNavigation: AdminNavSection[] = [
     { label: "Tracking", href: "/admin/tracking", icon: "tracking" },
   ] },
   { label: "Finance", items: [
+    { label: "Accounts", href: "/admin/accounts", icon: "accounts" },
     { label: "Gift cards", href: "/admin/gift-cards", icon: "giftCards" },
     { label: "Payments", href: "/admin/payments", icon: "payments" },
     { label: "Invoices", href: "/admin/invoices", icon: "invoices" },

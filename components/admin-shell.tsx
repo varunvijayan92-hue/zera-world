@@ -7,7 +7,7 @@ import { Gift, LayoutDashboard, ChartNoAxesCombined, Package, ShoppingCart, User
 import { adminNavigation, isAdminNavActive } from "@/lib/admin-navigation";
 import { AdminSignOut } from "./admin-sign-out";
 
-const icons: Record<string, LucideIcon> = { giftCards: Gift, dashboard: LayoutDashboard, analytics: ChartNoAxesCombined, products: Package, orders: ShoppingCart, customers: Users, inventory: Warehouse, categories: Tags, suppliers: Truck, fulfillment: PackageCheck, sync: RefreshCw, tracking: MapPin, payments: CreditCard, invoices: Receipt, profit: CircleDollarSign, settings: Settings, users: ShieldCheck };
+const icons: Record<string, LucideIcon> = { accounts: CircleDollarSign, giftCards: Gift, dashboard: LayoutDashboard, analytics: ChartNoAxesCombined, products: Package, orders: ShoppingCart, customers: Users, inventory: Warehouse, categories: Tags, suppliers: Truck, fulfillment: PackageCheck, sync: RefreshCw, tracking: MapPin, payments: CreditCard, invoices: Receipt, profit: CircleDollarSign, settings: Settings, users: ShieldCheck };
 
 export function AdminShell({ user, children }: { user: { fullName: string; role: string }; children: ReactNode }) {
   const pathname = usePathname();
