@@ -22,6 +22,7 @@ const required: Record<string, string[]> = {
   OrderItem: ["costPrice", "gstRate", "handlingCharge", "isReturnable", "returnDays", "fulfillmentStatus"],
   ReturnRequest: ["customerId", "orderItemId", "receivedAt", "supplierReceivedAt"],
   Refund: ["gatewayRefundId"],
+  PaymentTransaction: ["giftCardId"],
   CustomerAddress: ["id"], IntegrationSetting: ["id"], SupplierSettlement: ["id"], SupportTicket: ["id"], CustomerVoucher: ["id"],
 };
 export async function databaseSchemaReady() {

@@ -125,7 +125,8 @@ export const checkoutRequestSchema = z.object({
   }),
   shippingAddress: checkoutAddressSchema,
   expectedTotalPaise: z.number().int().min(100).optional(),
-  paymentMethod: z.enum(["razorpay", "manual", "cod"]).default("razorpay"),
+  paymentMethod: z.enum(["razorpay", "manual", "cod", "gift_card"]).default("razorpay"),
+  giftCardCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9-]{7,39}$/).optional(),
   idempotencyKey: z.string().min(16).max(128).optional(),
 });
 

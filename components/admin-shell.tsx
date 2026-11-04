@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { LayoutDashboard, ChartNoAxesCombined, Package, ShoppingCart, Users, Warehouse, Tags, Truck, PackageCheck, RefreshCw, MapPin, CreditCard, Receipt, CircleDollarSign, Settings, ShieldCheck, Menu, X, ExternalLink, type LucideIcon } from "lucide-react";
+import { Gift, LayoutDashboard, ChartNoAxesCombined, Package, ShoppingCart, Users, Warehouse, Tags, Truck, PackageCheck, RefreshCw, MapPin, CreditCard, Receipt, CircleDollarSign, Settings, ShieldCheck, Menu, X, ExternalLink, type LucideIcon } from "lucide-react";
 import { adminNavigation, isAdminNavActive } from "@/lib/admin-navigation";
 import { AdminSignOut } from "./admin-sign-out";
 
-const icons: Record<string, LucideIcon> = { dashboard: LayoutDashboard, analytics: ChartNoAxesCombined, products: Package, orders: ShoppingCart, customers: Users, inventory: Warehouse, categories: Tags, suppliers: Truck, fulfillment: PackageCheck, sync: RefreshCw, tracking: MapPin, payments: CreditCard, invoices: Receipt, profit: CircleDollarSign, settings: Settings, users: ShieldCheck };
+const icons: Record<string, LucideIcon> = { giftCards: Gift, dashboard: LayoutDashboard, analytics: ChartNoAxesCombined, products: Package, orders: ShoppingCart, customers: Users, inventory: Warehouse, categories: Tags, suppliers: Truck, fulfillment: PackageCheck, sync: RefreshCw, tracking: MapPin, payments: CreditCard, invoices: Receipt, profit: CircleDollarSign, settings: Settings, users: ShieldCheck };
 
 export function AdminShell({ user, children }: { user: { fullName: string; role: string }; children: ReactNode }) {
   const pathname = usePathname();

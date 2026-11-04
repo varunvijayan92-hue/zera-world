@@ -429,6 +429,8 @@ model MarketplaceProductMapping {
 }
 
 model PaymentTransaction {
+  giftCardId            String?
+  giftCard              CustomerVoucher? @relation(fields: [giftCardId], references: [id], onDelete: Restrict)
   id                    String          @id @default(cuid())
   orderId               String
   provider              PaymentProvider @default(RAZORPAY)
@@ -747,6 +749,7 @@ enum PaymentProvider {
   STRIPE
   MANUAL
   COD
+  GIFT_CARD
 }
 
 enum PaymentStatus {
@@ -821,6 +824,7 @@ model SupportTicket {
 }
 
 model CustomerVoucher {
+  payments   PaymentTransaction[]
   customer   User      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   id         String    @id @default(cuid())
   customerId String
