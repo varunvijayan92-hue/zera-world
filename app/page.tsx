@@ -1,7 +1,8 @@
 import { CategoryCarousel } from "@/components/category-carousel";
 import { ProductImage } from "@/components/product-image";
+import { AddToCartIcon } from "@/components/add-to-cart-icon";
 import { categoryLink } from "@/lib/category";
-import { ArrowRight, ShieldCheck, ShoppingBag, Sparkles, Truck } from "lucide-react";
+import { ArrowRight, ShieldCheck, Sparkles, Truck } from "lucide-react";
 import Link from "next/link";
 
 import { prisma } from "@/lib/prisma";
@@ -33,6 +34,7 @@ async function getHomeProducts() {
     return [] as Array<{
       id: string;
       name: string;
+      sku: string;
       category?: string | null;
       size?: string | null;
       sellingPrice?: number | string | null; gstRate?: number | string | null; handlingCharge?: number | string | null;
@@ -52,6 +54,7 @@ export default async function HomePage() {
   const productCards = products as Array<{
     id: string;
     name: string;
+    sku: string;
     category?: string | null;
     size?: string | null;
     sellingPrice?: number | string | null; gstRate?: number | string | null; handlingCharge?: number | string | null;
@@ -126,17 +129,15 @@ export default async function HomePage() {
                       </Link>
                       {product.size?.trim() ? <p className="mt-1 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-[#173B35]/60">Size: {product.size.trim()}</p> : null}
                     </div>
-                    <Link href={`/products/${product.id}`} className="tokoo-mini-cart" aria-label={`View ${product.name}`}>
-                      <ShoppingBag size={16} />
-                    </Link>
+                    <AddToCartIcon product={{ id: product.id, name: product.name, sku: product.sku, sellingPrice: price, imageUrls: product.imageUrls }} />
                   </div>
 
                   <div className="tokoo-price-row">
                     <ProductPrice sellingPrice={price} gstRate={product.gstRate == null ? null : Number(product.gstRate)} handlingCharge={Number(product.handlingCharge || 0)} mrp={extras.get(product.id)?.mrp} />
-                    <span className="tokoo-shipping-tag">
+                    <Link href={`/products/${product.id}`} className="tokoo-shipping-tag" aria-label={`View ${product.name} details`}>
                       <Truck size={12} />
                       Ready to ship
-                    </span>
+                    </Link>
                   </div>
                 </article>
               );
