@@ -6,6 +6,7 @@ import { AccessError } from "@/lib/portal-access";
 import { AdminHeading, AdminNotice, AdminStat, AdminTable, StateBadge } from "@/components/admin-ui";
 import { PrintReceipt } from "@/components/print-receipt";
 import { inr } from "@/lib/admin-format";
+import { ExpenseVoucherForm } from "@/components/expense-voucher-form";
 
 const label = (value: string) => value.replaceAll("_", " ");
 function amount(value: number | null, currency: string) {
@@ -35,6 +36,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
       <button className="rounded-xl bg-[#173B35] px-5 py-3 text-white">Search accounts</button>
       {report ? <a href={`/api/admin/accounts/export?${query}`} className="rounded-xl border bg-white px-5 py-3 font-semibold">Export all filtered transactions (CSV)</a> : null}
     </form>
+    {!printing ? <><Link href="/admin/accounts/gst" className="mb-5 inline-block rounded-xl border bg-white px-5 py-3 font-semibold">GST return files — setup requirements</Link><ExpenseVoucherForm /></> : null}
     {error ? <AdminNotice>{error}</AdminNotice> : null}
     {report ? <>
       <p className="mb-4 text-sm">{period.from} to {period.to} (India time) · {count} matching transactions{!printing ? ` · Page ${page} of ${pages}` : " · Full filtered report"}{filter.kind !== "ALL" ? ` · ${label(filter.kind)}` : ""}{filter.status ? ` · ${label(filter.status)}` : ""}{filter.q ? ` · Search: ${filter.q}` : ""}</p>

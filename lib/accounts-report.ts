@@ -35,11 +35,12 @@ export async function accountsReport(input: unknown) {
   ]);
   if (payments.length + refunds.length + expenses.length + settlements.length + shipments.length + cards.length > 10000) throw new AccessError("This period contains more than 10,000 transactions. Choose a shorter date range for a complete report and export.");
   const orderIds = [...new Set([...payments.map(row => row.orderId), ...refunds.map(row => row.returnRequest.customerOrderId)])];
-  const [orders, suppliers, refundPayments, issues] = await Promise.all([
+  const [orders, suppliers, refundPayments, issues, vouchers] = await Promise.all([
     prisma.customerOrder.findMany({ where: { id: { in: orderIds } }, select: { id: true, marketplaceOrderId: true, customerName: true } }),
     prisma.supplier.findMany({ where: { id: { in: [...new Set(settlements.map(row => row.supplierId))] } }, select: { id: true, companyName: true } }),
     prisma.paymentTransaction.findMany({ where: { orderId: { in: refunds.map(row => row.returnRequest.customerOrderId) }, paymentStatus: { in: ["PAID", "REFUNDED", "PARTIALLY_REFUNDED"] } }, select: { orderId: true, provider: true } }),
     prisma.auditLog.findMany({ where: { action: "ISSUE_GIFT_CARD", entityType: "CustomerVoucher", entityId: { in: cards.map(card => card.id) } }, select: { entityId: true, details: true } }),
+    prisma.auditLog.findMany({ where: { action: "CREATE_EXPENSE_VOUCHER", entityType: "Expense", entityId: { in: expenses.map(expense => expense.id) } }, select: { entityId: true, details: true } }),
   ]);
   const orderMap = new Map(orders.map(order => [order.id, order])), supplierMap = new Map(suppliers.map(supplier => [supplier.id, supplier.companyName]));
   const rows: AccountRow[] = [];
@@ -51,7 +52,12 @@ export async function accountsReport(input: unknown) {
     const orderId = refund.returnRequest.customerOrderId, order = orderMap.get(orderId), method = refundPayments.find(payment => payment.orderId === orderId)?.provider || "UNKNOWN";
     rows.push({ id: `refund:${refund.id}`, kind: "REFUND", date: refund.createdAt, reference: order?.marketplaceOrderId || orderId, party: order?.customerName || "Customer not recorded", method, amount: Number(refund.amount), currency: refund.currency, status: processed(refund.status) ? "SUCCESS" : refund.status.toUpperCase(), description: [refund.gatewayRefundId || refund.id, refund.returnRequest.reason].filter(Boolean).join("; "), href: "/admin/returns" });
   }
-  for (const expense of expenses) rows.push({ id: `expense:${expense.id}`, kind: "EXPENSE", date: expense.expenseDate, reference: expense.category, party: expense.category, method: "RECORDED_EXPENSE", amount: Number(expense.amount), currency: expense.currency, status: "RECORDED", description: expense.description || "", href: `/admin/profit-expenses?from=${period.from}&to=${period.to}` });
+  const voucherMap = new Map(vouchers.map(voucher => [voucher.entityId, voucher.details]));
+  for (const expense of expenses) {
+    const saved = voucherMap.get(expense.id);
+    const voucher = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : null;
+    rows.push({ id: `expense:${expense.id}`, kind: "EXPENSE", date: expense.expenseDate, reference: typeof voucher?.number === "string" ? voucher.number : expense.category, party: typeof voucher?.payee === "string" ? voucher.payee : expense.category, method: typeof voucher?.paymentMethod === "string" ? voucher.paymentMethod : "RECORDED_EXPENSE", amount: Number(expense.amount), currency: expense.currency, status: "RECORDED", description: expense.description || "", href: voucher ? `/admin/accounts/vouchers/${expense.id}` : `/admin/profit-expenses?from=${period.from}&to=${period.to}` });
+  }
   for (const settlement of settlements) rows.push({ id: `settlement:${settlement.id}`, kind: "SUPPLIER_PAYMENT", date: settlement.paidAt, reference: settlement.reference, party: supplierMap.get(settlement.supplierId) || "Supplier not recorded", method: "SUPPLIER_SETTLEMENT", amount: Number(settlement.amount), currency: "INR", status: "RECORDED", description: settlement.notes || "", href: "/admin/suppliers" });
   for (const shipment of shipments) rows.push({ id: `shipment:${shipment.id}`, kind: "SHIPMENT_COST", date: shipment.createdAt, reference: shipment.customerOrder.marketplaceOrderId, party: shipment.courierName || "Courier not recorded", method: "COURIER_COST", amount: Number(shipment.shipmentCost), currency: "INR", status: shipment.status, description: shipment.trackingNumber || "No AWB recorded", href: "/admin/tracking" });
   for (const card of cards) {
