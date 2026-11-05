@@ -64,6 +64,19 @@ export default async function HomePage() {
         <section className="tokoo-hero-wrap">
           <div className="tokoo-hero-card premium-living-hero">
             <div className="premium-living-photo" aria-hidden="true" />
+            <svg className="premium-living-divider" viewBox="0 0 1000 240" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+              <path className="premium-living-divider-fill" d="M0 0H1000C975 44 935 79 860 112C785 145 708 173 682 240H0Z" />
+              <path className="premium-living-divider-line" d="M1000 0C975 44 935 79 860 112C785 145 708 173 682 240" />
+              <path className="premium-living-divider-swoosh" d="M784 47C838 33 924 58 988 13" />
+              <g className="premium-living-leaf" transform="translate(843 76)">
+                <path d="M0 30C10 18 17 10 29 0M12 18C3 17 1 11 4 3C11 5 15 10 12 18ZM18 13C17 4 22 -1 31 -3C31 5 26 11 18 13Z" />
+              </g>
+            </svg>
+            <svg className="premium-living-divider-mobile" viewBox="0 0 400 32" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+              <path d="M0 13C100 27 180 0 275 12S360 22 400 8V32H0Z" fill="#103c2f" />
+              <path d="M0 13C100 27 180 0 275 12S360 22 400 8" fill="none" stroke="#d8ad54" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+              <path d="M315 10C320 5 326 2 334 2C332 9 326 12 320 11M320 11L316 15" fill="#d8ad54" stroke="#d8ad54" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+            </svg>
             <div className="premium-living-copy">
             <div className="tokoo-pill">
               <Sparkles size={12} />
