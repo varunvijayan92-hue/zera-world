@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { getPostLoginRedirectPath } from "@/lib/navigation-paths";
 import { useClientReady } from "./use-client-ready";
+import ZeraWorldLogo from "./zera-logo";
 export function PortalLogin({ supplier = false, next }: { supplier?: boolean; next?: string }) {
   const ready = useClientReady();
   const [register, setRegister] = useState(false);
@@ -32,7 +33,7 @@ export function PortalLogin({ supplier = false, next }: { supplier?: boolean; ne
     finally { setBusy(false); }
   }
   return <main className="flex min-h-screen items-center justify-center bg-[#F7F4ED] p-5 text-[#173B35]"><div className="w-full max-w-md rounded-3xl border bg-white p-8">
-    <Link href="/" className="font-black">Zera&apos;s World</Link>
+    <Link href="/" className="inline-block font-black">{supplier ? <ZeraWorldLogo compact className="!w-[180px]" /> : "Zera's World"}</Link>
     <h1 className="my-5 text-3xl font-bold">{supplier ? "Supplier login" : challenge ? "Verify your email" : register ? "Create customer account" : "Customer login"}</h1>
     <form onSubmit={submit}><fieldset disabled={!ready || busy} className="space-y-4">
       {challenge ? <><p className="text-sm">Check your email, including your spam folder, for the sign-in code.</p><label className="block text-sm">Email verification code<input name="code" type="text" inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} required autoComplete="one-time-code" autoFocus className="mt-2 w-full rounded-xl border p-3" /></label></> : <>
