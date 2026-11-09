@@ -136,7 +136,7 @@ export default async function HomePage() {
                     <ProductPrice sellingPrice={price} gstRate={product.gstRate == null ? null : Number(product.gstRate)} handlingCharge={Number(product.handlingCharge || 0)} mrp={extras.get(product.id)?.mrp} />
                     <Link href={`/products/${product.id}`} className="tokoo-shipping-tag" aria-label={`View ${product.name} details`}>
                       <Truck size={12} />
-                      Ready to ship
+                      Ship now
                     </Link>
                   </div>
                 </article>
