@@ -11,13 +11,26 @@ type SupplierOption = { id: string; companyName: string };
 
 const blank = { name: "", sku: "", description: "", specifications: "", manufacturerInfo: "", brand: "", size: "", color: "", warranty: "", trend: "", inTheBox: "", categoryId: "", parentCategoryId: "", subcategoryId: "", supplierId: "", sellingPrice: "", mrp: "", hsnCode: "", costPrice: "", status: "DRAFT", availableQty: "0", gstRate: "", deliveryCharge: "", handlingCharge: "", returnDays: "", isReturnable: true, codAvailable: false };
 
-export function ProductEditor({ initialProducts, categories, suppliers }: { initialProducts: AdminProduct[]; categories: MenuCategory[]; suppliers: SupplierOption[] }) {
+function productForm(product: AdminProduct | undefined, categories: MenuCategory[]) {
+  const matchedCategory = product?.categoryId ? categories.find((category) => category.id === product.categoryId) : null;
+  const parentCategoryId = matchedCategory?.parentId || matchedCategory?.id || "";
+  const subcategoryId = matchedCategory?.parentId ? matchedCategory.id : "";
+  return product ? { name: product.name, sku: product.sku, description: product.description, specifications: product.specifications || "", manufacturerInfo: product.manufacturerInfo || "", brand: product.brand, size: product.size || "", color: product.color || "", warranty: product.warranty || "", trend: product.trend || "", inTheBox: product.inTheBox || "", categoryId: product.categoryId || "", parentCategoryId, subcategoryId, supplierId: product.supplierId || "", sellingPrice: String(product.sellingPrice), mrp: product.mrp == null ? "" : String(product.mrp), hsnCode: product.hsnCode || "", costPrice: String(product.costPrice), status: product.status, availableQty: String(product.availableQty), gstRate: product.gstRate ? String(product.gstRate) : "", deliveryCharge: product.deliveryCharge == null ? "" : String(product.deliveryCharge), handlingCharge: product.handlingCharge ? String(product.handlingCharge) : "", returnDays: product.returnDays ? String(product.returnDays) : "", isReturnable: product.isReturnable, codAvailable: product.codAvailable ?? false } : blank;
+}
+
+function rememberProduct(id: string) {
+  const url = new URL(window.location.href);
+  if (id) url.searchParams.set("product", id); else url.searchParams.delete("product");
+  window.history.replaceState(window.history.state, "", url);
+}
+
+export function ProductEditor({ initialProducts, categories, suppliers, initialSelectedId }: { initialProducts: AdminProduct[]; categories: MenuCategory[]; suppliers: SupplierOption[]; initialSelectedId?: string }) {
   const ready = useClientReady();
   const editorRef = useRef<HTMLFormElement>(null);
   const manualRate = useRef(false);
   const [products, setProducts] = useState(initialProducts);
-  const [selectedId, setSelectedId] = useState("");
-  const [form, setForm] = useState(blank);
+  const [selectedId, setSelectedId] = useState(() => initialProducts.some(product => product.id === initialSelectedId) ? initialSelectedId! : "");
+  const [form, setForm] = useState(() => productForm(initialProducts.find(product => product.id === initialSelectedId), categories));
   const [usdCost, setUsdCost] = useState("");
   const [exchangeRate, setExchangeRate] = useState("");
   const [rateStatus, setRateStatus] = useState("Loading exchange rate?");
@@ -65,10 +78,8 @@ export function ProductEditor({ initialProducts, categories, suppliers }: { init
     setListMessage("");
     setSelectedId(id); setMessage("");
     const product = products.find((entry) => entry.id === id);
-    const matchedCategory = product?.categoryId ? categories.find((category) => category.id === product.categoryId) : null;
-    const parentCategoryId = matchedCategory?.parentId || matchedCategory?.id || "";
-    const subcategoryId = matchedCategory?.parentId ? matchedCategory.id : "";
-    setForm(product ? { name: product.name, sku: product.sku, description: product.description, specifications: product.specifications || "", manufacturerInfo: product.manufacturerInfo || "", brand: product.brand, size: product.size || "", color: product.color || "", warranty: product.warranty || "", trend: product.trend || "", inTheBox: product.inTheBox || "", categoryId: product.categoryId || "", parentCategoryId, subcategoryId, supplierId: product.supplierId || "", sellingPrice: String(product.sellingPrice), mrp: product.mrp == null ? "" : String(product.mrp), hsnCode: product.hsnCode || "", costPrice: String(product.costPrice), status: product.status, availableQty: String(product.availableQty), gstRate: product.gstRate ? String(product.gstRate) : "", deliveryCharge: product.deliveryCharge == null ? "" : String(product.deliveryCharge), handlingCharge: product.handlingCharge ? String(product.handlingCharge) : "", returnDays: product.returnDays ? String(product.returnDays) : "", isReturnable: product.isReturnable, codAvailable: product.codAvailable ?? false } : blank);
+    setForm(productForm(product, categories));
+    rememberProduct(product?.id || "");
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     setListMessage("");
@@ -111,7 +122,7 @@ export function ProductEditor({ initialProducts, categories, suppliers }: { init
       const supplierId = result.data?.supplierId ?? null;
       const product: AdminProduct = { ...result.data, supplierId, supplierName: supplierId ? result.data?.supplier?.companyName ?? (selectedSupplierName || null) : null, gstRate: Number(result.data.gstRate || 0), deliveryCharge: result.data.deliveryCharge == null ? null : Number(result.data.deliveryCharge), handlingCharge: Number(result.data.handlingCharge || 0), returnDays: Number(result.data.returnDays || 0), sellingPrice: Number(result.data.sellingPrice), mrp: result.data.mrp == null ? null : Number(result.data.mrp), hsnCode: result.data.hsnCode || null, costPrice: Number(result.data.costPrice || 0), availableQty: selected?.availableQty ?? Number(form.availableQty), description: result.data.description || "", specifications: result.data.specifications || null, manufacturerInfo: result.data.manufacturerInfo || null, brand: result.data.brand || "", size: result.data.size || null, color: result.data.color || null, warranty: result.data.warranty || null, trend: result.data.trend || null, inTheBox: result.data.inTheBox || null };
       setProducts((current) => selectedId ? current.map((entry) => entry.id === selectedId ? product : entry) : [product, ...current]);
-      setSelectedId(product.id); setForm(current => ({ ...current, status: product.status })); setMessage(product.status === "ACTIVE" ? "Product saved and available on the website. Add or update its photos below." : "Product saved as a draft. Add photos, then set status to Active when ready.");
+      setSelectedId(product.id); rememberProduct(product.id); setForm(current => ({ ...current, status: product.status })); setMessage(product.status === "ACTIVE" ? "Product saved and available on the website. Add or update its photos below." : "Draft saved. It appears under Added products below and is hidden from customers until you set it to Active.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Product could not be saved."); }
     finally { setBusy(false); }
   }
@@ -128,7 +139,7 @@ export function ProductEditor({ initialProducts, categories, suppliers }: { init
       const result = await response.json();
       if (!response.ok) throw Error(result.message || "Product could not be deleted.");
       setProducts(current => current.filter(entry => entry.id !== product.id));
-      if (selectedId === product.id) { setSelectedId(""); setForm(blank); }
+      if (selectedId === product.id) { setSelectedId(""); setForm(blank); rememberProduct(""); }
       setListMessage("Product deleted.");
     } catch (error) { setListMessage(error instanceof Error ? error.message : "Product could not be deleted."); }
     finally { setBusy(false); }
