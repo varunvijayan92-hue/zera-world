@@ -156,6 +156,22 @@ model Supplier {
   supplierProducts        SupplierProduct[]
   supplierProductMappings SupplierProductMapping[]
   settlements             SupplierSettlement[]
+  localCustomers          SupplierLocalCustomer[]
+}
+
+model SupplierLocalCustomer {
+  id         String   @id @default(cuid())
+  supplierId String
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  @@index([supplierId, createdAt])
 }
 
 model SupplierContact {
