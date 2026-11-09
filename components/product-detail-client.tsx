@@ -25,6 +25,7 @@ type ProductDetailRecord = {
   categoryId?: string | null;
   imageUrls: string[];
   size?: string | null;
+  color?: string | null;
   deliveryCharge?: number | string | null;
   sellingPrice?: number | string | null;
   gstRate?: number | string | null;
@@ -148,6 +149,7 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
             </div>
 
             {product.warranty?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Warranty: {product.warranty.trim()}</p> : null}
+            {product.color?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Colour: {product.color.trim()}</p> : null}
             {product.trend?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Trend: {product.trend.trim()}</p> : null}
             {product.inTheBox?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">In the box: {product.inTheBox.trim()}</p> : null}
 

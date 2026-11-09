@@ -2,7 +2,7 @@ type PublicProductInput = {
   id: string; name: string; sku: string; brand: string | null; description: string | null;
   specifications: string | null; manufacturerInfo: string | null; warranty: string | null;
   trend: string | null; inTheBox: string | null; category: string | null; categoryId: string | null;
-  imageUrls: string[]; size: string | null; deliveryCharge: unknown; sellingPrice: unknown;
+  imageUrls: string[]; size: string | null; color?: string | null; deliveryCharge: unknown; sellingPrice: unknown;
   gstRate: unknown; handlingCharge: unknown; returnDays: number; isReturnable: boolean;
 };
 
@@ -14,7 +14,7 @@ export function publicProductDetails(product: PublicProductInput) {
     description: product.description, specifications: product.specifications,
     manufacturerInfo: product.manufacturerInfo, warranty: product.warranty,
     trend: product.trend, inTheBox: product.inTheBox, category: product.category,
-    categoryId: product.categoryId, imageUrls: product.imageUrls, size: product.size,
+    categoryId: product.categoryId, imageUrls: product.imageUrls, size: product.size, color: product.color ?? null,
     deliveryCharge: product.deliveryCharge == null ? null : Number(product.deliveryCharge),
     sellingPrice: product.sellingPrice == null ? null : Number(product.sellingPrice),
     gstRate: product.gstRate == null ? null : Number(product.gstRate),

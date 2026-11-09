@@ -61,6 +61,7 @@ export const productSchema = z.object({
   availableQty: z.coerce.number().int().min(0).max(1000000).optional(),
   brand: z.string().optional(),
   size: z.preprocess(value => value === "" ? null : (typeof value === "string" ? value.trim() : value), z.string().trim().max(255).nullable().optional()),
+  color: z.preprocess(value => value === "" ? null : (typeof value === "string" ? value.trim() : value), z.string().trim().max(255).nullable().optional()),
   warranty: z.preprocess(value => value === "" ? null : (typeof value === "string" ? value.trim() : value), z.string().trim().max(255).nullable().optional()),
   trend: z.preprocess(value => value === "" ? null : (typeof value === "string" ? value.trim() : value), z.string().trim().max(255).nullable().optional()),
   inTheBox: z.preprocess(value => value === "" ? null : (typeof value === "string" ? value.trim() : value), z.string().trim().max(2000).nullable().optional()),

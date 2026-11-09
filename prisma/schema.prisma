@@ -225,6 +225,7 @@ model Product {
   storeCategory           StoreCategory?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   brand                   String?
   size                    String?
+  color                   String?
   warranty                String?
   trend                   String?
   inTheBox               String?
