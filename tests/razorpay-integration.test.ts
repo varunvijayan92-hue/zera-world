@@ -132,9 +132,9 @@ test("create-order uses persisted cart prices and returns gateway amounts in pai
   assert.equal(response.status, 201);
   const result = await response.json();
   assert.equal(result.order_id, "order_test1");
-  assert.equal(result.amount, 32998);
+  assert.equal(result.amount, 20998);
   assert.equal(result.currency, "INR");
-  assert.equal(create.mock.calls[0].arguments[0].amount, 32998);
+  assert.equal(create.mock.calls[0].arguments[0].amount, 20998);
   assert.equal(JSON.stringify(result).includes(unitSecret), false);
   assert.equal(JSON.stringify(result).includes("costPrice"), false);
   assert.equal(JSON.stringify(result).includes("private-supplier"), false);

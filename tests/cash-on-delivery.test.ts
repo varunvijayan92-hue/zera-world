@@ -10,7 +10,7 @@ import { POST as collect } from "../app/api/admin/orders/[id]/cod-collection/rou
 import { POST as delivery } from "../app/api/admin/orders/[id]/delivery/route";
 
 const shippingAddress = { fullName: "Customer", email: "customer@example.test", phone: "9999999999", addressLine1: "Test street", city: "Kochi", state: "Kerala", pincode: "682001", country: "India" };
-const body = { cart: [{ productId: "p1", sku: "SKU", quantity: 1 }], shippingAddress, paymentMethod: "cod", expectedTotalPaise: 22500, idempotencyKey: "cod-unit-request-123456" };
+const body = { cart: [{ productId: "p1", sku: "SKU", quantity: 1 }], shippingAddress, paymentMethod: "cod", expectedTotalPaise: 10500, idempotencyKey: "cod-unit-request-123456" };
 const request = (data: unknown, origin = "https://store.example") => new Request("https://store.example/api/create-order", { method: "POST", headers: { origin, "Content-Type": "application/json", cookie: `${AUTH_COOKIE}=unit` }, body: JSON.stringify(data) });
 
 test("multi-supplier COD collection totals allocate shipping once with deterministic paise rounding", () => {
@@ -24,7 +24,7 @@ test("multi-supplier COD collection totals allocate shipping once with determini
 function setup(t: TestContext) {
   let created = false;
   const product = { id: "p1", sku: "SKU", name: "Product", status: "ACTIVE", supplierId: "s1", supplier: { status: "ACTIVE", sourceType: "DIRECT" }, sellingPrice: 100, costPrice: 40, gstRate: 5, handlingCharge: 0, codAvailable: true, inventory: [{ availableQty: 5, reservedQty: 0 }], imageUrls: [] };
-  const order = { id: "o1", marketplaceOrderId: "ORDER-UNIT", status: "CONFIRMED", customerId: "customer1", totalAmount: 225, shippingAmount: 120, shippingAddress, orderItems: [{ productId: "p1", supplierId: "s1", marketplaceSku: "SKU", quantity: 1, unitPrice: 100, gstRate: 5, handlingCharge: 0 }] };
+  const order = { id: "o1", marketplaceOrderId: "ORDER-UNIT", status: "CONFIRMED", customerId: "customer1", totalAmount: 105, shippingAmount: 0, shippingAddress, orderItems: [{ productId: "p1", supplierId: "s1", marketplaceSku: "SKU", quantity: 1, unitPrice: 100, gstRate: 5, handlingCharge: 0 }] };
   let orderData: Record<string, unknown> = {}, paymentData: Record<string, unknown> = {};
   const original = { product: prisma.product, customerOrder: prisma.customerOrder, paymentTransaction: prisma.paymentTransaction, supplier: prisma.supplier, transaction: prisma.$transaction };
   Object.assign(prisma, {
@@ -54,9 +54,9 @@ test("COD creates a confirmed supplier order with pending collection and never o
   const response = await checkout(request(body)); assert.equal(response.status, 201);
   assert.equal(state.orderData().status, "CONFIRMED");
   assert.equal(state.paymentData().provider, "COD"); assert.equal(state.paymentData().paymentStatus, "PENDING");
-  assert.equal(state.paymentData().amount, 225); assert.equal(state.gateway.mock.callCount(), 0);
+  assert.equal(state.paymentData().amount, 105); assert.equal(state.gateway.mock.callCount(), 0);
   assert.equal(state.email.mock.callCount(), 1);
-  const result = await response.json(); assert.equal(result.data.payment.provider, "COD"); assert.equal(result.amount, 22500);
+  const result = await response.json(); assert.equal(result.data.payment.provider, "COD"); assert.equal(result.amount, 10500);
   const repeated = await checkout(request(body)); assert.equal(repeated.status, 200);
   assert.equal((await repeated.json()).data.order.id, "o1"); assert.equal(state.email.mock.callCount(), 1);
   assert.equal((await checkout(request({ ...body, cart: [{ productId: "p1", sku: "SKU", quantity: 2 }] }))).status, 409);

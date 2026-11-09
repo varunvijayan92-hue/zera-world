@@ -46,7 +46,7 @@ test("checkout uses each product's GST and per-unit handling rather than a cart-
     { id: "a", sku: "A", status: "ACTIVE", sellingPrice: 100, gstRate: 18, handlingCharge: 3, inventory },
     { id: "b", sku: "B", status: "ACTIVE", sellingPrice: 200, gstRate: 5, handlingCharge: 5, inventory },
   ]);
-  assert.deepEqual(result, { subtotal: 400, taxes: 46, handlingCharges: 11, shippingCharges: 120, total: 577, currency: "INR" });
+  assert.deepEqual(result, { subtotal: 400, taxes: 46, handlingCharges: 11, shippingCharges: 0, total: 457, currency: "INR" });
 });
 test("supplier order emails include customer details, item lines and invoice totals", () => {
   const text = buildSupplierOrderEmailText({

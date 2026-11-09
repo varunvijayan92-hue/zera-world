@@ -14,10 +14,10 @@ test("supplier registration retains and trims local pickup fields", () => {
   assert.equal(formatSupplierPickupAddress({ pickupCountry: "India", pickupCity: " " }), null);
 });
 
-test("flat shipping stays 120 below and above 999", () => {
+test("delivery is included in the selling price regardless of order value", () => {
   for (const sellingPrice of [100, 1500]) {
     const result = priceCheckout([{ productId: "p", sku: "SKU", quantity: 1 }], [{ id: "p", sku: "SKU", status: "ACTIVE", sellingPrice, inventory: [{ availableQty: 10, reservedQty: 0 }] }]);
-    assert.equal(result.shippingCharges, 120);
+    assert.equal(result.shippingCharges, 0);
   }
 });
 

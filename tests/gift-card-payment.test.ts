@@ -23,17 +23,17 @@ test("gift-card checkout is paid atomically and an identical retry does not spen
   let balance = 500, orderCount = 0, audits = 0, payment: Record<string, unknown> | null = null;
   const address = { fullName: "Test Buyer", phone: "9999999999", email: "c@example.test", addressLine1: "12 Main Street", addressLine2: "", city: "Kochi", state: "Kerala", pincode: "682001", country: "India", landmark: "" };
   const line = { productId: "p", marketplaceSku: "SKU", quantity: 1, supplierId: null, costPrice: 47 };
-  const order = { id: "order", marketplaceOrderId: "ORDER-qa", status: "CONFIRMED", totalAmount: 240, shippingAddress: address, orderItems: [line] };
-  const tx = { paymentTransaction: { findUnique: async () => payment, create: async ({ data }: { data: Record<string, unknown> }) => { payment = { id: "payment", ...data }; return payment; } }, product: { findMany: async () => [{ id: "p", sku: "SKU", status: "ACTIVE", sellingPrice: 100, gstRate: 18, handlingCharge: 2, supplierId: null, inventory: [{ availableQty: 10, reservedQty: 0 }] }] }, customerVoucher: { findFirst: async () => ({ id: "card", balance }), updateMany: async () => { balance -= 240; return { count: 1 }; } }, customerOrder: { create: async () => { orderCount++; return order; } }, auditLog: { create: async () => { audits++; } } };
+  const order = { id: "order", marketplaceOrderId: "ORDER-qa", status: "CONFIRMED", totalAmount: 120, shippingAddress: address, orderItems: [line] };
+  const tx = { paymentTransaction: { findUnique: async () => payment, create: async ({ data }: { data: Record<string, unknown> }) => { payment = { id: "payment", ...data }; return payment; } }, product: { findMany: async () => [{ id: "p", sku: "SKU", status: "ACTIVE", sellingPrice: 100, gstRate: 18, handlingCharge: 2, supplierId: null, inventory: [{ availableQty: 10, reservedQty: 0 }] }] }, customerVoucher: { findFirst: async () => ({ id: "card", balance }), updateMany: async () => { balance -= 120; return { count: 1 }; } }, customerOrder: { create: async () => { orderCount++; return order; } }, auditLog: { create: async () => { audits++; } } };
   const original = { $transaction: prisma.$transaction, paymentTransaction: prisma.paymentTransaction, customerOrder: prisma.customerOrder, customerVoucher: prisma.customerVoucher };
   Object.assign(prisma, { $transaction: async (work: (client: typeof tx) => unknown) => work(tx), paymentTransaction: { findUnique: async () => payment }, customerOrder: { findFirst: async () => order }, customerVoucher: { findFirst: async () => ({ id: "card" }) } });
   t.after(() => Object.assign(prisma, original));
-  const request = () => new Request("https://store.example/api/create-order", { method: "POST", headers: { Origin: "https://store.example", Cookie: `${AUTH_COOKIE}=unit`, "Content-Type": "application/json" }, body: JSON.stringify({ cart: [{ productId: "p", sku: "SKU", quantity: 1 }], shippingAddress: address, paymentMethod: "gift_card", giftCardCode: "ZWGC-TEST12345678", expectedTotalPaise: 24000, idempotencyKey: "gift-card-retry-reference" }) });
+  const request = () => new Request("https://store.example/api/create-order", { method: "POST", headers: { Origin: "https://store.example", Cookie: `${AUTH_COOKIE}=unit`, "Content-Type": "application/json" }, body: JSON.stringify({ cart: [{ productId: "p", sku: "SKU", quantity: 1 }], shippingAddress: address, paymentMethod: "gift_card", giftCardCode: "ZWGC-TEST12345678", expectedTotalPaise: 12000, idempotencyKey: "gift-card-retry-reference" }) });
   const response = await POST(request()); assert.equal(response.status, 201);
   const result = await response.json(); assert.equal(result.payment_status, "PAID"); assert.equal(result.data.payment.provider, "GIFT_CARD");
   assert.doesNotMatch(JSON.stringify(result), /costPrice|supplierId|orderItems/);
   assert.equal((await POST(request())).status, 200);
-  assert.equal(balance, 260); assert.equal(orderCount, 1); assert.equal(audits, 1);
+  assert.equal(balance, 380); assert.equal(orderCount, 1); assert.equal(audits, 1);
 });
 
 test("gift-card return credit is applied once, includes item GST and never invokes Razorpay", async t => {

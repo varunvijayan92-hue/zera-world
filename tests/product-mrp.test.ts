@@ -45,5 +45,5 @@ test("partial product edits preserve or explicitly clear MRP and HSN and reject 
 test("checkout charges the selling price, irrespective of MRP", () => {
   const product = { id: "p", sku: "sku", status: "ACTIVE", sellingPrice: 100, mrp: 500, gstRate: 0, handlingCharge: 0, inventory: [{ availableQty: 2, reservedQty: 0 }] };
   const quote = priceCheckout([{ productId: "p", sku: "sku", quantity: 1 }], [product]);
-  assert.equal(quote.subtotal, 100); assert.equal(quote.total, 220);
+  assert.equal(quote.subtotal, 100); assert.equal(quote.total, 100);
 });

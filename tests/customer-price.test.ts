@@ -13,9 +13,9 @@ test("product totals match server checkout including tax, handling, delivery and
   }
 });
 
-test("a combined cart adds delivery once rather than once per product or unit", () => {
+test("delivery is included in product prices with no separate order fee", () => {
   const product = { id: "p", sku: "SKU", status: "ACTIVE", sellingPrice: 100, gstRate: 18, handlingCharge: 2, inventory: [{ availableQty: 10, reservedQty: 0 }] };
-  assert.equal(singleItemTotal(product), 240);
-  assert.equal(priceCheckout([{ productId: "p", sku: "SKU", quantity: 2 }], [product]).total, 360);
+  assert.equal(singleItemTotal(product), 120);
+  assert.equal(priceCheckout([{ productId: "p", sku: "SKU", quantity: 2 }], [product]).total, 240);
   assert.equal(singleItemTotal({ sellingPrice: null }), 0);
 });

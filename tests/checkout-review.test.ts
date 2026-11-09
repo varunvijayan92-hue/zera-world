@@ -79,7 +79,7 @@ test("order review quotes the chosen quantity without creating orders or payment
   assert.equal(result.status, 200);
   const quote = await result.json();
   assert.equal(quote.items[0].quantity, 2);
-  assert.equal(quote.amount.total, 329.98);
+  assert.equal(quote.amount.total, 209.98);
   assert.equal(writes, 0);
 });
 
