@@ -118,7 +118,7 @@ export default async function HomePage() {
               return (
                 <article key={product.id} className="tokoo-product-card">
                   <div className="tokoo-product-media">
-                    <ProductImage src={imageUrl} alt={product.name} width={600} height={600} sizes="(min-width: 1024px) 25vw, 50vw" className="h-full w-full object-cover" />
+                    <ProductImage src={imageUrl} alt={product.name} fit="contain" width={600} height={600} sizes="(min-width: 1024px) 25vw, 50vw" className="h-full w-full bg-[#F7F4ED] object-contain p-2" />
                   </div>
 
                   <div className="tokoo-product-meta">

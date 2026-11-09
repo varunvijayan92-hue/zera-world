@@ -56,7 +56,7 @@ export default function CartPage() {
               {items.map((item) => (
                 <div key={`${item.id}-${item.sku}`} className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-4 rounded-[24px] border border-[#173B35]/10 bg-white p-4 shadow-[0_12px_30px_rgba(23,59,53,0.05)] sm:flex">
                   <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-[#F7F4ED] sm:h-20 sm:w-20">
-                    <ProductImage src={item.imageUrls?.[0]} alt={item.name} width={160} height={160} sizes="80px" className="h-full w-full object-cover" />
+                    <ProductImage src={item.imageUrls?.[0]} alt={item.name} fit="contain" width={160} height={160} sizes="80px" className="h-full w-full object-contain p-1" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-lg font-bold text-[#173B35]">{item.name}</p>

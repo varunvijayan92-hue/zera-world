@@ -123,7 +123,7 @@ export default async function ProductsPage({
                 <article key={product.id} className="overflow-hidden rounded-[28px] border border-[#173B35]/10 bg-white p-4 shadow-[0_14px_32px_rgba(23,59,53,0.05)] transition hover:-translate-y-1 hover:shadow-[0_18px_36px_rgba(23,59,53,0.08)]">
                   <Link href={`/products/${product.id}`} className="block">
                     <div className="flex h-52 items-center justify-center overflow-hidden rounded-[22px] bg-gradient-to-br from-[#8EA695]/30 via-[#F7F4ED] to-[#B38A45]/20 text-4xl text-[#173B35]">
-                      <ProductImage src={imageUrl} alt={product.name} width={600} height={600} sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" className="h-full w-full object-cover" />
+                      <ProductImage src={imageUrl} alt={product.name} fit="contain" width={600} height={600} sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" className="h-full w-full bg-[#F7F4ED] object-contain p-2" />
                     </div>
                   </Link>
 
