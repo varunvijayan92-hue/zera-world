@@ -5,6 +5,7 @@ export const integrationFields = {
   RAZORPAY: ["keyId", "keySecret", "webhookSecret"],
   DELHIVERY: ["apiToken", "pickupLocation"],
   SHIPROCKET: ["email", "password", "pickupLocation"],
+  CJ_DROPSHIPPING: ["apiKey"],
   AMAZON: ["sellerId", "marketplaceId", "clientId", "clientSecret", "refreshToken"],
   FLIPKART: ["sellerId", "clientId", "clientSecret"],
 } as const;

@@ -7,7 +7,7 @@ import { integrationFields } from "@/lib/integration-settings";
 import { AccessError, apiError } from "@/lib/portal-access";
 import { isSameOriginRequest } from "@/lib/request-origin";
 
-const schema = z.object({ provider: z.enum(["RAZORPAY", "DELHIVERY", "SHIPROCKET", "AMAZON", "FLIPKART"]), credentials: z.record(z.string().max(4096)) });
+const schema = z.object({ provider: z.enum(["RAZORPAY", "DELHIVERY", "SHIPROCKET", "CJ_DROPSHIPPING", "AMAZON", "FLIPKART"]), credentials: z.record(z.string().max(4096)) });
 export async function POST(request: Request) {
   try {
     const user = await getCurrentUser();
