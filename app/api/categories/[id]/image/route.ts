@@ -14,6 +14,7 @@ export async function POST(request: Request, { params }: Context) {
   if (denied) return denied;
   if (!isSameOriginRequest(request)) return NextResponse.json({ message: "Invalid origin." }, { status: 403 });
   let uploaded: { url: string; publicId: string } | undefined;
+  let attached = false;
   try {
     if (Number(request.headers.get("content-length")) > MAX_PHOTO_BYTES + 100000) throw new PhotoError("Image is too large.", 413);
     const { id } = await params;
@@ -22,11 +23,12 @@ export async function POST(request: Request, { params }: Context) {
     if (!(file instanceof File)) throw new PhotoError("Choose a JPEG, PNG or WebP image.");
     uploaded = await cloudinaryMedia.upload(await validatePhoto(file), id, "categories");
     await prisma.storeCategory.update({ where: { id }, data: { imageUrl: uploaded.url, imagePublicId: uploaded.publicId } });
+    attached = true;
     const data = await getMenuCategory(id);
     for (const path of ["/", "/categories", "/products", "/admin/categories"]) revalidatePath(path);
     return NextResponse.json({ data });
   } catch (error) {
-    if (uploaded) await cloudinaryMedia.removeOwnUpload(uploaded.publicId).catch(() => {});
+    if (uploaded && !attached) await cloudinaryMedia.removeOwnUpload(uploaded.publicId).catch(() => {});
     return NextResponse.json({ message: error instanceof PhotoError ? error.message : "Category image could not be saved." }, { status: error instanceof PhotoError ? error.status : 500 });
   }
 }

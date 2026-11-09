@@ -33,7 +33,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { categoryId, category, availableQty, mrp, hsnCode, deliveryCharge, ...data } = parsed.data;
+    const { categoryId, category, availableQty, mrp, hsnCode, deliveryCharge, imageUrls, ...data } = parsed.data;
+    if (imageUrls.length) throw new CatalogError("Create the product first, then upload its photos to Cloudinary.");
     if (data.status === "ACTIVE" && Number(data.sellingPrice) <= 0) throw new CatalogError("An active product needs a selling price greater than zero.");
     const product = await prisma.$transaction(async tx => {
       const saved = await tx.product.create({
