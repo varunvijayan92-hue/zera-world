@@ -27,7 +27,7 @@ export default function CheckoutPage() {
   const [retry, setRetry] = useState(0);
   const [locating, setLocating] = useState(false);
   const [continuing, setContinuing] = useState(false);
-  const requestBody = JSON.stringify({ cart: items.map((item) => ({ productId: item.id, sku: item.sku, quantity: item.quantity })) });
+  const requestBody = JSON.stringify({ cart: items.map((item) => ({ productId: item.id, sku: item.sku, selectedColor: item.selectedColor, selectedSize: item.selectedSize, quantity: item.quantity })) });
   const currentQuote = quote?.fingerprint === requestBody ? quote : null;
   const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -101,7 +101,7 @@ export default function CheckoutPage() {
           <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 md:p-7">
             <h2 className="text-xl font-bold">1. Check items & quantity</h2><p id="checkout-quantity-limit" className="mt-1 text-sm text-[#173B35]/65">Use the minus and plus buttons to choose your quantity. Maximum 10 units per cart; the amount updates automatically.</p>
             <div className="mt-5 space-y-4">{(currentQuote?.items || items).map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#173B35]/10 p-4">
-              <div className="min-w-0 basis-full sm:flex-1 sm:basis-0"><Link href={`/products/${item.id}`} className="break-words font-bold hover:underline">{item.name}</Link></div>
+              <div className="min-w-0 basis-full sm:flex-1 sm:basis-0"><Link href={`/products/${item.id}`} className="break-words font-bold hover:underline">{item.name}</Link>{item.selectedColor || item.selectedSize ? <p className="text-sm">{[item.selectedColor, item.selectedSize].filter(Boolean).join(" / ")}</p> : null}</div>
               <div role="group" aria-label={`Quantity for ${item.name}`} aria-describedby="checkout-quantity-limit"><p className="mb-1 text-xs font-semibold">Quantity</p><div className="inline-flex items-center rounded-lg border border-[#173B35]/20">
                 <button type="button" aria-label={`Decrease quantity for ${item.name}`} disabled={item.quantity <= 1 || continuing} onClick={() => changeItems(items.map(entry => entry.id === item.id ? { ...entry, quantity: entry.quantity - 1 } : entry))} className="flex h-11 w-11 items-center justify-center rounded-l-lg hover:bg-[#F7F4ED] disabled:opacity-30"><Minus size={18} /></button>
                 <output aria-live="polite" aria-label={`Selected quantity for ${item.name}`} className="w-7 text-center font-semibold tabular-nums">{item.quantity}</output>

@@ -26,6 +26,7 @@ type ProductDetailRecord = {
   imageUrls: string[];
   size?: string | null;
   color?: string | null;
+  colorImages?: Record<string, string>;
   deliveryCharge?: number | string | null;
   sellingPrice?: number | string | null;
   gstRate?: number | string | null;
@@ -106,6 +107,10 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
   detailBits: string[];
 }) {
   const sizeOptions = useMemo(() => product.size ? product.size.split(",").map(size => size.trim()).filter(Boolean) : [], [product.size]);
+  const colorOptions = useMemo(() => product.color ? product.color.split(",").map(color => color.trim()).filter(Boolean) : [], [product.color]);
+  const [selectedColor, setSelectedColor] = useState(colorOptions[0] ?? "");
+  const colorImage = selectedColor ? product.colorImages?.[selectedColor] : undefined;
+  const galleryImages = colorImage ? [colorImage, ...product.imageUrls.filter(image => image !== colorImage)] : product.imageUrls;
   const [selectedSize, setSelectedSize] = useState(sizeOptions[0] ?? "");
   const [activeTab, setActiveTab] = useState<"specifications" | "description" | "manufacturer">("specifications");
   const specificationSections = useMemo(() => parseSpecificationSections(product.specifications), [product.specifications]);
@@ -125,7 +130,7 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
 
         <div className="grid gap-8 overflow-hidden rounded-[30px] border border-[#173B35]/10 bg-white p-5 shadow-[0_18px_48px_rgba(23,59,53,0.06)] lg:grid-cols-[1.1fr_0.9fr] lg:p-8">
           <div className="rounded-[26px] bg-[#f7f4ee] p-3">
-            <ProductGallery images={product.imageUrls} name={product.name} />
+            <ProductGallery key={selectedColor} images={galleryImages} name={product.name} />
           </div>
 
           <div className="rounded-[26px] border border-[#173B35]/10 bg-white p-3 sm:p-5">
@@ -149,7 +154,7 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
             </div>
 
             {product.warranty?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Warranty: {product.warranty.trim()}</p> : null}
-            {product.color?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Colour: {product.color.trim()}</p> : null}
+            {colorOptions.length ? <div className="mt-6"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#173B35]/70">Select colour</p><div className="mt-3 flex flex-wrap gap-2">{colorOptions.map(color => <button key={color} type="button" aria-pressed={selectedColor === color} onClick={() => setSelectedColor(color)} className={`rounded-xl border px-3 py-2 text-sm font-semibold ${selectedColor === color ? "border-[#173B35] bg-[#173B35] text-white" : "border-[#173B35]/15 bg-[#F7F4ED] text-[#173B35]"}`}>{color}</button>)}</div></div> : null}
             {product.trend?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">Trend: {product.trend.trim()}</p> : null}
             {product.inTheBox?.trim() ? <p className="mt-2 text-sm font-medium text-[#173B35]/75">In the box: {product.inTheBox.trim()}</p> : null}
 
@@ -192,7 +197,7 @@ export function ProductDetailClient({ product, assignedCategory, parentCategory,
                 name: product.name,
                 sku: product.sku,
                 sellingPrice: Number(product.sellingPrice ?? 0), gstRate: product.gstRate, handlingCharge: product.handlingCharge,
-                imageUrls: product.imageUrls,
+                imageUrls: galleryImages, selectedColor: selectedColor || undefined, selectedSize: selectedSize || undefined,
               }} />
             </div>
           </div>

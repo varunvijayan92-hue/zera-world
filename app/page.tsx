@@ -36,7 +36,7 @@ async function getHomeProducts() {
       name: string;
       sku: string;
       category?: string | null;
-      size?: string | null;
+      size?: string | null; color?: string | null;
       sellingPrice?: number | string | null; gstRate?: number | string | null; handlingCharge?: number | string | null;
       imageUrls?: string[];
     }>;
@@ -56,7 +56,7 @@ export default async function HomePage() {
     name: string;
     sku: string;
     category?: string | null;
-    size?: string | null;
+    size?: string | null; color?: string | null;
     sellingPrice?: number | string | null; gstRate?: number | string | null; handlingCharge?: number | string | null;
     imageUrls?: string[];
   }>;
@@ -129,7 +129,7 @@ export default async function HomePage() {
                       </Link>
                       {product.size?.trim() ? <p className="mt-1 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-[#173B35]/60">Size: {product.size.trim()}</p> : null}
                     </div>
-                    <AddToCartIcon product={{ id: product.id, name: product.name, sku: product.sku, sellingPrice: price, imageUrls: product.imageUrls }} />
+                    <AddToCartIcon product={{ id: product.id, name: product.name, sku: product.sku, sellingPrice: price, imageUrls: product.imageUrls, requiresOptions: Boolean(product.color?.trim() || product.size?.trim()) }} />
                   </div>
 
                   <div className="tokoo-price-row">

@@ -1,8 +1,8 @@
 import { ORDER_SHIPPING_CHARGE } from "./shipping";
 
-type CartItem = { productId: string; sku: string; quantity: number };
+type CartItem = { productId: string; sku: string; quantity: number; selectedColor?: string; selectedSize?: string };
 type Product = {
-  id: string; sku: string; status: string; sellingPrice: unknown;
+  id: string; sku: string; status: string; sellingPrice: unknown; color?: string | null; size?: string | null;
   gstRate?: unknown; handlingCharge?: unknown;
   inventory: { availableQty: number; reservedQty: number; status?: string }[];
 };
@@ -18,6 +18,10 @@ export function priceCheckout(cart: CartItem[], products: Product[]) {
     const product = lookup.get(item.productId);
     if (!product || product.status !== "ACTIVE" || product.sku !== item.sku) {
       throw new Error("One or more products are no longer available. Refresh your cart.");
+    }
+    for (const [configured, selected] of [[product.color, item.selectedColor], [product.size, item.selectedSize]]) {
+      const choices = (configured || "").split(",").map(value => value.trim()).filter(Boolean);
+      if ((choices.length && (!selected || !choices.includes(selected))) || (!choices.length && selected)) throw new Error("One or more product options have changed. Please choose colour and size again.");
     }
     const price = Number(product.sellingPrice);
     if (!Number.isFinite(price) || price <= 0) throw new Error("Product price is unavailable.");

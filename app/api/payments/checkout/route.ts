@@ -68,7 +68,7 @@ export async function POST(request: Request) {
             handlingCharge: products.find((product) => product.id === item.productId)!.handlingCharge,
             returnDays: products.find((product) => product.id === item.productId)!.returnDays,
             isReturnable: products.find((product) => product.id === item.productId)!.isReturnable,
-            productId: item.productId,
+            productId: item.productId, selectedColor: item.selectedColor || null, selectedSize: item.selectedSize || null,
             status: paymentMethod === "cod" ? "CONFIRMED" : "PENDING",
             marketplaceSku: products.find((product) => product.id === item.productId)!.sku,
             quantity: item.quantity,
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
         const providerMatches = previous?.provider === (paymentMethod === "cod" ? "COD" : "GIFT_CARD");
         const giftMatches = paymentMethod !== "gift_card" || (previous?.giftCardId && await prisma.customerVoucher.findFirst({ where: { id: previous.giftCardId, customerId: user.id, code: parsed.data.giftCardCode }, select: { id: true } }));
         const order = providerMatches && giftMatches ? await prisma.customerOrder.findFirst({ where: { id: previous.orderId, customerId: user.id, status: { in: ["CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED"] } }, include: { orderItems: true } }) : null;
-        const linesMatch = order && order.orderItems.length === cart.length && cart.every(item => order.orderItems.some(line => line.productId === item.productId && line.marketplaceSku === item.sku && line.quantity === item.quantity));
+        const linesMatch = order && order.orderItems.length === cart.length && cart.every(item => order.orderItems.some(line => line.productId === item.productId && line.marketplaceSku === item.sku && (line.selectedColor || undefined) === item.selectedColor && (line.selectedSize || undefined) === item.selectedSize && line.quantity === item.quantity));
         const address = order?.shippingAddress as Record<string, unknown> | undefined;
         const addressMatches = address && Object.entries(shippingAddress).every(([key, value]) => address[key] === value);
         if (order && previous && (paymentMethod === "cod" ? ["PENDING", "PAID"].includes(previous.paymentStatus) : previous.paymentStatus === "PAID") && linesMatch && addressMatches && (parsed.data.expectedTotalPaise === undefined || parsed.data.expectedTotalPaise === Math.round(Number(order.totalAmount) * 100))) return paymentMethod === "gift_card" ? giftCardResponse(order, true) : codResponse(order, true, previous.paymentStatus);
@@ -140,7 +140,7 @@ export async function POST(request: Request) {
             const lineHandling = handlingCharge * item.quantity;
             const lineTotal = lineSubtotal + lineTax + lineHandling;
             return {
-              productName: product?.name || item.marketplaceSku || "Product",
+              productName: [product?.name || item.marketplaceSku || "Product", item.selectedColor, item.selectedSize].filter(Boolean).join(" / "),
               sku: String(product?.sku ?? item.marketplaceSku ?? productId ?? "N/A"),
               quantity: item.quantity,
               unitPrice,

@@ -8,7 +8,7 @@ import type { CheckoutDraft } from "@/lib/checkout-storage";
 import { readCart, writeCart } from "@/lib/cart";
 
 export default function CartPage() {
-  const [items, setItems] = useState<Array<{ id: string; name: string; sku: string; sellingPrice?: number | string | null; quantity?: number; imageUrls?: string[] | null }>>([]);
+  const [items, setItems] = useState<Array<{ id: string; name: string; sku: string; sellingPrice?: number | string | null; quantity?: number; selectedColor?: string; selectedSize?: string; imageUrls?: string[] | null }>>([]);
 
   useEffect(() => {
     const stored = readCart(localStorage);
@@ -17,7 +17,7 @@ export default function CartPage() {
 
   const [quote, setQuote] = useState<{ fingerprint: string; amount: CheckoutDraft["amount"] } | null>(null);
   const [quoteError, setQuoteError] = useState("");
-  const fingerprint = JSON.stringify({ cart: items.map(item => ({ productId: item.id, sku: item.sku, quantity: item.quantity || 1 })) });
+  const fingerprint = JSON.stringify({ cart: items.map(item => ({ productId: item.id, sku: item.sku, selectedColor: item.selectedColor, selectedSize: item.selectedSize, quantity: item.quantity || 1 })) });
   useEffect(() => {
     if (!items.length) return;
     const controller = new AbortController(); setQuoteError("");
@@ -60,7 +60,7 @@ export default function CartPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-lg font-bold text-[#173B35]">{item.name}</p>
-                    <p className="break-all text-sm text-[#173B35]/60">SKU: {item.sku}</p>
+                    <p className="break-all text-sm text-[#173B35]/60">SKU: {item.sku}</p>{item.selectedColor || item.selectedSize ? <p className="text-sm">{[item.selectedColor, item.selectedSize].filter(Boolean).join(" / ")}</p> : null}
                   </div>
                   <div className="col-span-2 flex flex-wrap items-center justify-between gap-2 sm:block sm:text-right">
                     <label className="mt-2 block text-xs">Quantity<input aria-label={`Quantity for ${item.name}`} type="number" min="1" max="10" value={item.quantity ?? 1} className="ml-2 w-16 rounded border p-2" onChange={(event) => { const quantity = event.target.valueAsNumber; if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) return; const next = readCart(localStorage).map((entry) => entry.id === item.id ? { ...entry, quantity } : entry); if (next.reduce((sum, entry) => sum + entry.quantity, 0) > 10) { window.alert("Your cart can contain a maximum of 10 units."); return; } writeCart(localStorage, next); setItems(next); }} /></label><button type="button" className="mt-2 text-xs underline" onClick={() => { const next = readCart(localStorage).filter((entry) => entry.id !== item.id); writeCart(localStorage, next); setItems(next); }}>Remove</button>

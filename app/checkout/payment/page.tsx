@@ -42,7 +42,7 @@ export default function PaymentPage() {
     // validates the same session before creating an order or contacting Razorpay.
     setDraft(stored);
     void fetch("/api/account/gift-cards", { cache: "no-store" }).then(async response => { const result = await response.json(); if (active && response.ok) setGiftCards(result.cards); }).catch(() => {});
-    fetch("/api/checkout/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cart: stored.items.map(item => ({ productId: item.id, sku: item.sku, quantity: item.quantity })) }) }).then(async response => {
+    fetch("/api/checkout/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cart: stored.items.map(item => ({ productId: item.id, sku: item.sku, selectedColor: item.selectedColor, selectedSize: item.selectedSize, quantity: item.quantity })) }) }).then(async response => {
       const result = await response.json();
       if (!active) return;
       setCodAvailable(response.ok && result.codAvailable === true); setCodChecked(true);
@@ -60,7 +60,7 @@ export default function PaymentPage() {
     try {
       if (paymentChoice === "gift_card" && !pendingVerification.current) {
         if (!giftCardCode) throw Error("Choose a gift card.");
-        const body = { cart: draft.items.map(item => ({ productId: item.id, sku: item.sku, quantity: item.quantity })), shippingAddress: draft.shippingAddress, paymentMethod: "gift_card", giftCardCode, expectedTotalPaise: Math.round(draft.amount.total * 100) };
+        const body = { cart: draft.items.map(item => ({ productId: item.id, sku: item.sku, selectedColor: item.selectedColor, selectedSize: item.selectedSize, quantity: item.quantity })), shippingAddress: draft.shippingAddress, paymentMethod: "gift_card", giftCardCode, expectedTotalPaise: Math.round(draft.amount.total * 100) };
         const fingerprint = JSON.stringify(body), storageKey = "zeraworld-gift-card-request";
         let saved: { fingerprint?: string; key?: string } | null = null;
         try { saved = JSON.parse(sessionStorage.getItem(storageKey) || "null"); } catch { /* Generate a stable checkout reference below. */ }
@@ -75,7 +75,7 @@ export default function PaymentPage() {
       }
       if (paymentChoice === "cod" && !pendingVerification.current) {
         if (!codAvailable) throw Error("Cash on delivery is not available for this cart.");
-        const body = { cart: draft.items.map(item => ({ productId: item.id, sku: item.sku, quantity: item.quantity })), shippingAddress: draft.shippingAddress, paymentMethod: "cod", expectedTotalPaise: Math.round(draft.amount.total * 100) };
+        const body = { cart: draft.items.map(item => ({ productId: item.id, sku: item.sku, selectedColor: item.selectedColor, selectedSize: item.selectedSize, quantity: item.quantity })), shippingAddress: draft.shippingAddress, paymentMethod: "cod", expectedTotalPaise: Math.round(draft.amount.total * 100) };
         const fingerprint = JSON.stringify(body);
         let stored: { fingerprint?: string; key?: string } | null = null;
         try { stored = JSON.parse(sessionStorage.getItem(COD_REQUEST_KEY) || "null"); } catch { /* Create a new checkout reference below. */ }
@@ -92,7 +92,7 @@ export default function PaymentPage() {
       // A network error during verification must not start a second payment.
       if (!pendingVerification.current) {
         const requestBody = {
-          cart: draft.items.map((item) => ({ productId: item.id, sku: item.sku, quantity: Number(item.quantity ?? 1) })),
+          cart: draft.items.map((item) => ({ productId: item.id, sku: item.sku, selectedColor: item.selectedColor, selectedSize: item.selectedSize, quantity: Number(item.quantity ?? 1) })),
           shippingAddress: draft.shippingAddress,
           paymentMethod: "razorpay",
           expectedTotalPaise: Math.round(draft.amount.total * 100),
@@ -176,7 +176,7 @@ export default function PaymentPage() {
           </section>
           <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-6 md:p-7">
             <h2 className="text-xl font-bold">Delivery confirmed</h2><p className="mt-4 font-semibold">{address.fullName}</p><p className="mt-1 text-sm leading-relaxed text-[#173B35]/75">{[address.addressLine1, address.addressLine2, address.city, address.state, address.pincode, address.country].filter(Boolean).join(", ")}</p><p className="mt-2 text-sm text-[#173B35]/70">{address.phone} | {address.email}</p>
-            <div className="mt-5 space-y-3 border-t border-[#173B35]/10 pt-5">{draft.items.map((item) => <div key={item.id} className="flex justify-between gap-4 text-sm"><span>{item.name} <span className="text-[#173B35]/60">x {item.quantity}</span></span></div>)}</div>
+            <div className="mt-5 space-y-3 border-t border-[#173B35]/10 pt-5">{draft.items.map((item) => <div key={item.id} className="flex justify-between gap-4 text-sm"><span>{item.name} {[item.selectedColor, item.selectedSize].filter(Boolean).join(" / ")} <span className="text-[#173B35]/60">x {item.quantity}</span></span></div>)}</div>
           </section>
         </div>
         <aside className="rounded-[28px] border border-[#173B35]/10 bg-white p-6 lg:sticky lg:top-6">

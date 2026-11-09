@@ -64,6 +64,17 @@ test("COD creates a confirmed supplier order with pending collection and never o
   assert.equal((await checkout(request(body))).status, 409);
 });
 
+test("COD checkout validates and saves the customer's colour and size", async t => {
+  const state = setup(t);
+  Object.assign(state.product, { color: "Olive, Peach", size: "66 cm, 80 cm" });
+  const selected = { ...body, cart: [{ productId: "p1", sku: "SKU", quantity: 1, selectedColor: "Peach", selectedSize: "80 cm" }] };
+  const response = await checkout(request(selected));
+  assert.equal(response.status, 201);
+  const lines = state.orderData().orderItems as { create: Array<{ selectedColor: string; selectedSize: string }> };
+  assert.equal(lines.create[0].selectedColor, "Peach");
+  assert.equal(lines.create[0].selectedSize, "80 cm");
+});
+
 test("COD checks current eligibility, current totals, same-origin and submission reference before creating an order", async t => {
   const state = setup(t); state.product.codAvailable = false;
   assert.equal((await checkout(request(body))).status, 400);

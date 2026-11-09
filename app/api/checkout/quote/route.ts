@@ -14,7 +14,10 @@ export async function POST(request: Request) {
     const amount = priceCheckout(parsed.data.cart, products);
     const items = parsed.data.cart.map((item) => {
       const product = products.find((entry) => entry.id === item.productId)!;
-      return { id: product.id, name: product.name, sku: product.sku, sellingPrice: Number(product.sellingPrice), quantity: item.quantity, imageUrls: product.imageUrls };
+      const mapping = product.colorImages && typeof product.colorImages === "object" && !Array.isArray(product.colorImages) ? product.colorImages as Record<string, unknown> : {};
+      const selectedImage = item.selectedColor && typeof mapping[item.selectedColor] === "string" && product.imageUrls.includes(mapping[item.selectedColor] as string) ? mapping[item.selectedColor] as string : null;
+      const imageUrls = selectedImage ? [selectedImage, ...product.imageUrls.filter(url => url !== selectedImage)] : product.imageUrls;
+      return { id: product.id, name: product.name, sku: product.sku, selectedColor: item.selectedColor, selectedSize: item.selectedSize, sellingPrice: Number(product.sellingPrice), quantity: item.quantity, imageUrls };
     });
     return NextResponse.json({ amount, items, codAvailable: cashOnDeliveryAvailable(products) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

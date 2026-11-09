@@ -101,6 +101,8 @@ export const marketplaceConfigSchema = z.object({
 export const checkoutItemSchema = z.object({
   productId: z.string().min(1),
   sku: z.string().min(1),
+  selectedColor: z.string().trim().max(100).optional(),
+  selectedSize: z.string().trim().max(100).optional(),
   quantity: z.coerce.number().int().min(1).max(10),
 });
 

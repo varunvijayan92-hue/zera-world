@@ -226,6 +226,7 @@ model Product {
   brand                   String?
   size                    String?
   color                   String?
+  colorImages             Json?
   warranty                String?
   trend                   String?
   inTheBox               String?
@@ -521,6 +522,8 @@ model CustomerOrder {
 }
 
 model OrderItem {
+  selectedColor     String?
+  selectedSize      String?
   returns           ReturnRequest[]
   costPrice         Decimal?        @db.Decimal(12, 2)
   gstRate           Decimal?        @db.Decimal(5, 2)

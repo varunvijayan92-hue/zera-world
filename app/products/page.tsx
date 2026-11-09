@@ -151,7 +151,7 @@ export default async function ProductsPage({
                       Ready to ship
                     </span>
                   </div>
-                  <div className="mt-4"><CartButton product={{ id: product.id, name: product.name, sku: product.sku, sellingPrice: Number(product.sellingPrice), gstRate: product.gstRate == null ? null : Number(product.gstRate), handlingCharge: Number(product.handlingCharge || 0), imageUrls: product.imageUrls }} /></div>
+                  <div className="mt-4"><CartButton product={{ id: product.id, name: product.name, sku: product.sku, sellingPrice: Number(product.sellingPrice), gstRate: product.gstRate == null ? null : Number(product.gstRate), handlingCharge: Number(product.handlingCharge || 0), imageUrls: product.imageUrls, requiresOptions: Boolean(product.color?.trim() || product.size?.trim()) }} /></div>
                 </article>
               );
             })

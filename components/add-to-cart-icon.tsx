@@ -2,12 +2,15 @@
 
 import { ShoppingBag } from "lucide-react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { MAX_CART_UNITS, cartItemSchema, normalizeCart, readCart, writeCart } from "@/lib/cart";
 
-export function AddToCartIcon({ product }: { product: { id: string; name: string; sku: string; sellingPrice: number; imageUrls?: string[] | null } }) {
+export function AddToCartIcon({ product }: { product: { id: string; name: string; sku: string; sellingPrice: number; imageUrls?: string[] | null; requiresOptions?: boolean } }) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
 
   function addToCart() {
+    if (product.requiresOptions) { router.push(`/products/${product.id}`); return; }
     try {
       const current = readCart(localStorage);
       if (current.reduce((sum, item) => sum + item.quantity, 0) >= MAX_CART_UNITS) {

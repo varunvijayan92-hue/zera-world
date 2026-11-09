@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { normalizeCart, readCart, writeCart } from "@/lib/cart";
 import { singleItemTotal } from "@/lib/customer-price";
 
-export function CartButton({ product, label }: { product: { id: string; name: string; sku: string; sellingPrice?: number | string | null; gstRate?: number | string | null; handlingCharge?: number | string | null; imageUrls?: string[] | null }; label?: string }) {
+export function CartButton({ product, label }: { product: { id: string; name: string; sku: string; sellingPrice?: number | string | null; gstRate?: number | string | null; handlingCharge?: number | string | null; imageUrls?: string[] | null; selectedColor?: string; selectedSize?: string; requiresOptions?: boolean }; label?: string }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState("");
@@ -14,11 +14,14 @@ export function CartButton({ product, label }: { product: { id: string; name: st
   const priceLabel = label ?? `Buy at ₹${singleItemTotal(product).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
   useEffect(() => setReady(true), []);
   async function selectItem() {
+    if (product.requiresOptions && !product.selectedColor && !product.selectedSize) { router.push(`/products/${product.id}`); return; }
     if (busy) return;
     setBusy(true); setMessage("");
     try {
       const current = readCart(localStorage);
       if (current.reduce((sum, item) => sum + item.quantity, 0) >= 10) { setMessage("Your cart has reached the maximum of 10 units."); return; }
+      const existing = current.find(item => item.id === product.id);
+      if (existing && (existing.selectedColor !== product.selectedColor || existing.selectedSize !== product.selectedSize)) throw Error("Remove this product from your cart before choosing another colour or size.");
       const next = normalizeCart([...current, { ...product, quantity: 1 }]);
       if (!next.some((item) => item.id === product.id)) throw new Error("Product is unavailable.");
       const response = await fetch("/api/auth/me", { cache: "no-store" });
