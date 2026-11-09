@@ -22,6 +22,7 @@ export const cloudinaryMedia = {
           resource_type: "image", folder: `zeraworld/${kind}/${productId}`,
           allowed_formats: ["jpg", "png", "webp"], overwrite: false,
           unique_filename: true, use_filename: false, timeout: 30000,
+          transformation: [{ width: 2000, height: 2000, crop: "limit", quality: "auto:good", fetch_format: "webp" }],
         }, (error, response) => {
           if (error || !response) reject(error || new Error("Empty upload response"));
           else resolve(response);
