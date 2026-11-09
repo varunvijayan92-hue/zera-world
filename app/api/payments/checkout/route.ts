@@ -50,7 +50,8 @@ export async function POST(request: Request) {
       const giftCardId = paymentMethod === "gift_card" ? await debitGiftCard(tx, user.id, parsed.data.giftCardCode!, amount.total) : null;
       const order = await tx.customerOrder.create({
         data: {
-          marketplaceType: "AMAZON",
+          salesChannel: "WEBSITE",
+          marketplaceType: "WEBSITE",
           marketplaceOrderId: `ORDER-${randomUUID()}`,
           customerId: user?.role === "CUSTOMER" ? user.id : null,
           customerName: shippingAddress.fullName,

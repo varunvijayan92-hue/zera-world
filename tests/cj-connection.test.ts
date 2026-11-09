@@ -18,7 +18,7 @@ test("CJ connection is admin-only, checks the fixed endpoint and never returns c
   process.env.INTEGRATION_ENCRYPTION_KEY = Buffer.alloc(32, 5).toString("base64");
   t.after(() => { if (previous === undefined) delete process.env.INTEGRATION_ENCRYPTION_KEY; else process.env.INTEGRATION_ENCRYPTION_KEY = previous; });
   t.mock.method(integrationStore, "find", async () => ({ id: "test", provider: "CJ_DROPSHIPPING", encryptedCredentials: encryptCredentials({ apiKey: "private-test-key" }), options: null, updatedAt: new Date() }));
-  const fetchMock = t.mock.method(globalThis, "fetch", async (input, init) => {
+  const fetchMock = t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
     assert.equal(String(input), "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken");
     assert.equal(init?.redirect, "error");
     assert.equal(JSON.parse(String(init?.body)).apiKey, "private-test-key");

@@ -492,6 +492,7 @@ model SupplierApprovalDecision {
 }
 
 model CustomerOrder {
+  salesChannel       String         @default("UNKNOWN")
   customerId         String?
   customer           User?           @relation(fields: [customerId], references: [id])
   deliveredAt        DateTime?
@@ -756,6 +757,7 @@ enum SyncStatus {
 }
 
 enum MarketplaceType {
+  WEBSITE
   AMAZON
   FLIPKART
 }

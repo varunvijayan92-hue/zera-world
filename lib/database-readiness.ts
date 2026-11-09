@@ -18,7 +18,7 @@ const required: Record<string, string[]> = {
   Product: ["codAvailable", "gstRate", "deliveryCharge", "handlingCharge", "returnDays", "isReturnable", "size", "warranty", "trend", "inTheBox", "mrp", "hsnCode"],
   Shipment: ["pickupLocation"],
   Supplier: ["shiprocketPickupLocation", "sourceType", "pickupAddress", "pickupAddressLine1", "pickupAddressLine2", "pickupCity", "pickupDistrict", "pickupState", "pickupCountry", "pickupLandmark", "pickupPincode", "companyAddress", "companyAddressLine1", "companyAddressLine2", "companyCity", "companyDistrict", "companyState", "companyCountry", "companyLandmark", "companyPincode", "companyPhone", "companyEmail", "companyRegistrationNumber", "companyLicenseNumber", "companyProfileNotes", "gstNumber", "gstRegistered", "gstRate"],
-  CustomerOrder: ["customerId", "deliveredAt", "taxAmount", "handlingAmount"],
+  CustomerOrder: ["customerId", "deliveredAt", "taxAmount", "handlingAmount", "salesChannel"],
   OrderItem: ["costPrice", "gstRate", "handlingCharge", "isReturnable", "returnDays", "fulfillmentStatus"],
   ReturnRequest: ["customerId", "orderItemId", "receivedAt", "supplierReceivedAt"],
   Refund: ["gatewayRefundId"],

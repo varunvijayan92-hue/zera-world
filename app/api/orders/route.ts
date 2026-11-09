@@ -31,6 +31,7 @@ export async function POST(request: Request) {
 
     const order = await prisma.customerOrder.create({
       data: {
+        salesChannel: parsed.data.marketplaceType,
         marketplaceType: parsed.data.marketplaceType,
         marketplaceOrderId: parsed.data.marketplaceOrderId,
         customerName: parsed.data.customerName || "Guest",
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
 
     const supplierDispatches = routeMarketplaceOrderToSuppliers({
       id: order.id,
-      marketplaceType: order.marketplaceType,
+      marketplaceType: parsed.data.marketplaceType,
       marketplaceOrderId: order.marketplaceOrderId,
       customerName: order.customerName,
       totalAmount: Number(order.totalAmount ?? parsed.data.totalAmount ?? 0),
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
 
     const supplierOrderWorkflow = createSupplierOrderWorkflow({
       orderId: order.id,
-      marketplaceType: order.marketplaceType,
+      marketplaceType: parsed.data.marketplaceType,
       supplierId: parsed.data.supplierAssignments?.[0]?.supplierId || "supplier-pending",
       supplierName: parsed.data.supplierAssignments?.[0]?.supplierName || "Unassigned Supplier",
       productId: parsed.data.items?.[0]?.productId || "product-pending",
