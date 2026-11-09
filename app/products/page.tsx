@@ -146,10 +146,10 @@ export default async function ProductsPage({
 
                   <div className="mt-4 flex items-center justify-between">
                     <ProductPrice sellingPrice={Number(product.sellingPrice || 0)} gstRate={product.gstRate == null ? null : Number(product.gstRate)} handlingCharge={Number(product.handlingCharge || 0)} mrp={extras.get(product.id)?.mrp} priceClassName="text-xl font-black text-[#173B35]" />
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#B38A45]/10 px-2 py-1 text-[0.7rem] font-medium text-[#173B35]">
+                    <Link href={`/products/${product.id}`} className="inline-flex items-center gap-1 rounded-full bg-[#B38A45]/10 px-2 py-1 text-[0.7rem] font-medium text-[#173B35]">
                       <Truck size={12} />
-                      Ship now
-                    </span>
+                      Buy now
+                    </Link>
                   </div>
                   <div className="mt-4"><CartButton product={{ id: product.id, name: product.name, sku: product.sku, sellingPrice: Number(product.sellingPrice), gstRate: product.gstRate == null ? null : Number(product.gstRate), handlingCharge: Number(product.handlingCharge || 0), imageUrls: product.imageUrls, requiresOptions: Boolean(product.color?.trim() || product.size?.trim()) }} /></div>
                 </article>
