@@ -10,7 +10,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ prod
     const { productId } = await params;
     const [variants, mappings] = await Promise.all([
       prisma.productVariant.findMany({ where: { productId }, select: { id: true, variantName: true, sku: true }, orderBy: { variantName: "asc" } }),
-      prisma.supplierProductMapping.findMany({ where: { productId, supplier: { provider: "CJ_DROPSHIPPING" } }, select: { id: true, variantId: true, externalProductId: true, supplierVariantId: true, supplierSku: true, packagingSku: true, supplierStockQty: true, lastStockCheckAt: true, mappingStatus: true } }),
+      prisma.supplierProductMapping.findMany({ where: { productId, supplier: { provider: "CJ_DROPSHIPPING" } }, select: { id: true, variantId: true, externalProductId: true, supplierVariantId: true, supplierSku: true, supplierVariantKey: true, packagingSku: true, supplierStockQty: true, lastStockCheckAt: true, mappingStatus: true } }),
     ]);
     return NextResponse.json({ variants, mappings });
   } catch (error) { return apiError(error); }
