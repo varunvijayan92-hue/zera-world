@@ -96,6 +96,7 @@ model RolePermission {
 model Supplier {
   id                      String                   @id @default(cuid())
   sourceType              String                   @default("DIRECT")
+  codHandling             String                   @default("NONE")
   pickupAddress           String?
   pickupAddressLine1      String?
   pickupAddressLine2      String?

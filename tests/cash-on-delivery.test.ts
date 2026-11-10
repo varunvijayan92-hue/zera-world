@@ -23,12 +23,12 @@ test("multi-supplier COD collection totals allocate shipping once with determini
 
 function setup(t: TestContext) {
   let created = false;
-  const product = { id: "p1", sku: "SKU", name: "Product", status: "ACTIVE", supplierId: "s1", supplier: { status: "ACTIVE", sourceType: "DIRECT" }, sellingPrice: 100, costPrice: 40, gstRate: 5, handlingCharge: 0, codAvailable: true, inventory: [{ availableQty: 5, reservedQty: 0 }], imageUrls: [] };
+  const product = { id: "p1", sku: "SKU", name: "Product", status: "ACTIVE", supplierId: "s1", supplier: { status: "ACTIVE", sourceType: "DIRECT", codHandling: "OWN_COURIER" }, sellingPrice: 100, costPrice: 40, gstRate: 5, handlingCharge: 0, codAvailable: true, inventory: [{ availableQty: 5, reservedQty: 0 }], imageUrls: [] };
   const order = { id: "o1", marketplaceOrderId: "ORDER-UNIT", status: "CONFIRMED", customerId: "customer1", totalAmount: 105, shippingAmount: 0, shippingAddress, orderItems: [{ productId: "p1", supplierId: "s1", marketplaceSku: "SKU", quantity: 1, unitPrice: 100, gstRate: 5, handlingCharge: 0 }] };
   let orderData: Record<string, unknown> = {}, paymentData: Record<string, unknown> = {};
   const original = { product: prisma.product, customerOrder: prisma.customerOrder, paymentTransaction: prisma.paymentTransaction, supplier: prisma.supplier, transaction: prisma.$transaction };
   Object.assign(prisma, {
-    product: { findMany: async () => [product] },
+    product: { findMany: async (args: { where?: { supplier?: { provider?: string } } }) => args.where?.supplier?.provider === "CJ_DROPSHIPPING" ? [] : [product] },
     customerOrder: { create: async ({ data }: { data: typeof orderData }) => { orderData = data; return order; }, findFirst: async ({ where }: { where: { customerId: string } }) => where.customerId === order.customerId ? order : null },
     paymentTransaction: { findUnique: async () => created ? { orderId: "o1", provider: "COD", paymentStatus: "PENDING" } : null, create: async ({ data }: { data: typeof paymentData }) => { paymentData = data; created = true; return { id: "payment1" }; } },
     supplier: { findMany: async () => [{ id: "s1", companyName: "Supplier", email: "supplier@example.test" }] },
@@ -41,11 +41,12 @@ function setup(t: TestContext) {
   return { product, order, actor, email, gateway, orderData: () => orderData, paymentData: () => paymentData };
 }
 
-test("COD requires every product to be opted in with an active direct supplier", () => {
-  const product = { codAvailable: true, supplierId: "s1", supplier: { status: "ACTIVE", sourceType: "DIRECT" } };
+test("COD requires each product and active supplier to have an enabled collection arrangement", () => {
+  const product = { codAvailable: true, supplierId: "s1", supplier: { status: "ACTIVE", sourceType: "DIRECT", codHandling: "OWN_COURIER" } };
   assert.equal(cashOnDeliveryAvailable([product]), true);
+  assert.equal(cashOnDeliveryAvailable([{ ...product, supplier: { status: "ACTIVE", sourceType: "EXTERNAL_SITE", codHandling: "SUPPLIER_COURIER" } }]), true);
   assert.equal(cashOnDeliveryAvailable([]), false);
-  for (const ineligible of [{ ...product, codAvailable: false }, { ...product, supplierId: null }, { ...product, supplier: { status: "INACTIVE", sourceType: "DIRECT" } }, { ...product, supplier: { status: "ACTIVE", sourceType: "EXTERNAL_SITE" } }]) assert.equal(cashOnDeliveryAvailable([product, ineligible]), false);
+  for (const ineligible of [{ ...product, codAvailable: false }, { ...product, supplierId: null }, { ...product, supplier: { status: "INACTIVE", sourceType: "DIRECT", codHandling: "OWN_COURIER" } }, { ...product, supplier: { status: "ACTIVE", sourceType: "EXTERNAL_SITE", codHandling: "NONE" } }]) assert.equal(cashOnDeliveryAvailable([product, ineligible]), false);
   assert.deepEqual(fulfilmentPaymentWhere("o1"), { orderId: "o1", OR: [{ paymentStatus: "PAID" }, { provider: "COD", paymentStatus: "PENDING" }] });
 });
 

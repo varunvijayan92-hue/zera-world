@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       if (existing) return null;
       const products = await tx.product.findMany({
         where: { id: { in: cart.map((item) => item.productId) } },
-        include: { supplier: { select: { status: true, sourceType: true, provider: true } }, supplierProductMappings: true, inventory: { where: { status: "AVAILABLE" } } },
+        include: { supplier: { select: { status: true, sourceType: true, provider: true, codHandling: true } }, supplierProductMappings: true, inventory: { where: { status: "AVAILABLE" } } },
       });
       for (const item of cart) {
         const product = products.find(entry => entry.id === item.productId);

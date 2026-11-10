@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   if (rateLimited(request, "checkout-quote", 30, 60000)) return NextResponse.json({ message: "Please wait before checking stock again." }, { status: 429 });
   try {
     const products = await prisma.product.findMany({
-      where: { id: { in: parsed.data.cart.map((item) => item.productId) } }, include: { supplier: { select: { status: true, sourceType: true, provider: true } }, supplierProductMappings: true, inventory: { where: { status: "AVAILABLE" } } },
+      where: { id: { in: parsed.data.cart.map((item) => item.productId) } }, include: { supplier: { select: { status: true, sourceType: true, provider: true, codHandling: true } }, supplierProductMappings: true, inventory: { where: { status: "AVAILABLE" } } },
     });
     for (const item of parsed.data.cart) {
       const product = products.find(entry => entry.id === item.productId);
