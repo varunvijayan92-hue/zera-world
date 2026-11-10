@@ -76,7 +76,7 @@ export default async function ProductsPage({
           </Link>
         </div>
 
-        {subcategories.length ? <section aria-label="Subcategories" className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{subcategories.map(category => <Link key={category.id} href={categoryLink(category.slug)} className="overflow-hidden rounded-2xl border bg-white"><ProductImage src={category.imageUrl} alt={category.name} width={400} height={240} className="h-32 w-full object-cover" /><h2 className="p-4 font-bold">{category.name}</h2></Link>)}</section> : null}
+        {subcategories.length ? <section aria-label="Subcategories" className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{subcategories.map(category => <Link key={category.id} href={categoryLink(category.slug)} className="overflow-hidden rounded-2xl border bg-white"><ProductImage src={category.imageUrl} alt={category.name} fit="contain" width={400} height={240} sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" className="aspect-[5/3] w-full bg-[#F7F4ED] object-contain p-2" /><h2 className="p-4 font-bold">{category.name}</h2></Link>)}</section> : null}
         <div className="mb-8 rounded-[28px] border border-[#173B35]/10 bg-white p-5 shadow-[0_18px_42px_rgba(23,59,53,0.06)]">
           <form id="catalog-search" method="get" className="flex flex-col gap-4 md:flex-row md:items-end">
             {isNewArrivals ? <input type="hidden" name="sort" value="newest" /> : null}
