@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 type CodProduct = { codAvailable?: boolean; supplierId?: string | null; supplier?: { status: string; sourceType: string; codHandling?: string } | null };
 export function cashOnDeliveryAvailable(products: CodProduct[]) {
-  return products.length > 0 && products.every(product => product.codAvailable === true && !!product.supplierId && product.supplier?.status === "ACTIVE" && ["OWN_COURIER", "SUPPLIER_COURIER"].includes(product.supplier.codHandling || ""));
+  return products.length > 0 && products.every(product => product.codAvailable === true && !!product.supplierId && product.supplier?.status === "ACTIVE" && ["OWN_COURIER", "SUPPLIER_COURIER", "EITHER"].includes(product.supplier.codHandling || ""));
 }
 
 export function fulfilmentPaymentWhere(orderId: string): Prisma.PaymentTransactionWhereInput {

@@ -45,6 +45,7 @@ test("COD requires each product and active supplier to have an enabled collectio
   const product = { codAvailable: true, supplierId: "s1", supplier: { status: "ACTIVE", sourceType: "DIRECT", codHandling: "OWN_COURIER" } };
   assert.equal(cashOnDeliveryAvailable([product]), true);
   assert.equal(cashOnDeliveryAvailable([{ ...product, supplier: { status: "ACTIVE", sourceType: "EXTERNAL_SITE", codHandling: "SUPPLIER_COURIER" } }]), true);
+  assert.equal(cashOnDeliveryAvailable([{ ...product, supplier: { status: "ACTIVE", sourceType: "EXTERNAL_SITE", codHandling: "EITHER" } }]), true);
   assert.equal(cashOnDeliveryAvailable([]), false);
   for (const ineligible of [{ ...product, codAvailable: false }, { ...product, supplierId: null }, { ...product, supplier: { status: "INACTIVE", sourceType: "DIRECT", codHandling: "OWN_COURIER" } }, { ...product, supplier: { status: "ACTIVE", sourceType: "EXTERNAL_SITE", codHandling: "NONE" } }]) assert.equal(cashOnDeliveryAvailable([product, ineligible]), false);
   assert.deepEqual(fulfilmentPaymentWhere("o1"), { orderId: "o1", OR: [{ paymentStatus: "PAID" }, { provider: "COD", paymentStatus: "PENDING" }] });

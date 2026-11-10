@@ -7,7 +7,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const actor = await portalUser("ADMIN", request);
     const { id } = await params;
-    const input = z.object({ codHandling: z.enum(["NONE", "OWN_COURIER", "SUPPLIER_COURIER"]) }).safeParse(await request.json().catch(() => null));
+    const input = z.object({ codHandling: z.enum(["NONE", "OWN_COURIER", "SUPPLIER_COURIER", "EITHER"]) }).safeParse(await request.json().catch(() => null));
     if (!input.success) throw new AccessError("Choose a COD collection arrangement.");
     await prisma.$transaction(async tx => {
       const updated = await tx.supplier.updateMany({ where: { id }, data: { codHandling: input.data.codHandling } });
