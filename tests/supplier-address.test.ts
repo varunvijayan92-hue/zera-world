@@ -2,6 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { formatSupplierPickupAddress } from "../lib/supplier-address";
 import { supplierSchema } from "../lib/validators";
+
+test("supplier registration stores and validates the chosen COD collection arrangement", () => {
+  assert.equal(supplierSchema.parse({ companyName: "Supplier", sourceType: "EXTERNAL_SITE", codHandling: "EITHER" }).codHandling, "EITHER");
+  assert.equal(supplierSchema.parse({ companyName: "Supplier" }).codHandling, "NONE");
+  assert.equal(supplierSchema.safeParse({ companyName: "Supplier", codHandling: "UNKNOWN" }).success, false);
+});
 import { priceCheckout } from "../lib/checkout";
 import { authContext } from "../lib/auth";
 import { prisma } from "../lib/prisma";

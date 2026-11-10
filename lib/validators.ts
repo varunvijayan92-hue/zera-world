@@ -3,6 +3,7 @@ import { supplierPickupAddressSchema } from "./supplier-address";
 
 export const supplierSchema = z.object({
   sourceType: z.enum(["DIRECT", "EXTERNAL_SITE"]).default("DIRECT"),
+  codHandling: z.enum(["NONE", "OWN_COURIER", "SUPPLIER_COURIER", "EITHER"]).default("NONE"),
   companyName: z.string().min(1),
   contactName: z.string().optional().or(z.literal("")),
   email: z.string().email().optional().or(z.literal("")),
