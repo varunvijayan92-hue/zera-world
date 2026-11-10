@@ -37,6 +37,9 @@ export async function POST(request: Request) {
         const updated = await tx.supplierProductMapping.updateMany({ where: { id: { in: activateMappingIds }, productId, supplierId: product.supplierId, mappingStatus: "PENDING" }, data: { mappingStatus: "ACTIVE" } });
         if (updated.count !== activateMappingIds.length) throw new AccessError("Mappings changed during synchronization. Refresh and try again.", 409);
       }
+      for (const item of incoming) {
+        if (item.variantKey) await tx.supplierProductMapping.updateMany({ where: { productId, supplierId: product.supplierId, externalProductId: cjProductId, supplierVariantId: item.vid, supplierSku: item.variantSku }, data: { supplierVariantKey: item.variantKey } });
+      }
       await tx.auditLog.create({ data: { userId: actor.id, action: "SYNC_CJ_VARIANTS", entityType: "Product", entityId: productId, details: { cjProductId, received: incoming.length, added: newVariants.length, stale } } });
       return { received: incoming.length, added: newVariants.length, updated: updates.length, mappingsAdded: newMappings.length, stale };
     }, { isolationLevel: "Serializable", timeout: 30000 });

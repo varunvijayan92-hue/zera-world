@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const cjVariant = z.object({ vid: z.string().trim().min(1).max(100), pid: z.string().trim().min(1).max(100), variantSku: z.string().trim().min(1).max(100), variantNameEn: z.string().trim().min(1).max(255) });
+const cjVariant = z.object({ vid: z.string().trim().min(1).max(100), pid: z.string().trim().min(1).max(100), variantSku: z.string().trim().min(1).max(100), variantNameEn: z.string().trim().min(1).max(255), variantKey: z.string().trim().max(255).nullish() });
 const cjProduct = z.object({ pid: z.string().min(1).max(100), variants: z.array(cjVariant).min(1).max(200) });
 
 export function parseCjSyncVariants(productId: string, value: unknown) {
