@@ -7,7 +7,7 @@ type Product = {
   inventory: { availableQty: number; reservedQty: number; status?: string }[];
 };
 
-export function priceCheckout(cart: CartItem[], products: Product[]) {
+export function priceCheckout(cart: CartItem[], products: Product[], cjStock?: Map<string, number>) {
   const lookup = new Map(products.map((product) => [product.id, product]));
   if (!cart.length || new Set(cart.map((item) => item.productId)).size !== cart.length) {
     throw new Error("Cart must contain distinct products.");
@@ -25,7 +25,7 @@ export function priceCheckout(cart: CartItem[], products: Product[]) {
     }
     const price = Number(product.sellingPrice);
     if (!Number.isFinite(price) || price <= 0) throw new Error("Product price is unavailable.");
-    const stock = product.inventory.filter((row) => row.status === undefined || row.status === "AVAILABLE").reduce((sum, row) => sum + Math.max(0, row.availableQty - row.reservedQty), 0);
+    const stock = cjStock?.has(item.productId) ? cjStock.get(item.productId)! : product.inventory.filter((row) => row.status === undefined || row.status === "AVAILABLE").reduce((sum, row) => sum + Math.max(0, row.availableQty - row.reservedQty), 0);
     if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10 || stock < item.quantity) {
       throw new Error("Requested quantity is unavailable.");
     }

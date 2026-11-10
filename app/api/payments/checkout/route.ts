@@ -11,6 +11,9 @@ import { createPaymentSession } from "@/lib/payment";
 import { gatewayError, GatewayError } from "@/lib/razorpay";
 import { priceCheckout } from "@/lib/checkout";
 import { checkoutRequestSchema } from "@/lib/validators";
+import { matchCjVariant } from "@/lib/cj-variant-match";
+import { cjCheckoutStock } from "@/lib/cj-checkout-stock";
+import { rateLimited } from "@/lib/rate-limit";
 import { buildSupplierOrderEmailText, emailDelivery } from "@/lib/email";
 
 function codResponse(order: { id: string; marketplaceOrderId: string; status: string; totalAmount: unknown }, repeated = false, paymentStatus = "PENDING") {
@@ -29,20 +32,27 @@ export async function POST(request: Request) {
   }
   const user = request.headers.get("cookie")?.includes(AUTH_COOKIE) ? await getCurrentUser() : null;
   if (!user || user.role !== "CUSTOMER") return NextResponse.json({ message: "Please sign in as a customer to continue to payment." }, { status: 401 });
+  if (rateLimited(request, `checkout-stock:${user.id}`, 20, 60000)) return NextResponse.json({ message: "Please wait before checking stock again." }, { status: 429 });
   const { cart, shippingAddress, paymentMethod } = parsed.data;
   if (["cod", "gift_card"].includes(paymentMethod) && !parsed.data.idempotencyKey) return NextResponse.json({ message: "Checkout reference missing. Refresh the payment page and try again." }, { status: 400 });
   if (paymentMethod === "gift_card" && !parsed.data.giftCardCode) return NextResponse.json({ message: "Choose your gift card." }, { status: 400 });
   const idempotencyKey = parsed.data.idempotencyKey || randomUUID();
   try {
+    const cj = await cjCheckoutStock(cart, true);
     // Commit the order and its unique submission key together.
     const result = await prisma.$transaction(async (tx) => {
       const existing = await tx.paymentTransaction.findUnique({ where: { idempotencyKey } });
       if (existing) return null;
       const products = await tx.product.findMany({
         where: { id: { in: cart.map((item) => item.productId) } },
-        include: { supplier: { select: { status: true, sourceType: true } }, inventory: { where: { status: "AVAILABLE" } } },
+        include: { supplier: { select: { status: true, sourceType: true, provider: true } }, supplierProductMappings: true, inventory: { where: { status: "AVAILABLE" } } },
       });
-      const amount = priceCheckout(cart, products);
+      for (const item of cart) {
+        const product = products.find(entry => entry.id === item.productId);
+        if (product && cj.selected.has(product.id) && product.supplier?.provider !== "CJ_DROPSHIPPING") throw new GatewayError("The supplier changed. Please review your order again.", 409);
+        if (product?.supplier?.provider === "CJ_DROPSHIPPING" && (!cj.selected.has(product.id) || matchCjVariant(product.supplierProductMappings.filter(m => m.supplierId === product.supplierId), item.selectedColor, item.selectedSize)?.id !== cj.selected.get(product.id))) throw new GatewayError("The selected colour and size could not be matched. Please choose another option.", 400);
+      }
+      const amount = priceCheckout(cart, products, cj.stock);
       if (paymentMethod === "cod" && !cashOnDeliveryAvailable(products)) throw new GatewayError("Cash on delivery is not available for every item in this cart. Choose prepaid payment or update your cart.", 400);
       if (parsed.data.expectedTotalPaise !== undefined && parsed.data.expectedTotalPaise !== Math.round(amount.total * 100)) {
         throw new GatewayError("The order amount has changed. Go back to review and confirm the updated amount.", 409);
