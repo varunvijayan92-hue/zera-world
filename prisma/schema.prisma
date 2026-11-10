@@ -305,6 +305,7 @@ model SupplierProductMapping {
   externalProductId     String?
   supplierSku           String?
   packagingSku          String?
+  supplierStockQty      Int?
   supplierVariantId     String?
   supplierProductUrl    String?
   purchaseCost          Decimal?  @db.Decimal(12, 2)
