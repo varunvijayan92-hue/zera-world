@@ -71,7 +71,7 @@ test("order review quotes the chosen quantity without creating orders or payment
   const original = { product: prisma.product, customerOrder: prisma.customerOrder, paymentTransaction: prisma.paymentTransaction };
   let writes = 0;
   Object.assign(prisma, {
-    product: { findMany: async () => [{ ...item, status: "ACTIVE", imageUrls: [], inventory: [{ availableQty: 5, reservedQty: 0 }] }] },
+    product: { findMany: async (args: { where?: { supplier?: { provider?: string } } }) => args.where?.supplier?.provider === "CJ_DROPSHIPPING" ? [] : [{ ...item, status: "ACTIVE", imageUrls: [], inventory: [{ availableQty: 5, reservedQty: 0 }] }] },
     customerOrder: { create: async () => { writes++; } }, paymentTransaction: { create: async () => { writes++; } },
   });
   t.after(() => Object.assign(prisma, original));

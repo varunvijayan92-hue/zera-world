@@ -117,7 +117,7 @@ test("unknown orders and gateway authentication failures are handled safely", as
 test("create-order uses persisted cart prices and returns gateway amounts in paise", async (t) => {
   setup(t);
   t.mock.method(prisma.paymentTransaction, "findUnique", async () => null);
-  t.mock.method(prisma.product, "findMany", async () => [{
+  t.mock.method(prisma.product, "findMany", async (args: { where?: { supplier?: unknown } }) => args.where?.supplier ? [] : [{
     id: "p1", sku: "SKU", status: "ACTIVE", sellingPrice: 99.99,
     inventory: [{ availableQty: 10, reservedQty: 0 }],
   }]);
@@ -143,7 +143,7 @@ test("create-order uses persisted cart prices and returns gateway amounts in pai
 test("a changed total requires fresh confirmation before an order or payment is created", async (t) => {
   setup(t);
   t.mock.method(prisma.paymentTransaction, "findUnique", async () => null);
-  t.mock.method(prisma.product, "findMany", async () => [{
+  t.mock.method(prisma.product, "findMany", async (args: { where?: { supplier?: unknown } }) => args.where?.supplier ? [] : [{
     id: "p1", sku: "SKU", status: "ACTIVE", sellingPrice: 100,
     inventory: [{ availableQty: 10, reservedQty: 0 }],
   }]);

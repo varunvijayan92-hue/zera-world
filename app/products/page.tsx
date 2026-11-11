@@ -1,5 +1,6 @@
+import { ProductFramedImage } from "@/components/product-framed-image";
 import { CategoryMenu } from "@/components/category-menu";
-import { ProductImage } from "@/components/product-image";
+
 import { CartButton } from "@/components/cart-button";
 import Link from "next/link";
 import { ShoppingBag, Truck } from "lucide-react";
@@ -76,7 +77,7 @@ export default async function ProductsPage({
           </Link>
         </div>
 
-        {subcategories.length ? <section aria-label="Subcategories" className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{subcategories.map(category => <Link key={category.id} href={categoryLink(category.slug)} className="overflow-hidden rounded-2xl border bg-white"><ProductImage src={category.imageUrl} alt={category.name} fit="contain" width={400} height={240} sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" className="aspect-[5/3] w-full bg-[#F7F4ED] object-contain p-2" /><h2 className="p-4 font-bold">{category.name}</h2></Link>)}</section> : null}
+        {subcategories.length ? <section aria-label="Subcategories" className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{subcategories.map(category => <Link key={category.id} href={categoryLink(category.slug)} className="overflow-hidden rounded-2xl border bg-white"><div className="aspect-[5/3] w-full overflow-hidden"><ProductFramedImage src={category.imageUrl} alt={category.name} padding={false} sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" /></div><h2 className="p-4 font-bold">{category.name}</h2></Link>)}</section> : null}
         <div className="mb-8 rounded-[28px] border border-[#173B35]/10 bg-white p-5 shadow-[0_18px_42px_rgba(23,59,53,0.06)]">
           <form id="catalog-search" method="get" className="flex flex-col gap-4 md:flex-row md:items-end">
             {isNewArrivals ? <input type="hidden" name="sort" value="newest" /> : null}
@@ -123,7 +124,7 @@ export default async function ProductsPage({
                 <article key={product.id} className="overflow-hidden rounded-[28px] border border-[#173B35]/10 bg-white p-4 shadow-[0_14px_32px_rgba(23,59,53,0.05)] transition hover:-translate-y-1 hover:shadow-[0_18px_36px_rgba(23,59,53,0.08)]">
                   <Link href={`/products/${product.id}`} className="block">
                     <div className="flex h-52 items-center justify-center overflow-hidden rounded-[22px] bg-gradient-to-br from-[#8EA695]/30 via-[#F7F4ED] to-[#B38A45]/20 text-4xl text-[#173B35]">
-                      <ProductImage src={imageUrl} alt={product.name} fit="contain" width={600} height={600} sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" className="h-full w-full bg-[#F7F4ED] object-contain p-2" />
+                      <ProductFramedImage src={imageUrl} alt={product.name} sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw" />
                     </div>
                   </Link>
 
