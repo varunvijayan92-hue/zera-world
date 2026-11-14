@@ -7,6 +7,7 @@ import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -760,6 +761,126 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
             put("reference", reference)
             if (!notes.isNullOrEmpty()) put("notes", notes)
             if (!paidAt.isNullOrEmpty()) put("paidAt", paidAt)
+        }
+        return postAdminAction(body)
+    }
+
+    suspend fun uploadPhoto(
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String = "image/jpeg",
+        productId: String? = null,
+        categoryId: String? = null,
+        kind: String = "products"
+    ): ApiResult<JSONObject> = withContext(Dispatchers.IO) {
+        try {
+            val url = "$baseUrl/api/mobile/upload"
+            val builder = MultipartBody.Builder().setType(MultipartBody.FORM)
+            builder.addFormDataPart("file", fileName, fileBytes.toRequestBody(mimeType.toMediaType()))
+            builder.addFormDataPart("kind", kind)
+            if (!productId.isNullOrEmpty()) builder.addFormDataPart("productId", productId)
+            if (!categoryId.isNullOrEmpty()) builder.addFormDataPart("categoryId", categoryId)
+
+            val request = Request.Builder()
+                .url(url)
+                .post(builder.build())
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val bodyStr = response.body?.string().orEmpty()
+                if (response.isSuccessful) {
+                    ApiResult.Success(if (bodyStr.isNotEmpty()) JSONObject(bodyStr) else JSONObject())
+                } else {
+                    val msg = parseErrorMessage(bodyStr, "Upload failed with HTTP ${response.code}")
+                    ApiResult.Error(msg, response.code)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.message ?: "Failed to upload photo")
+        }
+    }
+
+    suspend fun createCategory(
+        name: String,
+        slug: String? = null,
+        description: String = "",
+        imageUrl: String? = null
+    ): ApiResult<String> {
+        val body = JSONObject().apply {
+            put("action", "CATEGORY_CREATE")
+            put("name", name)
+            if (!slug.isNullOrEmpty()) put("slug", slug)
+            put("description", description)
+            if (!imageUrl.isNullOrEmpty()) put("imageUrl", imageUrl)
+        }
+        return postAdminAction(body)
+    }
+
+    suspend fun updateCategory(
+        categoryId: String,
+        name: String? = null,
+        description: String? = null,
+        imageUrl: String? = null,
+        isVisible: Boolean? = null
+    ): ApiResult<String> {
+        val body = JSONObject().apply {
+            put("action", "CATEGORY_UPDATE")
+            put("categoryId", categoryId)
+            if (!name.isNullOrEmpty()) put("name", name)
+            if (!description.isNullOrEmpty()) put("description", description)
+            if (!imageUrl.isNullOrEmpty()) put("imageUrl", imageUrl)
+            if (isVisible != null) put("isVisible", isVisible)
+        }
+        return postAdminAction(body)
+    }
+
+    suspend fun updateInventory(productId: String, availableQty: Int): ApiResult<String> {
+        val body = JSONObject().apply {
+            put("action", "INVENTORY_UPDATE")
+            put("productId", productId)
+            put("availableQty", availableQty)
+        }
+        return postAdminAction(body)
+    }
+
+    suspend fun createVoucher(
+        customerId: String,
+        code: String,
+        balance: Double,
+        expiresAt: String? = null
+    ): ApiResult<String> {
+        val body = JSONObject().apply {
+            put("action", "VOUCHER_CREATE")
+            put("customerId", customerId)
+            put("code", code)
+            put("balance", balance)
+            if (!expiresAt.isNullOrEmpty()) put("expiresAt", expiresAt)
+        }
+        return postAdminAction(body)
+    }
+
+    suspend fun deleteProductPhoto(productId: String, photoUrl: String): ApiResult<String> {
+        val body = JSONObject().apply {
+            put("action", "PHOTO_DELETE")
+            put("productId", productId)
+            put("photoUrl", photoUrl)
+        }
+        return postAdminAction(body)
+    }
+
+    suspend fun setProductCoverPhoto(productId: String, photoUrl: String): ApiResult<String> {
+        val body = JSONObject().apply {
+            put("action", "PHOTO_COVER")
+            put("productId", productId)
+            put("photoUrl", photoUrl)
+        }
+        return postAdminAction(body)
+    }
+
+    suspend fun triggerCjSync(syncType: String = "orders"): ApiResult<String> {
+        val body = JSONObject().apply {
+            put("action", "CJ_SYNC")
+            put("syncType", syncType)
         }
         return postAdminAction(body)
     }

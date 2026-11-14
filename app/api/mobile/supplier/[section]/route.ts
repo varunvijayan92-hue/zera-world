@@ -19,7 +19,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
         data = await prisma.orderItem.findMany({ where, take: 200, orderBy: { createdAt: "desc" }, select: { id: true, quantity: true, fulfillmentStatus: true, status: true, costPrice: true, product: { select: { name: true, sku: true } }, customerOrder: { select: { id: true, marketplaceOrderId: true, status: true, createdAt: true } } } });
         break;
       case "products":
-        data = await prisma.product.findMany({ where, take: 100, orderBy: { id: "asc" }, select: { id: true, name: true, sku: true, status: true, costPrice: true, hsnCode: true, inventory: { where: { supplierId: supplier.id, warehouseId: null }, select: { availableQty: true } } } });
+        data = await prisma.product.findMany({ where, take: 100, orderBy: { id: "asc" }, select: { id: true, name: true, sku: true, status: true, costPrice: true, hsnCode: true, imageUrls: true, inventory: { where: { supplierId: supplier.id, warehouseId: null }, select: { availableQty: true } } } });
         break;
       case "shipments":
         data = await prisma.shipment.findMany({ where, take: 100, orderBy: { createdAt: "desc" }, select: { id: true, trackingNumber: true, courierName: true, status: true, customerOrder: { select: { marketplaceOrderId: true } }, trackingEvents: { take: 10, orderBy: { eventTime: "desc" }, select: { eventType: true, description: true, eventTime: true } } } });

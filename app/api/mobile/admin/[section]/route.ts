@@ -51,6 +51,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
             status: true,
             sellingPrice: true,
             costPrice: true,
+            imageUrls: true,
             inventory: { select: { availableQty: true } },
             supplier: { select: { companyName: true } },
           },
@@ -142,7 +143,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
             damagedQty: true,
             incomingQty: true,
             status: true,
-            product: { select: { sku: true, name: true } },
+            product: { select: { id: true, sku: true, name: true } },
           },
         });
         break;
@@ -194,6 +195,8 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
             name: true,
             slug: true,
             description: true,
+            imageUrl: true,
+            imagePublicId: true,
             isVisible: true,
             sortOrder: true,
             parentId: true,

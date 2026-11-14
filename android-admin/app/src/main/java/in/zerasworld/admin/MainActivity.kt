@@ -4,6 +4,8 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -23,7 +25,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -31,6 +35,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -748,6 +753,10 @@ sealed class ActionDialogState {
     data class UpdateProductPrice(val productId: String, val currentSelling: Double, val currentCost: Double, val currentStock: Int) : ActionDialogState()
     data class ReplyTicket(val ticketId: String, val subject: String) : ActionDialogState()
     object AddExpense : ActionDialogState()
+    object AddCategory : ActionDialogState()
+    data class UpdateInventoryStock(val productId: String, val productName: String, val currentQty: Int) : ActionDialogState()
+    object CreateVoucher : ActionDialogState()
+    object CjSyncDialog : ActionDialogState()
 }
 
 @Composable
@@ -770,6 +779,57 @@ fun SectionDataView(
     val scope = rememberCoroutineScope()
     val actualData = data.opt("data")
     var activeDialog by remember { mutableStateOf<ActionDialogState?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var pendingUploadProductId by remember { mutableStateOf<String?>(null) }
+    var pendingUploadCategoryId by remember { mutableStateOf<String?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null && (pendingUploadProductId != null || pendingUploadCategoryId != null)) {
+            val prodId = pendingUploadProductId
+            val catId = pendingUploadCategoryId
+            scope.launch {
+                try {
+                    Toast.makeText(context, "Uploading to Cloud Storage...", Toast.LENGTH_SHORT).show()
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        var fileName = "photo.jpg"
+                        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            if (cursor.moveToFirst() && nameIndex >= 0) {
+                                fileName = cursor.getString(nameIndex)
+                            }
+                        }
+                        val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                        when (val res = repository.uploadPhoto(
+                            fileBytes = bytes,
+                            fileName = fileName,
+                            mimeType = mime,
+                            productId = prodId,
+                            categoryId = catId,
+                            kind = if (catId != null) "categories" else "products"
+                        )) {
+                            is ApiResult.Success -> {
+                                Toast.makeText(context, "Photo linked to database & Cloudinary successfully!", Toast.LENGTH_SHORT).show()
+                                onRefresh()
+                            }
+                            is ApiResult.Error -> {
+                                Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    } else {
+                        Toast.makeText(context, "Could not read selected photo file", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Upload error: ${e.message}", Toast.LENGTH_LONG).show()
+                } finally {
+                    pendingUploadProductId = null
+                    pendingUploadCategoryId = null
+                }
+            }
+        }
+    }
 
     fun runAction(call: suspend () -> ApiResult<String>) {
         scope.launch {
@@ -1439,6 +1499,172 @@ fun SectionDataView(
                 }
             )
         }
+        is ActionDialogState.AddCategory -> {
+            var catName by remember { mutableStateOf("") }
+            var catSlug by remember { mutableStateOf("") }
+            var catDesc by remember { mutableStateOf("") }
+            var catImage by remember { mutableStateOf("") }
+            AlertDialog(
+                onDismissRequest = { activeDialog = null },
+                title = { Text("Add Store Category") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = catName,
+                            onValueChange = { catName = it },
+                            label = { Text("Category Name *") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = catSlug,
+                            onValueChange = { catSlug = it },
+                            label = { Text("Slug (optional, auto-generated)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = catDesc,
+                            onValueChange = { catDesc = it },
+                            label = { Text("Description") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = catImage,
+                            onValueChange = { catImage = it },
+                            label = { Text("Cloud Storage Image URL (optional)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        if (catName.isNotBlank()) {
+                            runAction {
+                                repository.createCategory(
+                                    name = catName.trim(),
+                                    slug = catSlug.trim().takeIf { it.isNotEmpty() },
+                                    description = catDesc.trim(),
+                                    imageUrl = catImage.trim().takeIf { it.isNotEmpty() }
+                                )
+                            }
+                        } else {
+                            Toast.makeText(context, "Category name is required", Toast.LENGTH_SHORT).show()
+                        }
+                    }) { Text("Create Category") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
+                }
+            )
+        }
+        is ActionDialogState.UpdateInventoryStock -> {
+            var qtyStr by remember { mutableStateOf(dialog.currentQty.toString()) }
+            AlertDialog(
+                onDismissRequest = { activeDialog = null },
+                title = { Text("Update Available Stock") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(dialog.productName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        OutlinedTextField(
+                            value = qtyStr,
+                            onValueChange = { qtyStr = it },
+                            label = { Text("Available Quantity") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        val qty = qtyStr.toIntOrNull()
+                        if (qty != null && qty >= 0) {
+                            runAction { repository.updateInventory(dialog.productId, qty) }
+                        } else {
+                            Toast.makeText(context, "Enter a valid positive number", Toast.LENGTH_SHORT).show()
+                        }
+                    }) { Text("Save Stock") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
+                }
+            )
+        }
+        is ActionDialogState.CreateVoucher -> {
+            var custId by remember { mutableStateOf("") }
+            var code by remember { mutableStateOf("") }
+            var balanceStr by remember { mutableStateOf("") }
+            AlertDialog(
+                onDismissRequest = { activeDialog = null },
+                title = { Text("Create Customer Voucher") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = custId,
+                            onValueChange = { custId = it },
+                            label = { Text("Customer ID *") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = code,
+                            onValueChange = { code = it.uppercase() },
+                            label = { Text("Voucher Code (e.g. WELCOME100)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = balanceStr,
+                            onValueChange = { balanceStr = it },
+                            label = { Text("Voucher Balance (₹)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        val bal = balanceStr.toDoubleOrNull() ?: 0.0
+                        if (custId.isNotBlank() && code.isNotBlank() && bal > 0) {
+                            runAction { repository.createVoucher(custId.trim(), code.trim(), bal) }
+                        } else {
+                            Toast.makeText(context, "All fields are required", Toast.LENGTH_SHORT).show()
+                        }
+                    }) { Text("Create Voucher") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
+                }
+            )
+        }
+        is ActionDialogState.CjSyncDialog -> {
+            var syncType by remember { mutableStateOf("orders") }
+            AlertDialog(
+                onDismissRequest = { activeDialog = null },
+                title = { Text("CJ Dropshipping Sync") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Trigger background synchronization with CJ Dropshipping:")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = syncType == "orders",
+                                onClick = { syncType = "orders" },
+                                label = { Text("Sync Orders") }
+                            )
+                            FilterChip(
+                                selected = syncType == "products",
+                                onClick = { syncType = "products" },
+                                label = { Text("Sync Products") }
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        runAction { repository.triggerCjSync(syncType) }
+                    }) { Text("Start Sync") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
+                }
+            )
+        }
         null -> {}
     }
 
@@ -1489,8 +1715,57 @@ fun SectionDataView(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Add Expense", fontSize = 12.sp)
                     }
+                } else if (section == "categories" && role != "SUPPLIER") {
+                    Button(
+                        onClick = { activeDialog = ActionDialogState.AddCategory },
+                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add Category", fontSize = 12.sp)
+                    }
+                } else if (section in listOf("gift-cards", "vouchers") && role != "SUPPLIER") {
+                    Button(
+                        onClick = { activeDialog = ActionDialogState.CreateVoucher },
+                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("New Voucher", fontSize = 12.sp)
+                    }
+                } else if (section in listOf("product-sync") && role != "SUPPLIER") {
+                    Button(
+                        onClick = { activeDialog = ActionDialogState.CjSyncDialog },
+                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("CJ Sync", fontSize = 12.sp)
+                    }
                 }
             }
+        }
+
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search ${section.replace("-", " ")}...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp)
+            )
         }
 
         if (actualData is org.json.JSONObject) {
@@ -1649,17 +1924,51 @@ fun SectionDataView(
                     Text("No records found in this section.", color = Color.Gray)
                 }
             } else {
-                items((0 until actualData.length()).toList()) { index ->
-                    val itemObj = actualData.getJSONObject(index)
-                    val recordId = itemObj.optString("id", "")
-                    val recordStatus = itemObj.optString("status", itemObj.optString("fulfillmentStatus", ""))
+                val allIndices = (0 until actualData.length()).toList()
+                val filteredIndices = if (searchQuery.isBlank()) allIndices else allIndices.filter { idx ->
+                    val obj = actualData.getJSONObject(idx)
+                    obj.toString().contains(searchQuery.trim(), ignoreCase = true)
+                }
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                if (filteredIndices.isEmpty()) {
+                    item {
+                        Text(
+                            text = if (searchQuery.isNotBlank()) "No records matching \"$searchQuery\"." else "No records found.",
+                            color = Color.Gray,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                } else {
+                    items(filteredIndices) { index ->
+                        val itemObj = actualData.getJSONObject(index)
+                        val recordId = itemObj.optString("id", "")
+                        val recordStatus = itemObj.optString("status", itemObj.optString("fulfillmentStatus", ""))
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                // Cloud Storage Image preview for products or categories
+                                val imageUrlsArray = itemObj.optJSONArray("imageUrls")
+                                val singleImageUrl = itemObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
+                                val displayPhoto = if (imageUrlsArray != null && imageUrlsArray.length() > 0) {
+                                    imageUrlsArray.optString(0, "")
+                                } else singleImageUrl
+
+                                if (!displayPhoto.isNullOrEmpty()) {
+                                    AsyncImage(
+                                        model = displayPhoto,
+                                        contentDescription = "Cloud Storage Image",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(140.dp)
+                                            .clip(RoundedCornerShape(8.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
                             itemObj.keys().forEach { key ->
                                 val value = itemObj.opt(key)
                                 if (value != null && value != org.json.JSONObject.NULL && key != "orderItems") {
@@ -1732,9 +2041,21 @@ fun SectionDataView(
                                             val cost = itemObj.optDouble("costPrice", 0.0)
                                             Button(
                                                 onClick = { activeDialog = ActionDialogState.UpdateStockCost(recordId, stock, cost) },
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
                                                 modifier = Modifier.weight(1f)
-                                            ) { Text("Update Stock", fontSize = 11.sp) }
+                                            ) { Text("Stock", fontSize = 10.sp) }
+                                            OutlinedButton(
+                                                onClick = {
+                                                    pendingUploadProductId = recordId
+                                                    photoPickerLauncher.launch("image/*")
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Text("Photo", fontSize = 10.sp)
+                                            }
                                         }
                                     } else {
                                         // ADMIN & MANAGER ACTIONS
@@ -1778,6 +2099,43 @@ fun SectionDataView(
                                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
                                                 modifier = Modifier.weight(1f)
                                             ) { Text("Edit Price", fontSize = 10.sp) }
+                                            OutlinedButton(
+                                                onClick = {
+                                                    pendingUploadProductId = recordId
+                                                    photoPickerLauncher.launch("image/*")
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Text("Photo", fontSize = 10.sp)
+                                            }
+                                        } else if (section == "categories") {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    pendingUploadCategoryId = recordId
+                                                    photoPickerLauncher.launch("image/*")
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Text("Image", fontSize = 10.sp)
+                                            }
+                                        } else if (section == "inventory") {
+                                            val prodObj = itemObj.optJSONObject("product")
+                                            val pId = prodObj?.optString("id", "") ?: itemObj.optString("productId", "")
+                                            val pName = prodObj?.optString("name", "Product") ?: "Product"
+                                            val currentQty = itemObj.optInt("availableQty", 0)
+                                            if (pId.isNotEmpty()) {
+                                                Button(
+                                                    onClick = { activeDialog = ActionDialogState.UpdateInventoryStock(pId, pName, currentQty) },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                                    modifier = Modifier.weight(1f)
+                                                ) { Text("Update Stock", fontSize = 11.sp) }
+                                            }
                                         } else if (section == "users") {
                                             val isActive = itemObj.optBoolean("isActive", true)
                                             Button(
@@ -1798,6 +2156,9 @@ fun SectionDataView(
                                             Button(
                                                 onClick = { activeDialog = ActionDialogState.RecordSettlement(recordId, company) },
                                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) { Text("Settlement", fontSize = 10.sp) }
+                                        }
                                                 modifier = Modifier.weight(1f)
                                             ) { Text("Settlement", fontSize = 10.sp) }
                                         }

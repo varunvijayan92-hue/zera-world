@@ -5,6 +5,8 @@ import { GET as getSupplierSection } from "../app/api/mobile/supplier/[section]/
 import { GET as getAdminSection } from "../app/api/mobile/admin/[section]/route";
 import { POST as postAdminAction } from "../app/api/mobile/admin/actions/route";
 import { POST as postSupplierAction } from "../app/api/supplier/actions/route";
+import { POST as postMobileUpload } from "../app/api/mobile/upload/route";
+import { cloudinaryMedia } from "../lib/cloudinary";
 import { authContext } from "../lib/auth";
 import { prisma } from "../lib/prisma";
 
@@ -669,4 +671,174 @@ test("mobile admin accounts and profit-expenses return profitAndLoss statement",
   const jsonProf = await resProf.json();
   assert.ok(jsonProf.data.profitAndLoss);
   assert.ok(Array.isArray(jsonProf.data.expenses));
+});
+
+test("mobile upload rejects unauthenticated with 401", async (t: TestContext) => {
+  t.mock.method(authContext, "current", async () => null);
+  const req = new Request("http://localhost/api/mobile/upload", { method: "POST" });
+  const res = await postMobileUpload(req);
+  assert.equal(res.status, 401);
+});
+
+test("mobile upload rejects non-multipart with 400", async (t: TestContext) => {
+  t.mock.method(authContext, "current", async () => ({
+    id: "admin-1",
+    role: "ADMIN",
+    email: "admin@test.local",
+    fullName: "Admin User",
+    isActive: true,
+  }));
+  const req = new Request("http://localhost/api/mobile/upload", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  const res = await postMobileUpload(req);
+  assert.equal(res.status, 400);
+});
+
+test("mobile upload links photo to product in database", async (t: TestContext) => {
+  t.mock.method(authContext, "current", async () => ({
+    id: "admin-1",
+    role: "ADMIN",
+    email: "admin@test.local",
+    fullName: "Admin User",
+    isActive: true,
+  }));
+
+  const originalCloudinary = cloudinaryMedia.upload;
+  (cloudinaryMedia as any).upload = async () => ({
+    url: "https://res.cloudinary.com/test/image/upload/v1234/test.webp",
+    publicId: "zeraworld/products/prod-1/test",
+  });
+  t.after(() => { (cloudinaryMedia as any).upload = originalCloudinary; });
+
+  let updatedProductUrls: string[] = [];
+  const originalPrisma = {
+    product: prisma.product,
+    $transaction: prisma.$transaction,
+  };
+
+  Object.assign(prisma, {
+    product: {
+      findUnique: async () => ({
+        id: "prod-1",
+        supplierId: null,
+        imageUrls: ["https://example.com/existing.jpg"],
+      }),
+      update: async ({ data }: any) => {
+        updatedProductUrls = data.imageUrls;
+        return { id: "prod-1", imageUrls: data.imageUrls };
+      },
+    },
+    $transaction: async (cb: any) => cb({
+      product: {
+        findUnique: async () => ({ id: "prod-1", imageUrls: ["https://example.com/existing.jpg"] }),
+        update: async ({ data }: any) => {
+          updatedProductUrls = data.imageUrls;
+          return { id: "prod-1", imageUrls: data.imageUrls };
+        },
+      },
+    }),
+  });
+  t.after(() => Object.assign(prisma, originalPrisma));
+
+  // Build a minimal valid JPEG buffer (starts with 0xFF, 0xD8, 0xFF)
+  const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+  const file = new File([jpegBytes], "test.jpg", { type: "image/jpeg" });
+
+  const form = new FormData();
+  form.append("file", file);
+  form.append("productId", "prod-1");
+  form.append("kind", "products");
+
+  const req = new Request("http://localhost/api/mobile/upload", {
+    method: "POST",
+    body: form,
+  });
+
+  const res = await postMobileUpload(req);
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.success, true);
+  assert.equal(json.url, "https://res.cloudinary.com/test/image/upload/v1234/test.webp");
+  assert.deepEqual(updatedProductUrls, [
+    "https://example.com/existing.jpg",
+    "https://res.cloudinary.com/test/image/upload/v1234/test.webp",
+  ]);
+});
+
+test("mobile admin action allows creating categories and updating inventory", async (t: TestContext) => {
+  t.mock.method(authContext, "current", async () => ({
+    id: "admin-1",
+    role: "ADMIN",
+    email: "admin@test.local",
+    fullName: "Admin User",
+    isActive: true,
+  }));
+
+  let createdCategory: any = null;
+  let updatedInventory: any = null;
+
+  const originalPrisma = {
+    storeCategory: prisma.storeCategory,
+    product: prisma.product,
+    inventory: prisma.inventory,
+    auditLog: prisma.auditLog,
+    $transaction: prisma.$transaction,
+  };
+
+  const fakeTx = {
+    storeCategory: {
+      findFirst: async () => null,
+      create: async ({ data }: any) => {
+        createdCategory = data;
+        return { id: "cat-1", name: data.name, slug: data.slug };
+      },
+    },
+    product: {
+      findUnique: async () => ({ id: "prod-1", name: "T-Shirt", supplierId: null, inventory: [{ id: "inv-1", availableQty: 10 }] }),
+    },
+    inventory: {
+      update: async ({ data }: any) => {
+        updatedInventory = data;
+        return { id: "inv-1", availableQty: data.availableQty };
+      },
+    },
+    auditLog: { create: async () => ({ id: "log-1" }) },
+  };
+
+  Object.assign(prisma, {
+    $transaction: async (cb: any) => cb(fakeTx),
+  });
+  t.after(() => Object.assign(prisma, originalPrisma));
+
+  // Test CATEGORY_CREATE
+  const reqCat = new Request("http://localhost/api/mobile/admin/actions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "CATEGORY_CREATE",
+      name: "Handcrafted Toys",
+      description: "Organic wooden toys",
+    }),
+  });
+  const resCat = await postAdminAction(reqCat);
+  assert.equal(resCat.status, 200);
+  assert.equal(createdCategory.name, "Handcrafted Toys");
+  assert.equal(createdCategory.slug, "handcrafted-toys");
+
+  // Test INVENTORY_UPDATE
+  const reqInv = new Request("http://localhost/api/mobile/admin/actions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "INVENTORY_UPDATE",
+      productId: "prod-1",
+      availableQty: 85,
+    }),
+  });
+  const resInv = await postAdminAction(reqInv);
+  assert.equal(resInv.status, 200);
+  assert.equal(updatedInventory.availableQty, 85);
 });

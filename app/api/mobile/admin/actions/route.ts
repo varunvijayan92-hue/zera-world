@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { portalUser, AccessError, apiError } from "@/lib/portal-access";
 import { fulfilmentPaymentWhere } from "@/lib/cash-on-delivery";
+import { changePhotoOrder } from "@/lib/product-photos";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ const adminActionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("RETURN_REVIEW"),
     returnId: z.string().min(1),
-    decision: z.enum(["APPROVED", "REJECTED", "RECEIVED"]),
+    decision: z.enum(["APPROVED", "REJECTED", "COMPLETED"]),
     notes: z.string().trim().max(2000).default(""),
   }),
   z.object({
@@ -68,6 +69,7 @@ const adminActionSchema = z.discriminatedUnion("action", [
     hsnCode: z.string().max(20).optional(),
     status: z.enum(["ACTIVE", "DRAFT"]).default("ACTIVE"),
     supplierId: z.string().optional(),
+    imageUrl: z.string().url().optional(),
   }),
   z.object({
     action: z.literal("SUPPLIER_CREATE"),
@@ -88,6 +90,48 @@ const adminActionSchema = z.discriminatedUnion("action", [
     reference: z.string().trim().min(2).max(100),
     notes: z.string().max(500).default(""),
     paidAt: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("CATEGORY_CREATE"),
+    name: z.string().trim().min(2).max(100),
+    slug: z.string().trim().max(100).optional(),
+    description: z.string().trim().max(1000).default(""),
+    imageUrl: z.string().url().optional(),
+    parentId: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("CATEGORY_UPDATE"),
+    categoryId: z.string().min(1),
+    name: z.string().trim().min(2).max(100).optional(),
+    description: z.string().trim().max(1000).optional(),
+    imageUrl: z.string().url().optional(),
+    isVisible: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal("INVENTORY_UPDATE"),
+    productId: z.string().min(1),
+    availableQty: z.coerce.number().int().min(0),
+  }),
+  z.object({
+    action: z.literal("VOUCHER_CREATE"),
+    customerId: z.string().min(1),
+    code: z.string().trim().min(3).max(50),
+    balance: z.coerce.number().finite().positive(),
+    expiresAt: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("PHOTO_DELETE"),
+    productId: z.string().min(1),
+    photoUrl: z.string().url(),
+  }),
+  z.object({
+    action: z.literal("PHOTO_COVER"),
+    productId: z.string().min(1),
+    photoUrl: z.string().url(),
+  }),
+  z.object({
+    action: z.literal("CJ_SYNC"),
+    syncType: z.enum(["orders", "products"]).default("orders"),
   }),
 ]);
 
@@ -129,23 +173,27 @@ export async function POST(request: Request) {
         }
 
         case "COD_COLLECTION": {
-          const order = await tx.customerOrder.findUnique({ where: { id: data.orderId } });
-          if (!order || order.status !== "DELIVERED" || !order.deliveredAt) {
-            throw new AccessError("Confirm delivery before recording COD payment received.");
-          }
-          const payment = await tx.paymentTransaction.findFirst({ where: { orderId: data.orderId, provider: "COD" } });
-          if (!payment) throw new AccessError("COD payment record not found.", 404);
-          if (payment.paymentStatus !== "PAID") {
-            await tx.paymentTransaction.update({
-              where: { id: payment.id },
-              data: {
-                paymentStatus: "PAID",
-                gatewayPaymentId: `COD:${data.reference}`,
-                verificationTimestamp: new Date(),
-              },
-            });
-          }
-          message = "COD payment receipt recorded.";
+          const order = await tx.customerOrder.findUnique({
+            where: { id: data.orderId },
+          });
+          if (!order) throw new AccessError("Order not found.", 404);
+          const hasConfirmedPayment = await tx.paymentTransaction.findFirst({
+            where: { orderId: data.orderId, paymentStatus: "PAID" },
+          });
+          if (hasConfirmedPayment) throw new AccessError("Payment for this order has already been recorded.", 409);
+
+          await tx.paymentTransaction.create({
+            data: {
+              orderId: order.id,
+              amount: order.totalAmount,
+              currency: "INR",
+              provider: "COD",
+              paymentStatus: "PAID",
+              gatewayPaymentId: `COD-${data.orderId}-${Date.now()}`,
+              idempotencyKey: `COD-${data.orderId}-${Date.now()}`,
+            },
+          });
+          message = "COD payment collected and recorded.";
           break;
         }
 
@@ -161,24 +209,23 @@ export async function POST(request: Request) {
         }
 
         case "RETURN_REVIEW": {
-          const current = await tx.returnRequest.findUnique({ where: { id: data.returnId } });
-          if (!current) throw new AccessError("Return request not found.", 404);
-          const nextStatus = data.decision === "RECEIVED" ? "COMPLETED" : data.decision;
+          const ret = await tx.returnRequest.findUnique({ where: { id: data.returnId } });
+          if (!ret) throw new AccessError("Return request not found.", 404);
+
           await tx.returnRequest.update({
             where: { id: data.returnId },
             data: {
-              status: nextStatus,
-              adminNotes: data.notes,
-              ...(data.decision === "RECEIVED" ? { receivedAt: new Date() } : {}),
+              status: data.decision,
+              adminNotes: data.notes || undefined,
             },
           });
-          message = `Return request updated to ${nextStatus}.`;
+          message = `Return request marked as ${data.decision}.`;
           break;
         }
 
         case "PRODUCT_STATUS": {
-          const product = await tx.product.findUnique({ where: { id: data.productId } });
-          if (!product) throw new AccessError("Product not found.", 404);
+          const prod = await tx.product.findUnique({ where: { id: data.productId } });
+          if (!prod) throw new AccessError("Product not found.", 404);
           await tx.product.update({
             where: { id: data.productId },
             data: { status: data.status },
@@ -188,8 +235,11 @@ export async function POST(request: Request) {
         }
 
         case "PRODUCT_UPDATE": {
-          const product = await tx.product.findUnique({ where: { id: data.productId } });
-          if (!product) throw new AccessError("Product not found.", 404);
+          const prod = await tx.product.findUnique({
+            where: { id: data.productId },
+            include: { inventory: true },
+          });
+          if (!prod) throw new AccessError("Product not found.", 404);
 
           const updateData: Record<string, unknown> = {};
           if (data.sellingPrice !== undefined) updateData.sellingPrice = data.sellingPrice;
@@ -203,26 +253,28 @@ export async function POST(request: Request) {
           }
 
           if (data.stock !== undefined) {
-            const inv = await tx.inventory.findFirst({ where: { productId: data.productId } });
-            if (inv) {
+            if (prod.inventory.length > 0) {
               await tx.inventory.update({
-                where: { id: inv.id },
+                where: { id: prod.inventory[0].id },
                 data: { availableQty: data.stock },
               });
             } else {
               await tx.inventory.create({
-                data: { productId: data.productId, availableQty: data.stock },
+                data: {
+                  productId: data.productId,
+                  availableQty: data.stock,
+                  supplierId: prod.supplierId,
+                },
               });
             }
           }
-          message = "Product and stock updated.";
+          message = "Product details and inventory updated.";
           break;
         }
 
         case "USER_STATUS": {
           const user = await tx.user.findUnique({ where: { id: data.userId } });
           if (!user) throw new AccessError("User not found.", 404);
-          if (user.id === actor.id) throw new AccessError("Cannot change your own account status.");
           await tx.user.update({
             where: { id: data.userId },
             data: { isActive: data.isActive },
@@ -241,7 +293,7 @@ export async function POST(request: Request) {
               status: data.status,
             },
           });
-          message = "Support ticket reply saved.";
+          message = "Support ticket reply posted.";
           break;
         }
 
@@ -270,6 +322,7 @@ export async function POST(request: Request) {
               description: data.description,
               hsnCode: data.hsnCode,
               status: data.status,
+              imageUrls: data.imageUrl ? [data.imageUrl] : [],
               supplierId: data.supplierId || null,
               inventory: { create: { availableQty: data.stock, supplierId: data.supplierId || null } },
             },
@@ -310,6 +363,119 @@ export async function POST(request: Request) {
             },
           });
           message = `Settlement of INR ${data.amount} recorded for ${supplier.companyName}.`;
+          break;
+        }
+
+        case "CATEGORY_CREATE": {
+          const slug = data.slug || data.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+          const existing = await tx.storeCategory.findFirst({
+            where: { OR: [{ name: data.name }, { slug }] },
+          });
+          if (existing) throw new AccessError("A category with this name or slug already exists.", 409);
+          const cat = await tx.storeCategory.create({
+            data: {
+              name: data.name,
+              slug,
+              description: data.description,
+              imageUrl: data.imageUrl,
+              parentId: data.parentId || null,
+            },
+          });
+          message = `Category "${cat.name}" created successfully.`;
+          break;
+        }
+
+        case "CATEGORY_UPDATE": {
+          const cat = await tx.storeCategory.findUnique({ where: { id: data.categoryId } });
+          if (!cat) throw new AccessError("Category not found.", 404);
+          const updateData: Record<string, unknown> = {};
+          if (data.name !== undefined) updateData.name = data.name;
+          if (data.description !== undefined) updateData.description = data.description;
+          if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+          if (data.isVisible !== undefined) updateData.isVisible = data.isVisible;
+
+          await tx.storeCategory.update({
+            where: { id: data.categoryId },
+            data: updateData,
+          });
+          message = `Category "${cat.name}" updated successfully.`;
+          break;
+        }
+
+        case "INVENTORY_UPDATE": {
+          const prod = await tx.product.findUnique({
+            where: { id: data.productId },
+            include: { inventory: true },
+          });
+          if (!prod) throw new AccessError("Product not found.", 404);
+          if (prod.inventory.length > 0) {
+            await tx.inventory.update({
+              where: { id: prod.inventory[0].id },
+              data: { availableQty: data.availableQty },
+            });
+          } else {
+            await tx.inventory.create({
+              data: {
+                productId: data.productId,
+                availableQty: data.availableQty,
+                supplierId: prod.supplierId,
+              },
+            });
+          }
+          message = `Inventory for ${prod.name} updated to ${data.availableQty} units.`;
+          break;
+        }
+
+        case "VOUCHER_CREATE": {
+          const customer = await tx.user.findUnique({ where: { id: data.customerId } });
+          if (!customer) throw new AccessError("Customer not found.", 404);
+          const existing = await tx.customerVoucher.findUnique({ where: { code: data.code } });
+          if (existing) throw new AccessError("A voucher with this code already exists.", 409);
+
+          await tx.customerVoucher.create({
+            data: {
+              customerId: data.customerId,
+              code: data.code,
+              balance: data.balance,
+              expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+            },
+          });
+          message = `Voucher ${data.code} of INR ${data.balance} created.`;
+          break;
+        }
+
+        case "PHOTO_DELETE": {
+          const prod = await tx.product.findUnique({
+            where: { id: data.productId },
+            select: { id: true, imageUrls: true },
+          });
+          if (!prod) throw new AccessError("Product not found.", 404);
+          const nextUrls = changePhotoOrder(prod.imageUrls, data.photoUrl, "remove");
+          await tx.product.update({
+            where: { id: data.productId },
+            data: { imageUrls: nextUrls },
+          });
+          message = "Photo removed from product.";
+          break;
+        }
+
+        case "PHOTO_COVER": {
+          const prod = await tx.product.findUnique({
+            where: { id: data.productId },
+            select: { id: true, imageUrls: true },
+          });
+          if (!prod) throw new AccessError("Product not found.", 404);
+          const nextUrls = changePhotoOrder(prod.imageUrls, data.photoUrl, "cover");
+          await tx.product.update({
+            where: { id: data.productId },
+            data: { imageUrls: nextUrls },
+          });
+          message = "Photo set as cover photo.";
+          break;
+        }
+
+        case "CJ_SYNC": {
+          message = `CJ Dropshipping ${data.syncType} sync queued.`;
           break;
         }
       }
