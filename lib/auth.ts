@@ -33,3 +33,8 @@ async function currentDatabaseUser() {
 
 export const authContext = { current: currentDatabaseUser };
 export async function getCurrentUser() { return authContext.current(); }
+export async function getSession() {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  return { ...user, userId: user.id };
+}

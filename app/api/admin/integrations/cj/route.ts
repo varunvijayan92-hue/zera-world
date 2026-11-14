@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { integrationCredentials } from "@/lib/integration-settings";
 import { portalUser, AccessError, apiError } from "@/lib/portal-access";
+import { cjIntegrationStatus } from "@/lib/cj-catalog";
 
 export async function POST(request: Request) {
   try {
@@ -14,6 +15,7 @@ export async function POST(request: Request) {
     if (!response.ok) throw new AccessError("CJ could not authenticate the connection. Check the API key and account access.", 502);
     const result = await response.json().catch(() => null);
     if (result?.code !== 200 || result?.result !== true || typeof result?.data?.accessToken !== "string" || !result.data.accessToken) throw new AccessError("CJ did not accept the API key. Check the key and account access.", 400);
-    return NextResponse.json({ message: "CJ authentication succeeded. Product and order integration is not yet implemented." }, { headers: { "Cache-Control": "private, no-store" } });
+    const status = cjIntegrationStatus();
+    return NextResponse.json({ ...status, message: status.message }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return apiError(error); }
 }

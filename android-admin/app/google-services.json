@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "76147322792",
+    "project_id": "zerasworld-f67ae",
+    "storage_bucket": "zerasworld-f67ae.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:76147322792:android:34fb79d449836a5aac379d",
+        "android_client_info": {
+          "package_name": "in.zerasworld.admin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtKL35mCowic7Y49iaUTbiK_4eqnKNfsM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

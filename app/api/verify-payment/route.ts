@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyRazorpaySignature } from "@/lib/payment";
 import { gatewayError, resolveRazorpayCredentials, razorpayGateway } from "@/lib/razorpay";
 import { nextPaymentStatus, paymentMatches } from "@/lib/payment-state";
+import { queuePaidCjOrder } from "@/lib/cj-fulfilment-queue";
 
 const verificationSchema = z.object({
   razorpay_payment_id: z.string().regex(/^pay_[a-zA-Z0-9]+$/),
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       }
       if ((status || current.paymentStatus) === "PAID") {
         await tx.customerOrder.updateMany({ where: { id: current.orderId, status: "PENDING" }, data: { status: "CONFIRMED" } });
+        await queuePaidCjOrder(tx, current.orderId);
       }
       return { orderId: current.orderId, status: status || current.paymentStatus };
     }, { isolationLevel: "Serializable" });

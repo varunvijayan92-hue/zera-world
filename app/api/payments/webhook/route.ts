@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyRazorpaySignature } from "@/lib/payment";
 import { nextPaymentStatus, paymentMatches } from "@/lib/payment-state";
 import { paymentWebhookSchema } from "@/lib/validators";
+import { queuePaidCjOrder } from "@/lib/cj-fulfilment-queue";
 
 export async function POST(request: Request) {
   let stored: Record<string, string>;
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
         await tx.customerOrder.updateMany({
           where: { id: existing.orderId, status: "PENDING" }, data: { status: "CONFIRMED" },
         });
+        await queuePaidCjOrder(tx, existing.orderId);
       }
       return { status: 200 };
     }, { isolationLevel: "Serializable" });

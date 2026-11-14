@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cjCatalogProducts, cjCatalogVariants } from "../lib/cj-catalog";
+import { cjCatalogProducts, cjCatalogVariants, cjIntegrationStatus, cjOrderSyncStatus, cjProductSyncStatus } from "../lib/cj-catalog";
 import { GET } from "../app/api/admin/suppliers/cj-catalog/route";
 import { authContext } from "../lib/auth";
 
@@ -18,4 +18,14 @@ test("CJ catalogue blocks unauthorized users and invalid queries before calling 
   actor.mock.mockImplementation(async () => ({ id: "a", email: "a@example.test", fullName: "Admin", role: "ADMIN", isActive: true }));
   assert.equal((await GET(request("?q=x"))).status, 400);
   assert.equal((await GET(request("?productId=..%2F.."))).status, 400);
+});
+
+test("CJ integration exposes a connected status with pending product and order syncs", () => {
+  const status = cjIntegrationStatus();
+  assert.equal(status.status, "CONNECTED");
+  assert.match(status.message, /not yet implemented/i);
+  assert.equal(cjProductSyncStatus().status, "PENDING");
+  assert.equal(cjOrderSyncStatus().status, "PENDING");
+  assert.equal(cjProductSyncStatus().available, false);
+  assert.equal(cjOrderSyncStatus().available, false);
 });

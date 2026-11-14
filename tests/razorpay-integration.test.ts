@@ -30,7 +30,7 @@ function setup(t: TestContext) {
   t.mock.method(integrationStore, "find", async () => null);
   // Prisma exposes model delegates through proxies; replace the delegates with
   // plain stubs so node:test can track method calls without opening a database.
-  const originalDelegates = { paymentTransaction: prisma.paymentTransaction, customerOrder: prisma.customerOrder, product: prisma.product };
+  const originalDelegates = { paymentTransaction: prisma.paymentTransaction, customerOrder: prisma.customerOrder, product: prisma.product, orderItem: prisma.orderItem, syncJob: prisma.syncJob };
   Object.assign(prisma, {
     paymentTransaction: {
       findFirst: async () => null, findUnique: async () => null, findUniqueOrThrow: async () => ({}),
@@ -38,6 +38,8 @@ function setup(t: TestContext) {
     },
     customerOrder: { updateMany: async () => ({ count: 0 }), create: async () => ({}) },
     product: { findMany: async () => [] },
+    orderItem: { findFirst: async () => null },
+    syncJob: { upsert: async () => ({}) },
   });
   t.after(() => Object.assign(prisma, originalDelegates));
   const previous = { key: process.env.RAZORPAY_KEY_ID, secret: process.env.RAZORPAY_KEY_SECRET };

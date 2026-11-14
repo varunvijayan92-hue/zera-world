@@ -49,3 +49,37 @@ export function cjCatalogVariants(data: unknown) {
     return [{ id: item.vid.slice(0, 100), name: typeof item.variantNameEn === "string" ? item.variantNameEn.slice(0, 250) : "Variant", sku: typeof item.variantSku === "string" ? item.variantSku.slice(0, 100) : "" }];
   }).slice(0, 100);
 }
+
+export type CjSyncState = "CONNECTED" | "PENDING" | "NOT_AVAILABLE";
+
+export function cjProductSyncStatus() {
+  return {
+    status: "PENDING" as const,
+    available: false,
+    message: "CJ product synchronization is not enabled yet. Save a supplier mapping and review the product before the live sync is connected.",
+    source: "CJ_DROPSHIPPING",
+    lastSync: null,
+  };
+}
+
+export function cjOrderSyncStatus() {
+  return {
+    status: "PENDING" as const,
+    available: false,
+    message: "CJ order automation is not connected yet. Use the supplier review workflow until a live CJ order connector is implemented.",
+    source: "CJ_DROPSHIPPING",
+    lastSync: null,
+  };
+}
+
+export function cjIntegrationStatus() {
+  const message = "CJ authentication succeeded. Product and order integration is not yet implemented.";
+  return {
+    status: "CONNECTED" as const,
+    available: true,
+    message,
+    productIntegration: cjProductSyncStatus(),
+    orderIntegration: cjOrderSyncStatus(),
+    capabilities: ["authentication", "catalog-search", "shipping-quote"],
+  };
+}
