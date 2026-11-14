@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { isProductionSecureContext } from "@/lib/site";
 
 const loginSchema = z.object({
-  portal: z.enum(["CUSTOMER", "SUPPLIER", "ADMIN"]).optional(),
+  portal: z.enum(["CUSTOMER", "SUPPLIER", "ADMIN", "APP"]).optional(),
   loginId: z.string().min(1, "Login ID is required."),
   password: z.string().min(6, "Password must be at least 6 characters."),
 });
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       where: loginIdentityWhere(normalizedLoginId, parsed.data.portal),
     });
 
-    if (!user || !user.isActive || (parsed.data.portal && (parsed.data.portal === "ADMIN" ? !["ADMIN", "MANAGER"].includes(user.role) : user.role !== parsed.data.portal))) {
+    if (!user || !user.isActive || (parsed.data.portal && (parsed.data.portal === "ADMIN" ? !["ADMIN", "MANAGER"].includes(user.role) : parsed.data.portal === "APP" ? !["ADMIN", "MANAGER", "SUPPLIER"].includes(user.role) : user.role !== parsed.data.portal))) {
       return NextResponse.json({ message: "Invalid credentials." }, { status: 401 });
     }
 
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Invalid credentials." }, { status: 401 });
     }
 
-    if (parsed.data.portal === "SUPPLIER") {
+    if (user.role === "SUPPLIER") {
       const access = await prisma.supplierContact.findFirst({ where: { userId: user.id, supplier: { status: "ACTIVE", sourceType: "DIRECT" } }, select: { id: true } });
       if (!access) return NextResponse.json({ message: "Your supplier access is awaiting approval or has been disabled." }, { status: 403 });
     }
