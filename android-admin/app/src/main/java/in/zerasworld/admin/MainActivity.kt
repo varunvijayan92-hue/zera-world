@@ -757,6 +757,9 @@ sealed class ActionDialogState {
     data class UpdateInventoryStock(val productId: String, val productName: String, val currentQty: Int) : ActionDialogState()
     object CreateVoucher : ActionDialogState()
     object CjSyncDialog : ActionDialogState()
+    object AddSupplierLocalCustomer : ActionDialogState()
+    object CreateSupplierSupportTicket : ActionDialogState()
+    object EditSupplierPickupAddress : ActionDialogState()
 }
 
 @Composable
@@ -1665,6 +1668,179 @@ fun SectionDataView(
                 }
             )
         }
+        is ActionDialogState.AddSupplierLocalCustomer -> {
+            var custName by remember { mutableStateOf("") }
+            var custPhone by remember { mutableStateOf("") }
+            var custEmail by remember { mutableStateOf("") }
+            var custAddress by remember { mutableStateOf("") }
+            var custNotes by remember { mutableStateOf("") }
+            AlertDialog(
+                onDismissRequest = { activeDialog = null },
+                title = { Text("Add Local Customer") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = custName,
+                            onValueChange = { custName = it },
+                            label = { Text("Customer Name *") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = custPhone,
+                            onValueChange = { custPhone = it },
+                            label = { Text("Phone Number") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = custEmail,
+                            onValueChange = { custEmail = it },
+                            label = { Text("Email (optional)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = custAddress,
+                            onValueChange = { custAddress = it },
+                            label = { Text("Local Address") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = custNotes,
+                            onValueChange = { custNotes = it },
+                            label = { Text("Notes (optional)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        if (custName.isNotBlank()) {
+                            runAction {
+                                repository.createSupplierLocalCustomer(
+                                    name = custName.trim(),
+                                    phone = custPhone.trim().takeIf { it.isNotEmpty() },
+                                    email = custEmail.trim().takeIf { it.isNotEmpty() },
+                                    address = custAddress.trim().takeIf { it.isNotEmpty() },
+                                    notes = custNotes.trim().takeIf { it.isNotEmpty() }
+                                )
+                            }
+                        } else {
+                            Toast.makeText(context, "Customer name is required", Toast.LENGTH_SHORT).show()
+                        }
+                    }) { Text("Add Customer") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
+                }
+            )
+        }
+        is ActionDialogState.CreateSupplierSupportTicket -> {
+            var ticketSubject by remember { mutableStateOf("") }
+            var ticketMsg by remember { mutableStateOf("") }
+            AlertDialog(
+                onDismissRequest = { activeDialog = null },
+                title = { Text("New Support Ticket") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = ticketSubject,
+                            onValueChange = { ticketSubject = it },
+                            label = { Text("Subject *") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = ticketMsg,
+                            onValueChange = { ticketMsg = it },
+                            label = { Text("Message *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 3
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        if (ticketSubject.isNotBlank() && ticketMsg.isNotBlank()) {
+                            runAction { repository.createSupplierSupportTicket(ticketSubject.trim(), ticketMsg.trim()) }
+                        } else {
+                            Toast.makeText(context, "Subject and message are required", Toast.LENGTH_SHORT).show()
+                        }
+                    }) { Text("Submit Ticket") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
+                }
+            )
+        }
+        is ActionDialogState.EditSupplierPickupAddress -> {
+            var contactName by remember { mutableStateOf("") }
+            var phone by remember { mutableStateOf("") }
+            var line1 by remember { mutableStateOf("") }
+            var city by remember { mutableStateOf("") }
+            var state by remember { mutableStateOf("") }
+            var pincode by remember { mutableStateOf("") }
+            AlertDialog(
+                onDismissRequest = { activeDialog = null },
+                title = { Text("Update Pickup Address") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = contactName,
+                            onValueChange = { contactName = it },
+                            label = { Text("Contact Person") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = phone,
+                            onValueChange = { phone = it },
+                            label = { Text("Phone") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = line1,
+                            onValueChange = { line1 = it },
+                            label = { Text("Address Line 1") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = city,
+                                onValueChange = { city = it },
+                                label = { Text("City") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = state,
+                                onValueChange = { state = it },
+                                label = { Text("State") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        OutlinedTextField(
+                            value = pincode,
+                            onValueChange = { pincode = it },
+                            label = { Text("Pincode") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        runAction {
+                            repository.updateSupplierProfile(
+                                contactName = contactName.trim().takeIf { it.isNotEmpty() },
+                                phone = phone.trim().takeIf { it.isNotEmpty() },
+                                pickupAddressLine1 = line1.trim().takeIf { it.isNotEmpty() },
+                                pickupCity = city.trim().takeIf { it.isNotEmpty() },
+                                pickupState = state.trim().takeIf { it.isNotEmpty() },
+                                pickupPincode = pincode.trim().takeIf { it.isNotEmpty() }
+                            )
+                        }
+                    }) { Text("Save Address") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
+                }
+            )
+        }
         null -> {}
     }
 
@@ -1744,6 +1920,36 @@ fun SectionDataView(
                         Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("CJ Sync", fontSize = 12.sp)
+                    }
+                } else if (section == "local-customers" && role == "SUPPLIER") {
+                    Button(
+                        onClick = { activeDialog = ActionDialogState.AddSupplierLocalCustomer },
+                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add Customer", fontSize = 12.sp)
+                    }
+                } else if (section == "support" && role == "SUPPLIER") {
+                    Button(
+                        onClick = { activeDialog = ActionDialogState.CreateSupplierSupportTicket },
+                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("New Ticket", fontSize = 12.sp)
+                    }
+                } else if (section in listOf("pickup-address", "profile") && role == "SUPPLIER") {
+                    Button(
+                        onClick = { activeDialog = ActionDialogState.EditSupplierPickupAddress },
+                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Edit Address", fontSize = 12.sp)
                     }
                 }
             }

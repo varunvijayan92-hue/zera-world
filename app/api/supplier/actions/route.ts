@@ -15,6 +15,19 @@ const actions = z.discriminatedUnion("action", [
   z.object({ action: z.literal("STOCK"), productId: z.string(), stock: z.coerce.number().int().min(0).max(1000000), hsnCode: productSchema.shape.hsnCode, costPrice: z.coerce.number().finite().min(0).max(1000000).multipleOf(0.01) }),
   z.object({ action: z.literal("PRODUCT"), name: z.string().trim().min(2).max(150), sku: z.string().trim().min(1).max(80), description: z.string().max(5000), hsnCode: productSchema.shape.hsnCode, costPrice: z.coerce.number().finite().min(0).max(1000000).multipleOf(0.01), stock: z.coerce.number().int().min(0).max(1000000) }),
   z.object({
+    action: z.literal("LOCAL_CUSTOMER_CREATE"),
+    name: z.string().trim().min(2).max(100),
+    phone: z.string().trim().max(30).optional(),
+    email: z.string().trim().email().max(200).optional().or(z.literal("")),
+    address: z.string().trim().max(500).optional(),
+    notes: z.string().trim().max(1000).optional(),
+  }),
+  z.object({
+    action: z.literal("SUPPORT_TICKET_CREATE"),
+    subject: z.string().trim().min(3).max(200),
+    message: z.string().trim().min(5).max(3000),
+  }),
+  z.object({
     action: z.literal("PROFILE"),
     contactName: z.string().trim().max(100).optional(),
     phone: z.string().max(30).optional(),
@@ -80,11 +93,35 @@ export async function POST(request: Request) {
         await updateSupplierCatalog(tx, supplier.id, body);
       } else if (body.action === "PRODUCT") {
         await tx.product.create({ data: { supplierId: supplier.id, name: body.name, sku: body.sku, description: body.description, hsnCode: body.hsnCode || null, costPrice: body.costPrice, status: "DRAFT", supplierProducts: { create: { supplierId: supplier.id, supplierProductCode: body.sku, purchasePrice: body.costPrice } }, inventory: { create: { supplierId: supplier.id, availableQty: body.stock } } } });
+      } else if (body.action === "LOCAL_CUSTOMER_CREATE") {
+        await tx.supplierLocalCustomer.create({
+          data: {
+            supplierId: supplier.id,
+            name: body.name,
+            phone: body.phone,
+            email: body.email || null,
+            address: body.address,
+            notes: body.notes,
+          },
+        });
+      } else if (body.action === "SUPPORT_TICKET_CREATE") {
+        await tx.supportTicket.create({
+          data: {
+            userId: user.id,
+            subject: body.subject,
+            message: body.message,
+            status: "OPEN",
+          },
+        });
       } else {
         await updateSupplierProfile(tx, supplier.id, body);
       }
       await tx.auditLog.create({ data: { userId: user.id, action: `SUPPLIER_${body.action}`, entityType: "Supplier", entityId: supplier.id } });
     }, { isolationLevel: "Serializable" });
-    return NextResponse.json({ message: body.action === "PRODUCT" ? "Product submitted as a draft for admin approval." : "Supplier details updated." });
+    let returnMessage = "Supplier details updated.";
+    if (body.action === "PRODUCT") returnMessage = "Product submitted as a draft for admin approval.";
+    else if (body.action === "LOCAL_CUSTOMER_CREATE") returnMessage = "Local customer added.";
+    else if (body.action === "SUPPORT_TICKET_CREATE") returnMessage = "Support ticket submitted.";
+    return NextResponse.json({ message: returnMessage });
   } catch (error) { return apiError(error); }
 }

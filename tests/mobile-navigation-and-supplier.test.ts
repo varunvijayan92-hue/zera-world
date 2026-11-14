@@ -842,3 +842,88 @@ test("mobile admin action allows creating categories and updating inventory", as
   assert.equal(resInv.status, 200);
   assert.equal(updatedInventory.availableQty, 85);
 });
+
+test("mobile supplier action allows adding local customers and support tickets", async (t: TestContext) => {
+  t.mock.method(authContext, "current", async () => ({
+    id: "supp-user-1",
+    role: "SUPPLIER",
+    email: "supplier@test.local",
+    fullName: "Supplier User",
+    isActive: true,
+  }));
+
+  const mockSupplier = {
+    id: "supp-10",
+    companyName: "Acme Supplies",
+    contactName: "John Doe",
+    phone: "9876543210",
+    status: "ACTIVE",
+    sourceType: "DIRECT",
+  };
+
+  let createdLocalCust: any = null;
+  let createdTicket: any = null;
+
+  const originalPrisma = {
+    supplierContact: prisma.supplierContact,
+    $transaction: prisma.$transaction,
+  };
+
+  const fakeTx = {
+    supplierLocalCustomer: {
+      create: async ({ data }: any) => {
+        createdLocalCust = data;
+        return { id: "cust-1", ...data };
+      },
+    },
+    supportTicket: {
+      create: async ({ data }: any) => {
+        createdTicket = data;
+        return { id: "tkt-1", ...data };
+      },
+    },
+    auditLog: { create: async () => ({ id: "log-1" }) },
+  };
+
+  Object.assign(prisma, {
+    supplierContact: {
+      findFirst: async () => ({
+        id: "contact-1",
+        supplier: mockSupplier,
+      }),
+    },
+    $transaction: async (cb: any) => cb(fakeTx),
+  });
+  t.after(() => Object.assign(prisma, originalPrisma));
+
+  // Test LOCAL_CUSTOMER_CREATE
+  const reqCust = new Request("http://localhost/api/supplier/actions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "LOCAL_CUSTOMER_CREATE",
+      name: "Retail Shop",
+      phone: "9988776655",
+      address: "Downtown Market",
+    }),
+  });
+  const resCust = await postSupplierAction(reqCust);
+  assert.equal(resCust.status, 200);
+  assert.equal(createdLocalCust.name, "Retail Shop");
+  assert.equal(createdLocalCust.supplierId, "supp-10");
+
+  // Test SUPPORT_TICKET_CREATE
+  const reqTkt = new Request("http://localhost/api/supplier/actions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "SUPPORT_TICKET_CREATE",
+      subject: "Payout Inquiry",
+      message: "Please check my pending settlement for October.",
+    }),
+  });
+  const resTkt = await postSupplierAction(reqTkt);
+  assert.equal(resTkt.status, 200);
+  assert.equal(createdTicket.subject, "Payout Inquiry");
+  assert.equal(createdTicket.userId, "supp-user-1");
+});

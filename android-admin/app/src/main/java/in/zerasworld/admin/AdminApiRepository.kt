@@ -584,6 +584,69 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
         return postSupplierAction(body)
     }
 
+    suspend fun createSupplierLocalCustomer(
+        name: String,
+        phone: String? = null,
+        email: String? = null,
+        address: String? = null,
+        notes: String? = null
+    ): ApiResult<String> {
+        val body = JSONObject().apply {
+            put("action", "LOCAL_CUSTOMER_CREATE")
+            put("name", name)
+            if (!phone.isNullOrEmpty()) put("phone", phone)
+            if (!email.isNullOrEmpty()) put("email", email)
+            if (!address.isNullOrEmpty()) put("address", address)
+            if (!notes.isNullOrEmpty()) put("notes", notes)
+        }
+        return postSupplierAction(body)
+    }
+
+    suspend fun createSupplierSupportTicket(
+        subject: String,
+        message: String
+    ): ApiResult<String> {
+        val body = JSONObject().apply {
+            put("action", "SUPPORT_TICKET_CREATE")
+            put("subject", subject)
+            put("message", message)
+        }
+        return postSupplierAction(body)
+    }
+
+    suspend fun updateSupplierProfile(
+        contactName: String? = null,
+        phone: String? = null,
+        pickupAddress: String? = null,
+        pickupAddressLine1: String? = null,
+        pickupAddressLine2: String? = null,
+        pickupCity: String? = null,
+        pickupDistrict: String? = null,
+        pickupState: String? = null,
+        pickupPincode: String? = null,
+        companyName: String? = null,
+        companyEmail: String? = null,
+        companyPhone: String? = null,
+        gstNumber: String? = null
+    ): ApiResult<String> {
+        val body = JSONObject().apply {
+            put("action", "PROFILE")
+            if (!contactName.isNullOrEmpty()) put("contactName", contactName)
+            if (!phone.isNullOrEmpty()) put("phone", phone)
+            if (!pickupAddress.isNullOrEmpty()) put("pickupAddress", pickupAddress)
+            if (!pickupAddressLine1.isNullOrEmpty()) put("pickupAddressLine1", pickupAddressLine1)
+            if (!pickupAddressLine2.isNullOrEmpty()) put("pickupAddressLine2", pickupAddressLine2)
+            if (!pickupCity.isNullOrEmpty()) put("pickupCity", pickupCity)
+            if (!pickupDistrict.isNullOrEmpty()) put("pickupDistrict", pickupDistrict)
+            if (!pickupState.isNullOrEmpty()) put("pickupState", pickupState)
+            if (!pickupPincode.isNullOrEmpty()) put("pickupPincode", pickupPincode)
+            if (!companyEmail.isNullOrEmpty()) put("companyEmail", companyEmail)
+            if (!companyPhone.isNullOrEmpty()) put("companyPhone", companyPhone)
+            if (!gstNumber.isNullOrEmpty()) put("gstNumber", gstNumber)
+        }
+        return postSupplierAction(body)
+    }
+
     suspend fun postAdminAction(actionBody: JSONObject): ApiResult<String> = withContext(Dispatchers.IO) {
         try {
             val url = "${sessionManager.baseUrl}/api/mobile/admin/actions"
