@@ -25,11 +25,16 @@ const nextConfig: NextConfig = {
     return canonicalRedirect ? [canonicalRedirect] : [];
   },
   async headers() {
+    const privateHeaders = [
+      { source: "/:section(admin|dashboard|supplier|suppliers|account|checkout|cart|login|forgot-password|track-order|api)/:path*", headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }] },
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-store" }, { key: "Content-Type", value: "application/javascript; charset=utf-8" }] },
+    ];
     if (!isProduction) {
-      return [];
+      return privateHeaders;
     }
 
     return [
+      ...privateHeaders,
       { source: "/:section(admin|dashboard|supplier|suppliers|account|checkout|cart|login|forgot-password|track-order|api)/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       {
         source: "/:path*",

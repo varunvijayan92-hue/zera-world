@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { portalUser, AccessError, apiError } from "@/lib/portal-access";
-import { fulfilmentPaymentWhere } from "@/lib/cash-on-delivery";
+import { POST as confirmDelivery } from "@/app/api/admin/orders/[id]/delivery/route";
+import { POST as collectCod } from "@/app/api/admin/orders/[id]/cod-collection/route";
+import { POST as reviewReturn } from "@/app/api/admin/returns/[id]/route";
+import { userAccessError } from "@/lib/admin-operations";
 import { changePhotoOrder } from "@/lib/product-photos";
 
 export const dynamic = "force-dynamic";
@@ -138,88 +141,45 @@ const adminActionSchema = z.discriminatedUnion("action", [
 export async function POST(request: Request) {
   try {
     const actor = await portalUser("ADMIN", request);
-    const parsed = adminActionSchema.safeParse(await request.json());
+    const parsed = adminActionSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       throw new AccessError(parsed.error.issues[0]?.message || "Invalid admin action payload.");
     }
     const data = parsed.data;
 
+    // Keep Android's response contract while sharing the web workflow safeguards.
+    if (["ORDER_DELIVERY", "COD_COLLECTION", "RETURN_REVIEW"].includes(data.action)) {
+      let response: Response;
+      if (data.action === "RETURN_REVIEW") {
+        const forwarded = new Request(request.url, { method: "POST", headers: request.headers,
+          body: JSON.stringify({ action: data.decision === "COMPLETED" ? "RECEIVED" : data.decision, notes: data.notes }) });
+        response = await reviewReturn(forwarded, { params: Promise.resolve({ id: data.returnId }) });
+      } else if (data.action === "COD_COLLECTION") {
+        const forwarded = new Request(request.url, { method: "POST", headers: request.headers, body: JSON.stringify({ reference: data.reference }) });
+        response = await collectCod(forwarded, { params: Promise.resolve({ id: data.orderId }) });
+      } else if (data.action === "ORDER_DELIVERY") {
+        response = await confirmDelivery(request, { params: Promise.resolve({ id: data.orderId }) });
+      } else throw new AccessError("Invalid workflow action.");
+      return NextResponse.json({ ...await response.json(), success: response.ok }, { status: response.status });
+    }
+
     let message = "Action completed successfully.";
 
     await prisma.$transaction(async (tx) => {
       switch (data.action) {
-        case "ORDER_DELIVERY": {
-          const order = await tx.customerOrder.findUnique({ where: { id: data.orderId } });
-          if (!order) throw new AccessError("Order not found.", 404);
-          if (order.deliveredAt) throw new AccessError("Delivery is already confirmed.", 409);
-          if (!["SHIPPED", "PROCESSING", "CONFIRMED"].includes(order.status)) {
-            throw new AccessError("Only confirmed, processing or shipped orders can be delivered.");
-          }
-          const payment = await tx.paymentTransaction.findFirst({ where: fulfilmentPaymentWhere(data.orderId) });
-          if (!payment) {
-            throw new AccessError("Verified payment or confirmed COD order required before delivery confirmation.");
-          }
-          await tx.customerOrder.update({
-            where: { id: data.orderId },
-            data: {
-              status: "DELIVERED",
-              deliveredAt: new Date(),
-              orderItems: { updateMany: { where: {}, data: { status: "DELIVERED", fulfillmentStatus: "DELIVERED" } } },
-              shipments: { updateMany: { where: {}, data: { status: "DELIVERED" } } },
-            },
-          });
-          message = "Order marked as DELIVERED.";
-          break;
-        }
-
-        case "COD_COLLECTION": {
-          const order = await tx.customerOrder.findUnique({
-            where: { id: data.orderId },
-          });
-          if (!order) throw new AccessError("Order not found.", 404);
-          const hasConfirmedPayment = await tx.paymentTransaction.findFirst({
-            where: { orderId: data.orderId, paymentStatus: "PAID" },
-          });
-          if (hasConfirmedPayment) throw new AccessError("Payment for this order has already been recorded.", 409);
-
-          await tx.paymentTransaction.create({
-            data: {
-              orderId: order.id,
-              amount: order.totalAmount,
-              currency: "INR",
-              provider: "COD",
-              paymentStatus: "PAID",
-              gatewayPaymentId: `COD-${data.orderId}-${Date.now()}`,
-              idempotencyKey: `COD-${data.orderId}-${Date.now()}`,
-            },
-          });
-          message = "COD payment collected and recorded.";
-          break;
-        }
-
         case "ORDER_STATUS": {
           const order = await tx.customerOrder.findUnique({ where: { id: data.orderId } });
           if (!order) throw new AccessError("Order not found.", 404);
+          if (order.status === data.status) break;
+          const transitions: Record<string, string[]> = { PENDING: ["CONFIRMED", "CANCELLED"], CONFIRMED: ["PROCESSING", "CANCELLED"], PROCESSING: ["SHIPPED", "CANCELLED"] };
+          if (!transitions[order.status]?.includes(data.status)) throw new AccessError("Invalid order transition. Refresh the order.", 409);
+          if (data.status === "CANCELLED") throw new AccessError("Cancellation requires stock and payment reconciliation. Contact support before changing this order.", 409);
+          if (!await tx.paymentTransaction.findFirst({ where: { orderId: order.id, OR: [{ paymentStatus: "PAID" }, { provider: "COD", paymentStatus: "PENDING" }] } })) throw new AccessError("Verified payment or confirmed COD order required.", 409);
           await tx.customerOrder.update({
             where: { id: data.orderId },
             data: { status: data.status },
           });
           message = `Order status updated to ${data.status}.`;
-          break;
-        }
-
-        case "RETURN_REVIEW": {
-          const ret = await tx.returnRequest.findUnique({ where: { id: data.returnId } });
-          if (!ret) throw new AccessError("Return request not found.", 404);
-
-          await tx.returnRequest.update({
-            where: { id: data.returnId },
-            data: {
-              status: data.decision,
-              adminNotes: data.notes || undefined,
-            },
-          });
-          message = `Return request marked as ${data.decision}.`;
           break;
         }
 
@@ -240,6 +200,7 @@ export async function POST(request: Request) {
             include: { inventory: true },
           });
           if (!prod) throw new AccessError("Product not found.", 404);
+          if (data.stock !== undefined && (prod.inventory.length > 1 || (prod.inventory[0] && data.stock < prod.inventory[0].reservedQty))) throw new AccessError("Use warehouse inventory controls; stock cannot be ambiguous or below reservations.", 409);
 
           const updateData: Record<string, unknown> = {};
           if (data.sellingPrice !== undefined) updateData.sellingPrice = data.sellingPrice;
@@ -273,11 +234,15 @@ export async function POST(request: Request) {
         }
 
         case "USER_STATUS": {
+          if (actor.role !== "ADMIN") throw new AccessError("Only administrators can manage user access.", 403);
           const user = await tx.user.findUnique({ where: { id: data.userId } });
           if (!user) throw new AccessError("User not found.", 404);
+          const count = await tx.user.count({ where: { role: "ADMIN", isActive: true } });
+          const accessError = userAccessError(actor.id, user, { role: user.role, isActive: data.isActive }, count);
+          if (accessError) throw new AccessError(accessError);
           await tx.user.update({
             where: { id: data.userId },
-            data: { isActive: data.isActive },
+            data: { isActive: data.isActive, sessionVersion: { increment: 1 } },
           });
           message = `User account ${data.isActive ? "activated" : "deactivated"}.`;
           break;
@@ -408,6 +373,7 @@ export async function POST(request: Request) {
             include: { inventory: true },
           });
           if (!prod) throw new AccessError("Product not found.", 404);
+          if (prod.inventory.length > 1 || (prod.inventory[0] && data.availableQty < prod.inventory[0].reservedQty)) throw new AccessError("Use warehouse inventory controls; stock cannot be ambiguous or below reservations.", 409);
           if (prod.inventory.length > 0) {
             await tx.inventory.update({
               where: { id: prod.inventory[0].id },
@@ -475,8 +441,7 @@ export async function POST(request: Request) {
         }
 
         case "CJ_SYNC": {
-          message = `CJ Dropshipping ${data.syncType} sync queued.`;
-          break;
+          throw new AccessError("Use the CJ integration sync endpoint; no sync job has been queued.", 409);
         }
       }
 
@@ -488,7 +453,7 @@ export async function POST(request: Request) {
           entityId: actor.id,
         },
       });
-    });
+    }, { isolationLevel: "Serializable" });
 
     return NextResponse.json({ success: true, message });
   } catch (error) {
