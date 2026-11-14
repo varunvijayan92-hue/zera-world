@@ -40,8 +40,13 @@ class AdminSessionManager(context: Context) {
     }
 
     var baseUrl: String
-        get() = prefs.getString(KEY_BASE_URL, "http://10.0.2.2:3000") ?: "http://10.0.2.2:3000"
-        set(value) = prefs.edit().putString(KEY_BASE_URL, value.trimEnd('/')).apply()
+        get() = (prefs.getString(KEY_BASE_URL, null) ?: "https://zerasworld.in")
+            .let { if (it == "http://10.0.2.2:3000") "https://zerasworld.in" else it }
+        set(value) {
+            val normalized = value.trim().trimEnd('/')
+            if (normalized != baseUrl) logout()
+            prefs.edit().putString(KEY_BASE_URL, normalized).apply()
+        }
 
     var authToken: String?
         get() = prefs.getString(KEY_AUTH_TOKEN, null)

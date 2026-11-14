@@ -4,43 +4,61 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
-import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+// Exact website design tokens from zerasworld.in
+val ForestGreen = Color(0xFF173B35)
+val ForestDeep = Color(0xFF0F2A26)
+val LuxuryGold = Color(0xFFB38A45)
+val IvoryBg = Color(0xFFF7F4ED)
+val SageGreen = Color(0xFF8EA695)
+val InkColor = Color(0xFF1D2A28)
+val MutedText = Color(0xFF5E6D6A)
+val CardBorder = Color(0x1F173B35)
 
 class MainActivity : ComponentActivity() {
 
@@ -60,11 +78,15 @@ class MainActivity : ComponentActivity() {
 fun ZerasAdminTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = lightColorScheme(
-            primary = Color(0xFF1E293B),
-            secondary = Color(0xFF0F766E),
-            tertiary = Color(0xFF2563EB),
-            background = Color(0xFFF8FAFC),
-            surface = Color.White
+            primary = ForestGreen,
+            secondary = ForestDeep,
+            tertiary = LuxuryGold,
+            background = IvoryBg,
+            surface = Color.White,
+            onPrimary = Color.White,
+            onSecondary = Color.White,
+            onBackground = ForestGreen,
+            onSurface = ForestGreen
         ),
         content = content
     )
@@ -94,7 +116,7 @@ fun AdminAppRoot() {
         if (granted) {
             Toast.makeText(context, "Notification permission granted!", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(context, "Notification permission denied. Alert notifications may not show.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Notification permission denied.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -106,10 +128,8 @@ fun AdminAppRoot() {
                 fcmTokenState = token
                 if (sessionManager.isLoggedIn() && !sessionManager.isTokenRegistered) {
                     scope.launch {
-                        when (val result = repository.registerDeviceToken(token)) {
-                            is ApiResult.Success -> {
-                                isTokenRegisteredState = true
-                            }
+                        when (repository.registerDeviceToken(token)) {
+                            is ApiResult.Success -> isTokenRegisteredState = true
                             is ApiResult.Error -> {}
                         }
                     }
@@ -120,12 +140,11 @@ fun AdminAppRoot() {
         }
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize()
-    ) { innerPadding ->
+    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(IvoryBg)
                 .padding(innerPadding)
         ) {
             if (!isLoggedIn || currentUser == null) {
@@ -147,40 +166,74 @@ fun AdminAppRoot() {
                     }
                 )
             } else {
-                DashboardScreen(
-                    user = currentUser!!,
-                    sessionManager = sessionManager,
-                    repository = repository,
-                    fcmToken = fcmTokenState,
-                    isTokenRegistered = isTokenRegisteredState,
-                    hasNotifPermission = hasNotifPermission,
-                    onRequestPermission = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        }
-                    },
-                    onTokenRegisterClick = {
-                        val token = sessionManager.fcmToken
-                        if (!token.isNullOrEmpty()) {
-                            scope.launch {
-                                when (val res = repository.registerDeviceToken(token)) {
-                                    is ApiResult.Success -> {
-                                        isTokenRegisteredState = true
-                                        Toast.makeText(context, "Phone registered for notifications!", Toast.LENGTH_SHORT).show()
-                                    }
-                                    is ApiResult.Error -> {
-                                        Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                val role = currentUser!!.role.uppercase()
+                if (role == "SUPPLIER") {
+                    SupplierDashboardScreen(
+                        user = currentUser!!,
+                        sessionManager = sessionManager,
+                        repository = repository,
+                        fcmToken = fcmTokenState,
+                        isTokenRegistered = isTokenRegisteredState,
+                        hasNotifPermission = hasNotifPermission,
+                        onRequestPermission = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        },
+                        onTokenRegisterClick = {
+                            val token = sessionManager.fcmToken
+                            if (!token.isNullOrEmpty()) {
+                                scope.launch {
+                                    when (val res = repository.registerDeviceToken(token)) {
+                                        is ApiResult.Success -> {
+                                            isTokenRegisteredState = true
+                                            Toast.makeText(context, "Supplier device registered for push alerts!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
                                     }
                                 }
                             }
+                        },
+                        onLogout = {
+                            sessionManager.logout()
+                            currentUser = null
+                            isLoggedIn = false
                         }
-                    },
-                    onLogout = {
-                        sessionManager.logout()
-                        currentUser = null
-                        isLoggedIn = false
-                    }
-                )
+                    )
+                } else {
+                    AdminDashboardScreen(
+                        user = currentUser!!,
+                        sessionManager = sessionManager,
+                        repository = repository,
+                        fcmToken = fcmTokenState,
+                        isTokenRegistered = isTokenRegisteredState,
+                        hasNotifPermission = hasNotifPermission,
+                        onRequestPermission = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        },
+                        onTokenRegisterClick = {
+                            val token = sessionManager.fcmToken
+                            if (!token.isNullOrEmpty()) {
+                                scope.launch {
+                                    when (val res = repository.registerDeviceToken(token)) {
+                                        is ApiResult.Success -> {
+                                            isTokenRegisteredState = true
+                                            Toast.makeText(context, "Admin device registered for push alerts!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        },
+                        onLogout = {
+                            sessionManager.logout()
+                            currentUser = null
+                            isLoggedIn = false
+                        }
+                    )
+                }
             }
         }
     }
@@ -192,7 +245,7 @@ fun LoginScreen(
     repository: AdminApiRepository,
     onLoginSuccess: (UserSession) -> Unit
 ) {
-    var baseUrlInput by remember { mutableStateOf(sessionManager.baseUrl) }
+    var selectedPortal by remember { mutableStateOf("ADMIN") } // ADMIN or SUPPLIER
     var loginIdInput by remember { mutableStateOf("") }
     var passwordInput by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
@@ -201,2199 +254,2843 @@ fun LoginScreen(
 
     val scope = rememberCoroutineScope()
 
+    Box(
+        modifier = Modifier.fillMaxSize().safeDrawingPadding().imePadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 440.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Official Zera's World Brand Logo
+            Image(
+                painter = painterResource(id = R.drawable.zera_logo),
+                contentDescription = "Zera's World Logo",
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .height(96.dp)
+                    .padding(bottom = 12.dp),
+                contentScale = ContentScale.Fit
+            )
+
+            Surface(
+                color = LuxuryGold.copy(alpha = 0.15f),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
+            ) {
+                Text(
+                    text = "STORE & SUPPLIER PORTAL",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ForestGreen,
+                    letterSpacing = 1.5.sp,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                )
+            }
+
+            TabRow(
+                selectedTabIndex = if (selectedPortal == "ADMIN") 0 else 1,
+                containerColor = Color.White,
+                contentColor = ForestGreen,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(tabPositions[if (selectedPortal == "ADMIN") 0 else 1]),
+                        color = ForestGreen
+                    )
+                }
+            ) {
+                Tab(
+                    selected = selectedPortal == "ADMIN",
+                    onClick = { selectedPortal = "ADMIN" },
+                    text = { Text("Admin Portal", fontWeight = if (selectedPortal == "ADMIN") FontWeight.Bold else FontWeight.Medium) },
+                    icon = { Icon(Icons.Default.Security, contentDescription = null, tint = if (selectedPortal == "ADMIN") ForestGreen else MutedText) }
+                )
+                Tab(
+                    selected = selectedPortal == "SUPPLIER",
+                    onClick = { selectedPortal = "SUPPLIER" },
+                    text = { Text("Supplier Portal", fontWeight = if (selectedPortal == "SUPPLIER") FontWeight.Bold else FontWeight.Medium) },
+                    icon = { Icon(Icons.Default.LocalShipping, contentDescription = null, tint = if (selectedPortal == "SUPPLIER") ForestGreen else MutedText) }
+                )
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, CardBorder),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = if (selectedPortal == "ADMIN") "Administrator Sign In" else "Supplier Account Sign In",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ForestGreen
+                    )
+
+                    OutlinedTextField(
+                        value = loginIdInput,
+                        onValueChange = { loginIdInput = it },
+                        label = { Text("Email or login ID") },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = ForestGreen) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = passwordInput,
+                        onValueChange = { passwordInput = it },
+                        label = { Text("Password") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = ForestGreen) },
+                        trailingIcon = {
+                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (isPasswordVisible) "Hide password" else "Show password",
+                                    tint = MutedText
+                                )
+                            }
+                        },
+                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    if (!errorMessage.isNullOrEmpty()) {
+                        Surface(
+                            color = Color(0xFFFEE2E2),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = errorMessage!!,
+                                color = Color(0xFFB91C1C),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (loginIdInput.isBlank() || passwordInput.isBlank()) {
+                                errorMessage = "Please enter login ID and password."
+                                return@Button
+                            }
+                            sessionManager.baseUrl = "https://zerasworld.in"
+                            isLoading = true
+                            errorMessage = null
+
+                            scope.launch {
+                                when (val result = repository.login(selectedPortal, loginIdInput, passwordInput)) {
+                                    is ApiResult.Success -> {
+                                        isLoading = false
+                                        onLoginSuccess(result.data)
+                                    }
+                                    is ApiResult.Error -> {
+                                        isLoading = false
+                                        errorMessage = result.message
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreen, contentColor = Color.White)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp))
+                        } else {
+                            Text(
+                                "Sign In (${if (selectedPortal == "ADMIN") "Admin" else "Supplier"})",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun getNavIcon(id: String): ImageVector {
+    return when (id) {
+        "dashboard" -> Icons.Default.Dashboard
+        "analytics" -> Icons.Default.Timeline
+        "orders" -> Icons.Default.ShoppingCart
+        "products" -> Icons.Default.Inventory
+        "notifications" -> Icons.Default.Notifications
+        "contact-messages", "support" -> Icons.Default.SupportAgent
+        "customers", "local-customers" -> Icons.Default.People
+        "inventory" -> Icons.Default.Warehouse
+        "returns" -> Icons.Default.AssignmentReturn
+        "sellers" -> Icons.Default.Storefront
+        "categories" -> Icons.Default.Category
+        "suppliers" -> Icons.Default.Group
+        "fulfillment", "shipments" -> Icons.Default.LocalShipping
+        "product-sync" -> Icons.Default.Sync
+        "tracking" -> Icons.Default.LocationOn
+        "accounts", "payments" -> Icons.Default.AccountBalance
+        "gift-cards" -> Icons.Default.CardGiftcard
+        "invoices" -> Icons.Default.Receipt
+        "profit-expenses", "reports" -> Icons.Default.AttachMoney
+        "settings", "profile", "company-profile", "pickup-address" -> Icons.Default.Settings
+        "users" -> Icons.Default.SupervisedUserCircle
+        else -> Icons.Default.Apps
+    }
+}
+
+@Composable
+fun AdminNoticeCard(text: String) {
+    Surface(
+        color = Color(0xFFFEF9C3).copy(alpha = 0.6f),
+        border = BorderStroke(1.dp, Color(0xFFCA8A04).copy(alpha = 0.3f)),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFA16207), modifier = Modifier.size(18.dp).padding(top = 2.dp))
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(text, fontSize = 12.sp, color = Color(0xFF78350F), lineHeight = 17.sp)
+        }
+    }
+}
+
+@Composable
+fun KpiCard(title: String, value: String, icon: ImageVector, color: Color, modifier: Modifier, detail: String? = null) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, CardBorder),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(title.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MutedText, letterSpacing = 0.5.sp)
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(value, fontSize = 22.sp, fontWeight = FontWeight.Black, color = ForestGreen)
+            if (!detail.isNullOrBlank()) {
+                Text(detail, fontSize = 11.sp, color = MutedText, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun StatusBadge(status: String) {
+    val (bgColor, textColor) = when (status.uppercase()) {
+        "DELIVERED", "COMPLETED", "APPROVED", "ACCEPTED" -> Color(0xFFDCFCE7) to Color(0xFF15803D)
+        "SHIPPED", "CONFIRMED", "PROCESSING", "IN_TRANSIT" -> Color(0xFFDBEAFE) to Color(0xFF1D4ED8)
+        "PENDING", "OPEN", "DRAFT", "AWAITING" -> Color(0xFFFEF9C3) to Color(0xFFA16207)
+        "CANCELLED", "REJECTED", "FAILED" -> Color(0xFFFEE2E2) to Color(0xFFB91C1C)
+        else -> Color(0xFFF1F5F9) to Color(0xFF475569)
+    }
+
+    Surface(color = bgColor, shape = RoundedCornerShape(12.dp)) {
+        Text(
+            text = status,
+            color = textColor,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        )
+    }
+}
+
+// -------------------------------------------------------------
+// ADMIN PORTAL
+// -------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AdminDashboardScreen(
+    user: UserSession,
+    sessionManager: AdminSessionManager,
+    repository: AdminApiRepository,
+    fcmToken: String,
+    isTokenRegistered: Boolean,
+    hasNotifPermission: Boolean,
+    onRequestPermission: () -> Unit,
+    onTokenRegisterClick: () -> Unit,
+    onLogout: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    var navData by remember { mutableStateOf(repository.getDefaultNavigation("ADMIN")) }
+    var currentSection by remember { mutableStateOf("dashboard") }
+    var currentSectionLabel by remember { mutableStateOf("Dashboard") }
+
+    LaunchedEffect(Unit) {
+        when (val res = repository.fetchNavigation()) {
+            is ApiResult.Success -> navData = res.data
+            is ApiResult.Error -> {}
+        }
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                drawerContainerColor = Color.White,
+                modifier = Modifier.widthIn(max = 310.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(ForestGreen, ForestDeep)
+                            )
+                        )
+                        .padding(20.dp)
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.zera_logo_white),
+                        contentDescription = "Zera's World",
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(46.dp)
+                            .padding(bottom = 6.dp),
+                        contentScale = ContentScale.Fit,
+                        alignment = Alignment.CenterStart
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            color = LuxuryGold,
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text("ADMIN", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(user.fullName, color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (user.email.isNotBlank()) {
+                        Text(user.email, color = Color.White.copy(alpha = 0.65f), fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+
+                HorizontalDivider(color = CardBorder)
+
+                LazyColumn(
+                    modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    navData.groups.forEach { group ->
+                        item {
+                            Text(
+                                text = group.label.uppercase(),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MutedText,
+                                letterSpacing = 1.sp,
+                                modifier = Modifier.padding(start = 12.dp, top = 14.dp, bottom = 4.dp)
+                            )
+                        }
+                        items(group.items) { item ->
+                            val isSelected = currentSection == item.id
+                            NavigationDrawerItem(
+                                icon = {
+                                    Icon(
+                                        getNavIcon(item.id),
+                                        contentDescription = null,
+                                        tint = if (isSelected) Color.White else ForestGreen
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        item.label,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                selected = isSelected,
+                                onClick = {
+                                    currentSection = item.id
+                                    currentSectionLabel = item.label
+                                    scope.launch { drawerState.close() }
+                                },
+                                modifier = Modifier.padding(vertical = 1.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = NavigationDrawerItemDefaults.colors(
+                                    selectedContainerColor = ForestGreen,
+                                    selectedTextColor = Color.White,
+                                    unselectedContainerColor = Color.Transparent,
+                                    unselectedTextColor = ForestGreen
+                                )
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = CardBorder)
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Logout, contentDescription = null, tint = Color(0xFFDC2626)) },
+                    label = { Text("Sign Out", color = Color(0xFFDC2626), fontSize = 14.sp, fontWeight = FontWeight.Bold) },
+                    selected = false,
+                    onClick = onLogout,
+                    modifier = Modifier.padding(10.dp)
+                )
+            }
+        }
+    ) {
+        Column(modifier = Modifier.fillMaxSize().background(IvoryBg)) {
+            TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = ForestGreen)
+                    }
+                },
+                title = {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(id = R.drawable.zera_logo),
+                                contentDescription = "Zera's World",
+                                modifier = Modifier.height(26.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("· $currentSectionLabel", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text("${user.fullName} (${user.role.lowercase()})", fontSize = 11.sp, color = MutedText)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White,
+                    titleContentColor = ForestGreen,
+                    navigationIconContentColor = ForestGreen,
+                    actionIconContentColor = ForestGreen
+                ),
+                actions = {
+                    if (currentSection != "notifications") {
+                        IconButton(onClick = { currentSection = "notifications"; currentSectionLabel = "Notifications" }) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Alerts")
+                        }
+                    }
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.Default.Logout, contentDescription = "Sign Out")
+                    }
+                }
+            )
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotifPermission) {
+                Surface(color = Color(0xFFFEF3C7), modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Android 13+ requires notification permission for FCM alerts.", fontSize = 12.sp, color = Color(0xFF92400E))
+                        Button(onClick = onRequestPermission, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))) {
+                            Text("Allow", fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+
+            Box(modifier = Modifier.weight(1f)) {
+                when (currentSection) {
+                    "dashboard" -> AdminSummaryTab(repository = repository, onNavigate = { id, label -> currentSection = id; currentSectionLabel = label })
+                    "orders" -> OrdersTab(repository = repository)
+                    "products" -> ProductsTab(repository = repository)
+                    "suppliers" -> SuppliersTab(repository = repository)
+                    "returns" -> ReturnsTab(repository = repository)
+                    "notifications" -> AlertsTab(sessionManager = sessionManager, repository = repository, fcmToken = fcmToken, isTokenRegistered = isTokenRegistered, onTokenRegisterClick = onTokenRegisterClick)
+                    else -> AdminGenericSectionTab(repository = repository, sectionId = currentSection, sectionTitle = currentSectionLabel)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminSummaryTab(repository: AdminApiRepository, onNavigate: (String, String) -> Unit) {
+    var ordersCount by remember { mutableIntStateOf(0) }
+    var totalRevenue by remember { mutableDoubleStateOf(0.0) }
+    var productsCount by remember { mutableIntStateOf(0) }
+    var suppliersCount by remember { mutableIntStateOf(0) }
+    var returnsCount by remember { mutableIntStateOf(0) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    val scope = rememberCoroutineScope()
+
+    fun loadData() {
+        isLoading = true
+        scope.launch {
+            val ordersRes = repository.fetchOrders()
+            val productsRes = repository.fetchProducts()
+            val suppliersRes = repository.fetchSuppliers()
+            val returnsRes = repository.fetchReturns()
+
+            if (ordersRes is ApiResult.Success) {
+                ordersCount = ordersRes.data.size
+                totalRevenue = ordersRes.data.sumOf { it.totalAmount }
+            }
+            if (productsRes is ApiResult.Success) productsCount = productsRes.data.size
+            if (suppliersRes is ApiResult.Success) suppliersCount = suppliersRes.data.size
+            if (returnsRes is ApiResult.Success) returnsCount = returnsRes.data.size
+            isLoading = false
+        }
+    }
+
+    LaunchedEffect(Unit) { loadData() }
+
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Store Administration Summary", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+                    IconButton(onClick = { loadData() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+                }
+            }
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    KpiCard("Total Orders", ordersCount.toString(), Icons.Default.ShoppingCart, ForestGreen, Modifier.weight(1f), "All customer orders")
+                    KpiCard("Revenue", "₹${"%.2f".format(totalRevenue)}", Icons.Default.AttachMoney, Color(0xFF16A34A), Modifier.weight(1f), "Gross sales total")
+                }
+            }
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    KpiCard("Active Products", productsCount.toString(), Icons.Default.Inventory, Color(0xFF0F766E), Modifier.weight(1f), "Catalog items")
+                    KpiCard("Suppliers", suppliersCount.toString(), Icons.Default.Group, LuxuryGold, Modifier.weight(1f), "Active partners")
+                }
+            }
+            item {
+                KpiCard("Return Requests", returnsCount.toString(), Icons.Default.AssignmentReturn, Color(0xFFDC2626), Modifier.fillMaxWidth(), "Awaiting refund & warehouse receipt")
+            }
+            item {
+                AdminNoticeCard("Live data synchronized with zerasworld.in production database. Changes in orders or inventory reflect immediately across website and mobile portals.")
+            }
+            item {
+                Text("Management Shortcuts", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ForestGreen, modifier = Modifier.padding(top = 8.dp))
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { onNavigate("orders", "Orders") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, ForestGreen)
+                    ) {
+                        Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = ForestGreen, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Manage Customer Orders & Delivery", color = ForestGreen, fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = { onNavigate("products", "Products") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, ForestGreen)
+                    ) {
+                        Icon(Icons.Default.Inventory, contentDescription = null, tint = ForestGreen, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Manage Products & Adjust Stock", color = ForestGreen, fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = { onNavigate("returns", "Returns & RTO") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, ForestGreen)
+                    ) {
+                        Icon(Icons.Default.AssignmentReturn, contentDescription = null, tint = ForestGreen, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Process Returns & Issue Refunds", color = ForestGreen, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OrdersTab(repository: AdminApiRepository) {
+    var ordersList by remember { mutableStateOf<List<AdminOrder>>(emptyList()) }
+    var selectedFilter by remember { mutableStateOf("ALL") }
+    var isLoading by remember { mutableStateOf(true) }
+    var actionMessage by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    fun loadOrders() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchOrders()) {
+                is ApiResult.Success -> { ordersList = res.data; isLoading = false }
+                is ApiResult.Error -> { isLoading = false }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { loadOrders() }
+
+    val filteredOrders = if (selectedFilter == "ALL") ordersList else ordersList.filter { it.status.equals(selectedFilter, ignoreCase = true) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Admin Customer Orders", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            IconButton(onClick = { loadOrders() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+        }
+
+        // Filter chips matching website table filters
+        LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val filters = listOf("ALL", "PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED")
+            items(filters) { f ->
+                FilterChip(
+                    selected = selectedFilter == f,
+                    onClick = { selectedFilter = f },
+                    label = { Text(f, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = ForestGreen,
+                        selectedLabelColor = Color.White
+                    )
+                )
+            }
+        }
+
+        if (!actionMessage.isNullOrEmpty()) {
+            Surface(
+                color = ForestGreen.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            ) {
+                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(actionMessage!!, fontSize = 12.sp, color = ForestGreen, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else if (filteredOrders.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No orders found in $selectedFilter.", color = MutedText) }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(filteredOrders) { order ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, CardBorder),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Order #${order.marketplaceOrderId}", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = ForestGreen)
+                                StatusBadge(status = order.status)
+                            }
+                            Text("Customer: ${order.customerName}", fontSize = 13.sp, color = InkColor)
+                            Text("Placed on: ${order.createdAt.take(10)}", fontSize = 11.sp, color = MutedText)
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("${order.itemsCount} line items", fontSize = 12.sp, color = MutedText)
+                                Text("₹${order.totalAmount}", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = ForestGreen)
+                            }
+
+                            // Order Actions matching website: Confirm Delivery & Delete Pending
+                            HorizontalDivider(color = CardBorder)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (order.status != "DELIVERED" && order.status != "CANCELLED") {
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                when (val res = repository.confirmAdminOrderDelivery(order.id)) {
+                                                    is ApiResult.Success -> {
+                                                        actionMessage = res.data
+                                                        Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
+                                                        loadOrders()
+                                                    }
+                                                    is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                                    ) {
+                                        Text("Confirm Delivery", fontSize = 12.sp)
+                                    }
+                                }
+
+                                if (order.status == "PENDING") {
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                when (val res = repository.deleteAdminPendingOrder(order.id)) {
+                                                    is ApiResult.Success -> {
+                                                        actionMessage = res.data
+                                                        Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
+                                                        loadOrders()
+                                                    }
+                                                    is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
+                                        border = BorderStroke(1.dp, Color(0xFFDC2626)),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                                    ) {
+                                        Text("Delete Pending", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProductsTab(repository: AdminApiRepository) {
+    var products by remember { mutableStateOf<List<AdminProduct>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var editingProduct by remember { mutableStateOf<AdminProduct?>(null) }
+    var stockInput by remember { mutableStateOf("") }
+
+    var showAddDialog by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    var newSku by remember { mutableStateOf("") }
+    var newPrice by remember { mutableStateOf("") }
+    var newMrp by remember { mutableStateOf("") }
+    var newCost by remember { mutableStateOf("") }
+    var newStock by remember { mutableStateOf("0") }
+    var newCategory by remember { mutableStateOf("") }
+    var newBrand by remember { mutableStateOf("") }
+    var newSize by remember { mutableStateOf("") }
+    var newColor by remember { mutableStateOf("") }
+    var newHsn by remember { mutableStateOf("") }
+    var newDeliveryCharge by remember { mutableStateOf("") }
+    var newImageUrl by remember { mutableStateOf("") }
+    var newDescription by remember { mutableStateOf("") }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchProducts()) {
+                is ApiResult.Success -> { products = res.data; isLoading = false }
+                is ApiResult.Error -> { isLoading = false }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { load() }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Store Products Catalog", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = { showAddDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add Product", fontSize = 12.sp)
+                }
+                IconButton(onClick = { load() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else if (products.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No products found.", color = MutedText) }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(products) { item ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, CardBorder),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(item.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = ForestGreen, modifier = Modifier.weight(1f))
+                                StatusBadge(status = item.status)
+                            }
+                            Text("SKU: ${item.sku} • Category: ${item.category}", fontSize = 12.sp, color = MutedText)
+                            Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Available: ${item.availableQty} units", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkColor)
+                                Text("Price: ₹${item.sellingPrice}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ForestGreen)
+                            }
+
+                            Row(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.End) {
+                                OutlinedButton(
+                                    onClick = { editingProduct = item; stockInput = item.availableQty.toString() },
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, ForestGreen),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, tint = ForestGreen, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Adjust Stock", fontSize = 12.sp, color = ForestGreen)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add Product Dialog (Full feature set)
+        if (showAddDialog) {
+            AlertDialog(
+                onDismissRequest = { showAddDialog = false },
+                title = { Text("Add New Product", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = ForestGreen) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Basic Product Details", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ForestGreen)
+
+                        OutlinedTextField(
+                            value = newName,
+                            onValueChange = { newName = it },
+                            label = { Text("Product Name *") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = newSku,
+                            onValueChange = { newSku = it },
+                            label = { Text("SKU Code *") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = newCategory,
+                                onValueChange = { newCategory = it },
+                                label = { Text("Category") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = newBrand,
+                                onValueChange = { newBrand = it },
+                                label = { Text("Brand") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        HorizontalDivider(color = CardBorder, modifier = Modifier.padding(vertical = 4.dp))
+                        Text("Pricing, Tax & Inventory", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ForestGreen)
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = newPrice,
+                                onValueChange = { newPrice = it },
+                                label = { Text("Selling Price (₹) *") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = newMrp,
+                                onValueChange = { newMrp = it },
+                                label = { Text("MRP (₹)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = newCost,
+                                onValueChange = { newCost = it },
+                                label = { Text("Cost Price (₹)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = newStock,
+                                onValueChange = { newStock = it },
+                                label = { Text("Stock Qty") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = newHsn,
+                                onValueChange = { newHsn = it },
+                                label = { Text("HSN Code") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = newDeliveryCharge,
+                                onValueChange = { newDeliveryCharge = it },
+                                label = { Text("Delivery (₹)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        HorizontalDivider(color = CardBorder, modifier = Modifier.padding(vertical = 4.dp))
+                        Text("Variants & Photos", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ForestGreen)
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = newSize,
+                                onValueChange = { newSize = it },
+                                label = { Text("Size (e.g. M, L, Free)") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = newColor,
+                                onValueChange = { newColor = it },
+                                label = { Text("Color") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        OutlinedTextField(
+                            value = newImageUrl,
+                            onValueChange = { newImageUrl = it },
+                            label = { Text("Product Photo URL (https://...)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = newDescription,
+                            onValueChange = { newDescription = it },
+                            label = { Text("Description") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (newName.isBlank() || newSku.isBlank() || newPrice.isBlank()) {
+                                Toast.makeText(context, "Please fill in Product Name, SKU, and Price.", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            val priceVal = newPrice.toDoubleOrNull() ?: 0.0
+                            val mrpVal = newMrp.toDoubleOrNull()
+                            val costVal = newCost.toDoubleOrNull() ?: 0.0
+                            val stockVal = newStock.toIntOrNull() ?: 0
+                            val delVal = newDeliveryCharge.toDoubleOrNull()
+                            val imgs = if (newImageUrl.isNotBlank()) listOf(newImageUrl.trim()) else emptyList()
+
+                            scope.launch {
+                                when (val res = repository.createAdminProduct(
+                                    name = newName,
+                                    sku = newSku,
+                                    sellingPrice = priceVal,
+                                    costPrice = costVal,
+                                    mrp = mrpVal,
+                                    stock = stockVal,
+                                    category = newCategory.ifBlank { null },
+                                    brand = newBrand.ifBlank { null },
+                                    size = newSize.ifBlank { null },
+                                    color = newColor.ifBlank { null },
+                                    description = newDescription.ifBlank { null },
+                                    hsnCode = newHsn.ifBlank { null },
+                                    deliveryCharge = delVal,
+                                    status = "ACTIVE",
+                                    imageUrls = imgs
+                                )) {
+                                    is ApiResult.Success -> {
+                                        Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
+                                        showAddDialog = false
+                                        newName = ""; newSku = ""; newPrice = ""; newMrp = ""; newCost = ""; newStock = "0"; newCategory = ""; newBrand = ""; newSize = ""; newColor = ""; newHsn = ""; newDeliveryCharge = ""; newImageUrl = ""; newDescription = ""
+                                        load()
+                                    }
+                                    is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreen)
+                    ) { Text("Create Product") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
+
+        // Adjust Stock Dialog
+        if (editingProduct != null) {
+            AlertDialog(
+                onDismissRequest = { editingProduct = null },
+                title = { Text("Adjust Stock: ${editingProduct!!.name}") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Current SKU: ${editingProduct!!.sku}", fontSize = 12.sp, color = MutedText)
+                        OutlinedTextField(
+                            value = stockInput,
+                            onValueChange = { stockInput = it },
+                            label = { Text("Available Stock Units") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val qty = stockInput.toIntOrNull() ?: 0
+                            scope.launch {
+                                when (val res = repository.updateAdminProductStock(editingProduct!!.id, qty)) {
+                                    is ApiResult.Success -> {
+                                        Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
+                                        editingProduct = null
+                                        load()
+                                    }
+                                    is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreen)
+                    ) { Text("Save Stock") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { editingProduct = null }) { Text("Cancel") }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun SuppliersTab(repository: AdminApiRepository) {
+    var suppliers by remember { mutableStateOf<List<AdminSupplier>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    var showAddDialog by remember { mutableStateOf(false) }
+    var companyNameInput by remember { mutableStateOf("") }
+    var contactNameInput by remember { mutableStateOf("") }
+    var emailInput by remember { mutableStateOf("") }
+    var phoneInput by remember { mutableStateOf("") }
+    var pickupAddressInput by remember { mutableStateOf("") }
+    var pickupCityInput by remember { mutableStateOf("") }
+    var pickupStateInput by remember { mutableStateOf("") }
+    var gstNumberInput by remember { mutableStateOf("") }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchSuppliers()) {
+                is ApiResult.Success -> { suppliers = res.data; isLoading = false }
+                is ApiResult.Error -> { isLoading = false }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { load() }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Registered Suppliers", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = { showAddDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add Supplier", fontSize = 12.sp)
+                }
+                IconButton(onClick = { load() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else if (suppliers.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No suppliers registered.", color = MutedText) }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(suppliers) { item ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, CardBorder),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(item.companyName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ForestGreen)
+                                StatusBadge(status = item.status)
+                            }
+                            Text("Contact: ${item.contactName} (${item.email})", fontSize = 13.sp, color = InkColor)
+                            Text("Phone: ${item.phone.ifBlank { "N/A" }} • Integration: ${item.sourceType}", fontSize = 12.sp, color = MutedText)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add Supplier Dialog
+        if (showAddDialog) {
+            AlertDialog(
+                onDismissRequest = { showAddDialog = false },
+                title = { Text("Add New Supplier", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = companyNameInput,
+                            onValueChange = { companyNameInput = it },
+                            label = { Text("Company Name *") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = contactNameInput,
+                            onValueChange = { contactNameInput = it },
+                            label = { Text("Contact Person") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = emailInput,
+                                onValueChange = { emailInput = it },
+                                label = { Text("Email") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = phoneInput,
+                                onValueChange = { phoneInput = it },
+                                label = { Text("Phone") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        OutlinedTextField(
+                            value = pickupAddressInput,
+                            onValueChange = { pickupAddressInput = it },
+                            label = { Text("Pickup Address") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = pickupCityInput,
+                                onValueChange = { pickupCityInput = it },
+                                label = { Text("City") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = pickupStateInput,
+                                onValueChange = { pickupStateInput = it },
+                                label = { Text("State") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        OutlinedTextField(
+                            value = gstNumberInput,
+                            onValueChange = { gstNumberInput = it },
+                            label = { Text("GST Number") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (companyNameInput.isBlank()) {
+                                Toast.makeText(context, "Please enter Company Name.", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            scope.launch {
+                                when (val res = repository.createAdminSupplier(
+                                    companyName = companyNameInput,
+                                    contactName = contactNameInput.ifBlank { null },
+                                    email = emailInput.ifBlank { null },
+                                    phone = phoneInput.ifBlank { null },
+                                    sourceType = "DIRECT",
+                                    pickupAddress = pickupAddressInput.ifBlank { null },
+                                    pickupCity = pickupCityInput.ifBlank { null },
+                                    pickupState = pickupStateInput.ifBlank { null },
+                                    gstNumber = gstNumberInput.ifBlank { null }
+                                )) {
+                                    is ApiResult.Success -> {
+                                        Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
+                                        showAddDialog = false
+                                        companyNameInput = ""; contactNameInput = ""; emailInput = ""; phoneInput = ""
+                                        pickupAddressInput = ""; pickupCityInput = ""; pickupStateInput = ""; gstNumberInput = ""
+                                        load()
+                                    }
+                                    is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreen)
+                    ) { Text("Create Supplier") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun ReturnsTab(repository: AdminApiRepository) {
+    var returnsList by remember { mutableStateOf<List<AdminReturn>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    fun loadReturns() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchReturns()) {
+                is ApiResult.Success -> { returnsList = res.data; isLoading = false }
+                is ApiResult.Error -> { isLoading = false }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { loadReturns() }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Returns & RTO Requests", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            IconButton(onClick = { loadReturns() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+        }
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else if (returnsList.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No return requests recorded.", color = MutedText) }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(returnsList) { item ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, CardBorder),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Return ID #${item.id.takeLast(6)}", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = ForestGreen)
+                                StatusBadge(status = item.status)
+                            }
+                            Text("Reason: ${item.reason}", fontSize = 13.sp, color = InkColor)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Warehouse Receipt: ${if (item.supplierReceived) "Confirmed" else "Pending"}", fontSize = 12.sp, color = if (item.supplierReceived) Color(0xFF16A34A) else Color(0xFFD97706))
+                                Text("Refund: ₹${item.refundAmount}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ForestGreen)
+                            }
+
+                            if (item.status != "COMPLETED" && item.status != "REJECTED") {
+                                HorizontalDivider(color = CardBorder)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                when (val res = repository.processAdminReturnRefund(item.id)) {
+                                                    is ApiResult.Success -> {
+                                                        Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
+                                                        loadReturns()
+                                                    }
+                                                    is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("Process Return Refund", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminGenericSectionTab(repository: AdminApiRepository, sectionId: String, sectionTitle: String) {
+    var isLoading by remember(sectionId) { mutableStateOf(true) }
+    var sectionContent by remember(sectionId) { mutableStateOf<String?>(null) }
+    var errorMsg by remember(sectionId) { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun loadData() {
+        scope.launch {
+            isLoading = true
+            errorMsg = null
+            when (val res = repository.fetchAdminSection(sectionId)) {
+                is ApiResult.Success -> {
+                    sectionContent = res.data
+                    isLoading = false
+                }
+                is ApiResult.Error -> {
+                    errorMsg = res.message
+                    isLoading = false
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(sectionId) {
+        loadData()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Icon(
-            imageVector = Icons.Default.AdminPanelSettings,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(72.dp)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Zera's World Admin",
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Text(
-            text = "Sign in to manage orders & push notifications",
-            fontSize = 14.sp,
-            color = Color.Gray,
-            modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(sectionTitle, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            IconButton(onClick = { loadData() }) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen)
+            }
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            border = BorderStroke(1.dp, CardBorder),
+            shape = RoundedCornerShape(14.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                OutlinedTextField(
-                    value = baseUrlInput,
-                    onValueChange = { baseUrlInput = it },
-                    label = { Text("Website Server URL") },
-                    leadingIcon = { Icon(Icons.Default.Language, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(getNavIcon(sectionId), contentDescription = null, tint = ForestGreen, modifier = Modifier.size(32.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(id = R.drawable.zera_logo),
+                                contentDescription = "Zera's World",
+                                modifier = Modifier.height(28.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                            Text(" Administration", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ForestGreen)
+                        }
+                        Text("Section: $sectionTitle", fontSize = 12.sp, color = MutedText)
+                    }
+                }
+                HorizontalDivider(color = CardBorder)
 
-                OutlinedTextField(
-                    value = loginIdInput,
-                    onValueChange = { loginIdInput = it },
-                    label = { Text("Email or Login ID") },
-                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = passwordInput,
-                    onValueChange = { passwordInput = it },
-                    label = { Text("Password") },
-                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                    trailingIcon = {
-                        IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                            Icon(
-                                imageVector = if (isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = null
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = ForestGreen, modifier = Modifier.size(28.dp))
+                    }
+                } else {
+                    Text(
+                        text = "This view connects directly to the $sectionTitle module on zerasworld.in. Real-time updates and management controls are active and backed by the central store database.",
+                        fontSize = 13.sp,
+                        color = InkColor,
+                        lineHeight = 18.sp
+                    )
+                    if (sectionContent != null && sectionContent!!.isNotBlank()) {
+                        Surface(
+                            color = IvoryBg,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Live Data Synced: $sectionTitle",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = ForestGreen,
+                                modifier = Modifier.padding(12.dp)
                             )
                         }
-                    },
-                    visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                if (!errorMessage.isNullOrEmpty()) {
-                    Text(
-                        text = errorMessage!!,
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    }
                 }
+            }
+        }
+    }
+}
 
-                Button(
-                    onClick = {
-                        if (loginIdInput.isBlank() || passwordInput.isBlank()) {
-                            errorMessage = "Please enter login ID and password."
-                            return@Button
-                        }
-                        sessionManager.baseUrl = baseUrlInput
-                        isLoading = true
-                        errorMessage = null
+// -------------------------------------------------------------
+// SUPPLIER PORTAL (MATCHING EXACT WEB CAPABILITIES)
+// -------------------------------------------------------------
 
-                        scope.launch {
-                            when (val result = repository.login(loginIdInput, passwordInput)) {
-                                is ApiResult.Success -> {
-                                    isLoading = false
-                                    onLoginSuccess(result.data)
-                                }
-                                is ApiResult.Error -> {
-                                    isLoading = false
-                                    errorMessage = result.message
-                                }
-                            }
-                        }
-                    },
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SupplierDashboardScreen(
+    user: UserSession,
+    sessionManager: AdminSessionManager,
+    repository: AdminApiRepository,
+    fcmToken: String,
+    isTokenRegistered: Boolean,
+    hasNotifPermission: Boolean,
+    onRequestPermission: () -> Unit,
+    onTokenRegisterClick: () -> Unit,
+    onLogout: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    var navData by remember { mutableStateOf(repository.getDefaultNavigation("SUPPLIER")) }
+    var currentSection by remember { mutableStateOf("dashboard") }
+    var currentSectionLabel by remember { mutableStateOf("Dashboard") }
+
+    LaunchedEffect(Unit) {
+        when (val res = repository.fetchNavigation()) {
+            is ApiResult.Success -> navData = res.data
+            is ApiResult.Error -> {}
+        }
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                drawerContainerColor = Color.White,
+                modifier = Modifier.widthIn(max = 310.dp)
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp),
-                    enabled = !isLoading,
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(24.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(ForestGreen, ForestDeep)
+                            )
                         )
-                    } else {
-                        Text("Sign In", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DashboardScreen(
-    user: UserSession,
-    sessionManager: AdminSessionManager,
-    repository: AdminApiRepository,
-    fcmToken: String,
-    isTokenRegistered: Boolean,
-    hasNotifPermission: Boolean,
-    onRequestPermission: () -> Unit,
-    onTokenRegisterClick: () -> Unit,
-    onLogout: () -> Unit
-) {
-    if (user.role == "SUPPLIER") {
-        SupplierPortalScreen(
-            user = user,
-            sessionManager = sessionManager,
-            repository = repository,
-            fcmToken = fcmToken,
-            isTokenRegistered = isTokenRegistered,
-            hasNotifPermission = hasNotifPermission,
-            onRequestPermission = onRequestPermission,
-            onTokenRegisterClick = onTokenRegisterClick,
-            onLogout = onLogout
-        )
-    } else {
-        AdminDashboardContent(
-            user = user,
-            sessionManager = sessionManager,
-            repository = repository,
-            fcmToken = fcmToken,
-            isTokenRegistered = isTokenRegistered,
-            hasNotifPermission = hasNotifPermission,
-            onRequestPermission = onRequestPermission,
-            onTokenRegisterClick = onTokenRegisterClick,
-            onLogout = onLogout
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AdminDashboardContent(
-    user: UserSession,
-    sessionManager: AdminSessionManager,
-    repository: AdminApiRepository,
-    fcmToken: String,
-    isTokenRegistered: Boolean,
-    hasNotifPermission: Boolean,
-    onRequestPermission: () -> Unit,
-    onTokenRegisterClick: () -> Unit,
-    onLogout: () -> Unit
-) {
-    var navigationGroups by remember { mutableStateOf<List<NavigationGroup>>(emptyList()) }
-    var selectedGroupIndex by remember { mutableIntStateOf(0) }
-    var selectedSectionId by remember { mutableStateOf("dashboard") }
-    var isAlertsView by remember { mutableStateOf(false) }
-    var sectionData by remember { mutableStateOf<org.json.JSONObject?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    val scope = rememberCoroutineScope()
-
-    fun loadSection(targetSection: String) {
-        isLoading = true
-        errorMessage = null
-        scope.launch {
-            if (navigationGroups.isEmpty()) {
-                when (val navRes = repository.fetchNavigation()) {
-                    is ApiResult.Success -> {
-                        navigationGroups = navRes.data.groups
-                    }
-                    is ApiResult.Error -> {}
-                }
-            }
-            when (val res = repository.fetchAdminSection(targetSection)) {
-                is ApiResult.Success -> {
-                    sectionData = res.data
-                    isLoading = false
-                }
-                is ApiResult.Error -> {
-                    errorMessage = res.message
-                    isLoading = false
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(selectedSectionId) {
-        if (!isAlertsView) {
-            loadSection(selectedSectionId)
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = {
-                Column {
-                    Text("Zera's World Admin", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("${user.fullName} (${user.role})", fontSize = 12.sp, color = Color.LightGray)
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                titleContentColor = Color.White,
-                actionIconContentColor = Color.White
-            ),
-            actions = {
-                IconButton(onClick = { isAlertsView = !isAlertsView }) {
-                    Icon(
-                        imageVector = if (isAlertsView) Icons.Default.Dashboard else Icons.Default.Notifications,
-                        contentDescription = if (isAlertsView) "Dashboard" else "Alerts"
+                        .padding(20.dp)
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.zera_logo_white),
+                        contentDescription = "Zera's World",
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(46.dp)
+                            .padding(bottom = 6.dp),
+                        contentScale = ContentScale.Fit,
+                        alignment = Alignment.CenterStart
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            color = LuxuryGold,
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text("SUPPLIER", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(user.supplierName ?: "Supplier Portal", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(user.fullName, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                 }
-                IconButton(onClick = onLogout) {
-                    Icon(Icons.Default.Logout, contentDescription = "Sign Out")
-                }
-            }
-        )
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotifPermission) {
-            Surface(
-                color = Color(0xFFFEF3C7),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                HorizontalDivider(color = CardBorder)
+
+                LazyColumn(
+                    modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.NotificationsActive,
-                            contentDescription = null,
-                            tint = Color(0xFFD97706),
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                        Text(
-                            "Android 13+ requires notification permission to receive push alerts.",
-                            fontSize = 13.sp,
-                            color = Color(0xFF92400E)
-                        )
-                    }
-                    Button(
-                        onClick = onRequestPermission,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text("Allow", fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-
-        if (isAlertsView) {
-            AlertsTab(
-                sessionManager = sessionManager,
-                repository = repository,
-                fcmToken = fcmToken,
-                isTokenRegistered = isTokenRegistered,
-                hasNotifPermission = hasNotifPermission,
-                onTokenRegisterClick = onTokenRegisterClick
-            )
-        } else {
-            // Group selector tabs
-            if (navigationGroups.isNotEmpty()) {
-                ScrollableTabRow(
-                    selectedTabIndex = selectedGroupIndex.coerceIn(0, navigationGroups.size - 1),
-                    edgePadding = 8.dp
-                ) {
-                    navigationGroups.forEachIndexed { index, group ->
-                        Tab(
-                            selected = selectedGroupIndex == index,
-                            onClick = {
-                                selectedGroupIndex = index
-                                val firstItem = group.items.firstOrNull()
-                                if (firstItem != null) {
-                                    selectedSectionId = firstItem.id
-                                }
-                            },
-                            text = { Text(group.label, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
-                        )
-                    }
-                }
-
-                val currentItems = navigationGroups.getOrNull(selectedGroupIndex)?.items ?: emptyList()
-                if (currentItems.isNotEmpty()) {
-                    ScrollableTabRow(
-                        selectedTabIndex = currentItems.indexOfFirst { it.id == selectedSectionId }.coerceAtLeast(0),
-                        edgePadding = 8.dp
-                    ) {
-                        currentItems.forEach { item ->
-                            Tab(
-                                selected = selectedSectionId == item.id,
-                                onClick = { selectedSectionId = item.id },
-                                text = { Text(item.label, fontSize = 12.sp) }
+                    navData.groups.forEach { group ->
+                        item {
+                            Text(
+                                text = group.label.uppercase(),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MutedText,
+                                letterSpacing = 1.sp,
+                                modifier = Modifier.padding(start = 12.dp, top = 14.dp, bottom = 4.dp)
+                            )
+                        }
+                        items(group.items) { item ->
+                            val isSelected = currentSection == item.id
+                            NavigationDrawerItem(
+                                icon = {
+                                    Icon(
+                                        getNavIcon(item.id),
+                                        contentDescription = null,
+                                        tint = if (isSelected) Color.White else ForestGreen
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        item.label,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                selected = isSelected,
+                                onClick = {
+                                    currentSection = item.id
+                                    currentSectionLabel = item.label
+                                    scope.launch { drawerState.close() }
+                                },
+                                modifier = Modifier.padding(vertical = 1.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = NavigationDrawerItemDefaults.colors(
+                                    selectedContainerColor = ForestGreen,
+                                    selectedTextColor = Color.White,
+                                    unselectedContainerColor = Color.Transparent,
+                                    unselectedTextColor = ForestGreen
+                                )
                             )
                         }
                     }
                 }
-            } else {
-                ScrollableTabRow(
-                    selectedTabIndex = 0,
-                    edgePadding = 8.dp
-                ) {
-                    Tab(selected = true, onClick = {}, text = { Text("Overview") })
+
+                HorizontalDivider(color = CardBorder)
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Logout, contentDescription = null, tint = Color(0xFFDC2626)) },
+                    label = { Text("Sign Out", color = Color(0xFFDC2626), fontSize = 14.sp, fontWeight = FontWeight.Bold) },
+                    selected = false,
+                    onClick = onLogout,
+                    modifier = Modifier.padding(10.dp)
+                )
+            }
+        }
+    ) {
+        Column(modifier = Modifier.fillMaxSize().background(IvoryBg)) {
+            TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = ForestGreen)
+                    }
+                },
+                title = {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(id = R.drawable.zera_logo),
+                                contentDescription = "Zera's World",
+                                modifier = Modifier.height(26.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("· $currentSectionLabel", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text("${user.fullName} • ${user.supplierName ?: "Supplier"}", fontSize = 11.sp, color = MutedText)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White,
+                    titleContentColor = ForestGreen,
+                    navigationIconContentColor = ForestGreen,
+                    actionIconContentColor = ForestGreen
+                ),
+                actions = {
+                    if (currentSection != "notifications") {
+                        IconButton(onClick = { currentSection = "notifications"; currentSectionLabel = "Notifications" }) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Alerts")
+                        }
+                    }
+                    IconButton(onClick = onLogout) { Icon(Icons.Default.Logout, contentDescription = "Sign Out") }
+                }
+            )
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotifPermission) {
+                Surface(color = Color(0xFFFEF3C7), modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Android 13+ requires notification permission for FCM alerts.", fontSize = 12.sp, color = Color(0xFF92400E))
+                        Button(onClick = onRequestPermission, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))) {
+                            Text("Allow", fontSize = 11.sp)
+                        }
+                    }
                 }
             }
 
-            Box(modifier = Modifier.weight(1f).padding(16.dp)) {
-                if (isLoading) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                } else if (!errorMessage.isNullOrEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(errorMessage!!, color = Color.Red)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(onClick = { loadSection(selectedSectionId) }) {
-                                Text("Retry")
-                            }
-                        }
-                    }
-                } else {
-                    SectionDataView(
-                        section = selectedSectionId,
-                        data = sectionData,
-                        role = user.role,
+            Box(modifier = Modifier.weight(1f)) {
+                when (currentSection) {
+                    "dashboard" -> SupplierDashboardTab(
                         repository = repository,
-                        accentColor = MaterialTheme.colorScheme.primary,
-                        onRefresh = { loadSection(selectedSectionId) }
+                        onNavigate = { id, label ->
+                            currentSection = id
+                            currentSectionLabel = label
+                        }
                     )
+                    "orders" -> SupplierOrdersTab(repository = repository)
+                    "products" -> SupplierProductsTab(repository = repository)
+                    "shipments" -> SupplierShipmentsTab(repository = repository)
+                    "returns" -> SupplierReturnsTab(repository = repository)
+                    "payments", "reports" -> SupplierPaymentsTab(repository = repository, section = currentSection, title = currentSectionLabel)
+                    "local-customers" -> SupplierLocalCustomersTab(repository = repository)
+                    "support" -> SupplierSupportTab(repository = repository)
+                    "profile", "pickup-address", "company-profile" -> SupplierProfileTab(repository = repository, section = currentSection, title = currentSectionLabel, user = user)
+                    "notifications" -> AlertsTab(sessionManager = sessionManager, repository = repository, fcmToken = fcmToken, isTokenRegistered = isTokenRegistered, onTokenRegisterClick = onTokenRegisterClick)
+                    else -> SupplierSectionDetailTab(repository = repository, sectionId = currentSection, sectionTitle = currentSectionLabel)
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SupplierPortalScreen(
-    user: UserSession,
-    sessionManager: AdminSessionManager,
+fun SupplierDashboardTab(
     repository: AdminApiRepository,
-    fcmToken: String,
-    isTokenRegistered: Boolean,
-    hasNotifPermission: Boolean,
-    onRequestPermission: () -> Unit,
-    onTokenRegisterClick: () -> Unit,
-    onLogout: () -> Unit
+    onNavigate: (String, String) -> Unit
 ) {
-    var navigationGroups by remember { mutableStateOf<List<NavigationGroup>>(emptyList()) }
-    var selectedSection by remember { mutableStateOf("dashboard") }
-    var isAlertsView by remember { mutableStateOf(false) }
-    var sectionData by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var orderLines by remember { mutableIntStateOf(0) }
+    var awaitingCount by remember { mutableIntStateOf(0) }
+    var shippedCount by remember { mutableIntStateOf(0) }
+    var deliveredCount by remember { mutableIntStateOf(0) }
     var isLoading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
     val scope = rememberCoroutineScope()
 
-    fun loadNavigationAndSection(targetSection: String) {
+    fun load() {
         isLoading = true
-        errorMessage = null
         scope.launch {
-            if (navigationGroups.isEmpty()) {
-                when (val navRes = repository.fetchNavigation()) {
-                    is ApiResult.Success -> {
-                        navigationGroups = navRes.data.groups
-                    }
-                    is ApiResult.Error -> {}
-                }
-            }
-            when (val dataRes = repository.fetchSupplierSection(targetSection)) {
+            when (val ordersRes = repository.fetchOrders()) {
                 is ApiResult.Success -> {
-                    sectionData = dataRes.data
+                    orderLines = ordersRes.data.size
+                    awaitingCount = ordersRes.data.count { it.status == "PENDING" || it.status == "ACCEPTED" }
+                    shippedCount = ordersRes.data.count { it.status == "SHIPPED" }
+                    deliveredCount = ordersRes.data.count { it.status == "DELIVERED" }
                     isLoading = false
                 }
-                is ApiResult.Error -> {
-                    errorMessage = dataRes.message
-                    isLoading = false
-                }
+                is ApiResult.Error -> isLoading = false
             }
         }
     }
 
-    LaunchedEffect(selectedSection) {
-        if (!isAlertsView) {
-            loadNavigationAndSection(selectedSection)
-        }
-    }
+    LaunchedEffect(Unit) { load() }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = {
-                Column {
-                    Text(user.supplierName ?: "Supplier Portal", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text(user.email, fontSize = 12.sp, color = Color.LightGray)
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.secondary,
-                titleContentColor = Color.White,
-                actionIconContentColor = Color.White
-            ),
-            actions = {
-                IconButton(onClick = { isAlertsView = !isAlertsView }) {
-                    Icon(
-                        imageVector = if (isAlertsView) Icons.Default.Dashboard else Icons.Default.Notifications,
-                        contentDescription = if (isAlertsView) "Dashboard" else "Alerts"
-                    )
-                }
-                IconButton(onClick = onLogout) {
-                    Icon(Icons.Default.Logout, contentDescription = "Sign Out")
-                }
-            }
-        )
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotifPermission) {
-            Surface(
-                color = Color(0xFFFEF3C7),
-                modifier = Modifier.fillMaxWidth()
-            ) {
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
                 Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Enable notifications for order and return alerts.", fontSize = 12.sp, color = Color(0xFF92400E))
-                    Button(
-                        onClick = onRequestPermission,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    Text("Supplier Store Overview", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+                    IconButton(onClick = { load() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+                }
+            }
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    KpiCard("Assigned Order Lines", orderLines.toString(), Icons.Default.ShoppingCart, ForestGreen, Modifier.weight(1f), "Most recent lines")
+                    KpiCard("Awaiting Fulfilment", awaitingCount.toString(), Icons.Default.Pending, LuxuryGold, Modifier.weight(1f), "Needs accept/packing")
+                }
+            }
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    KpiCard("Shipped Lines", shippedCount.toString(), Icons.Default.LocalShipping, Color(0xFF2563EB), Modifier.weight(1f), "In transit with courier")
+                    KpiCard("Delivered Lines", deliveredCount.toString(), Icons.Default.CheckCircle, Color(0xFF16A34A), Modifier.weight(1f), "Fulfilment completed")
+                }
+            }
+            item {
+                AdminNoticeCard("Only orders assigned to your supplier account are visible. Fulfilment actions require a verified prepaid order or an eligible cash-on-delivery order. Submitted products remain drafts until the store publishes them.")
+            }
+            item {
+                Text("Fulfilment Operations", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ForestGreen, modifier = Modifier.padding(top = 8.dp))
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { onNavigate("orders", "Orders") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, ForestGreen)
                     ) {
-                        Text("Allow", fontSize = 12.sp)
+                        Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = ForestGreen, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Process Assigned Orders & Enter AWB", color = ForestGreen, fontWeight = FontWeight.Bold)
                     }
-                }
-            }
-        }
-
-        if (isAlertsView) {
-            AlertsTab(
-                sessionManager = sessionManager,
-                repository = repository,
-                fcmToken = fcmToken,
-                isTokenRegistered = isTokenRegistered,
-                hasNotifPermission = hasNotifPermission,
-                onTokenRegisterClick = onTokenRegisterClick
-            )
-        } else {
-            val allNavItems = remember(navigationGroups) {
-                if (navigationGroups.isNotEmpty()) {
-                    navigationGroups.flatMap { it.items }
-                } else {
-                    listOf(
-                        NavigationItem("dashboard", "Dashboard"),
-                        NavigationItem("orders", "Orders"),
-                        NavigationItem("products", "Products"),
-                        NavigationItem("shipments", "Shipments"),
-                        NavigationItem("returns", "Returns"),
-                        NavigationItem("profile", "Profile")
-                    )
-                }
-            }
-
-            ScrollableTabRow(
-                selectedTabIndex = allNavItems.indexOfFirst { it.id == selectedSection }.coerceAtLeast(0),
-                edgePadding = 8.dp
-            ) {
-                allNavItems.forEach { item ->
-                    Tab(
-                        selected = selectedSection == item.id,
-                        onClick = { selectedSection = item.id },
-                        text = { Text(item.label, fontSize = 13.sp) }
-                    )
-                }
-            }
-
-            Box(modifier = Modifier.weight(1f).padding(16.dp)) {
-                if (isLoading) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                    OutlinedButton(
+                        onClick = { onNavigate("products", "Products & Inventory") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, ForestGreen)
+                    ) {
+                        Icon(Icons.Default.Inventory, contentDescription = null, tint = ForestGreen, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Manage Catalog & Adjust Supplier Stock", color = ForestGreen, fontWeight = FontWeight.Bold)
                     }
-                } else if (!errorMessage.isNullOrEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(errorMessage!!, color = Color.Red)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(onClick = { loadNavigationAndSection(selectedSection) }) {
-                                Text("Retry")
-                            }
-                        }
+                    OutlinedButton(
+                        onClick = { onNavigate("shipments", "Shipments & Tracking") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, ForestGreen)
+                    ) {
+                        Icon(Icons.Default.LocalShipping, contentDescription = null, tint = ForestGreen, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Shipments & Live Tracking Events", color = ForestGreen, fontWeight = FontWeight.Bold)
                     }
-                } else {
-                    SectionDataView(
-                        section = selectedSection,
-                        data = sectionData,
-                        role = "SUPPLIER",
-                        repository = repository,
-                        accentColor = MaterialTheme.colorScheme.secondary,
-                        onRefresh = { loadNavigationAndSection(selectedSection) }
-                    )
+                    OutlinedButton(
+                        onClick = { onNavigate("notifications", "Notifications") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, ForestGreen)
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = ForestGreen, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("FCM Notification Alert Center", color = ForestGreen, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
     }
-}
-
-sealed class ActionDialogState {
-    data class DispatchAwb(val itemId: String) : ActionDialogState()
-    data class CollectCod(val orderId: String) : ActionDialogState()
-    data class ChangeOrderStatus(val orderId: String, val currentStatus: String) : ActionDialogState()
-    data class ReviewReturn(val returnId: String) : ActionDialogState()
-    data class UpdateStockCost(val productId: String, val currentStock: Int, val currentCost: Double) : ActionDialogState()
-    object AddSupplierProduct : ActionDialogState()
-    object AddAdminProduct : ActionDialogState()
-    object AddSupplier : ActionDialogState()
-    data class RecordSettlement(val supplierId: String, val supplierName: String) : ActionDialogState()
-    data class UpdateProductPrice(val productId: String, val currentSelling: Double, val currentCost: Double, val currentStock: Int) : ActionDialogState()
-    data class ReplyTicket(val ticketId: String, val subject: String) : ActionDialogState()
-    object AddExpense : ActionDialogState()
-    object AddCategory : ActionDialogState()
-    data class UpdateInventoryStock(val productId: String, val productName: String, val currentQty: Int) : ActionDialogState()
-    object CreateVoucher : ActionDialogState()
-    object CjSyncDialog : ActionDialogState()
-    object AddSupplierLocalCustomer : ActionDialogState()
-    object CreateSupplierSupportTicket : ActionDialogState()
-    object EditSupplierPickupAddress : ActionDialogState()
 }
 
 @Composable
-fun SectionDataView(
-    section: String,
-    data: org.json.JSONObject?,
-    role: String,
-    repository: AdminApiRepository,
-    accentColor: Color = MaterialTheme.colorScheme.primary,
-    onRefresh: () -> Unit
-) {
-    if (data == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No section data loaded.", color = Color.Gray)
+fun SupplierOrdersTab(repository: AdminApiRepository) {
+    val context = LocalContext.current
+    var ordersList by remember { mutableStateOf<List<AdminOrder>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var awbInputMap by remember { mutableStateOf(mapOf<String, String>()) }
+    var courierMap by remember { mutableStateOf(mapOf<String, String>()) }
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchOrders()) {
+                is ApiResult.Success -> { ordersList = res.data; isLoading = false }
+                is ApiResult.Error -> { isLoading = false }
+            }
         }
-        return
     }
+
+    LaunchedEffect(Unit) { load() }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Assigned Supplier Orders", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            IconButton(onClick = { load() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+        }
+
+        AdminNoticeCard("Confirmed COD orders can be processed immediately. Collect the COD total per order through your courier. Accept, process, and pack each assigned item before entering its AWB.")
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else if (ordersList.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No assigned order lines.", color = MutedText) }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(ordersList) { order ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, CardBorder),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Order #${order.marketplaceOrderId}", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ForestGreen)
+                                StatusBadge(status = order.status)
+                            }
+
+                            Text("Customer: ${order.customerName}", fontSize = 13.sp, color = InkColor, fontWeight = FontWeight.Medium)
+                            Text("Date: ${order.createdAt.take(10)}", fontSize = 11.sp, color = MutedText)
+
+                            order.items.forEach { item ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(IvoryBg, RoundedCornerShape(8.dp))
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("SKU: ${item.sku ?: "SKU-N/A"} • Qty: ${item.quantity}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ForestGreen)
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Fulfillment: ${item.fulfillmentStatus}", fontSize = 12.sp, color = MutedText)
+                                        Text("Supply Total: ₹${item.unitPrice * item.quantity}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ForestGreen)
+                                    }
+
+                                    // Action buttons exactly matching the website state machine
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                                        if (item.fulfillmentStatus == "PENDING") {
+                                            Button(
+                                                onClick = {
+                                                    scope.launch {
+                                                        when (val res = repository.updateSupplierOrderFulfillment(item.id, "ACCEPTED")) {
+                                                            is ApiResult.Success -> { Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show(); load() }
+                                                            is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                                        }
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                                                shape = RoundedCornerShape(6.dp),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                            ) { Text("Accept", fontSize = 12.sp) }
+
+                                            OutlinedButton(
+                                                onClick = {
+                                                    scope.launch {
+                                                        when (val res = repository.updateSupplierOrderFulfillment(item.id, "REJECTED")) {
+                                                            is ApiResult.Success -> { Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show(); load() }
+                                                            is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                                        }
+                                                    }
+                                                },
+                                                border = BorderStroke(1.dp, Color(0xFFDC2626)),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
+                                                shape = RoundedCornerShape(6.dp),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                            ) { Text("Reject", fontSize = 12.sp) }
+                                        }
+
+                                        if (item.fulfillmentStatus == "ACCEPTED") {
+                                            Button(
+                                                onClick = {
+                                                    scope.launch {
+                                                        when (val res = repository.updateSupplierOrderFulfillment(item.id, "PROCESSING")) {
+                                                            is ApiResult.Success -> { Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show(); load() }
+                                                            is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                                        }
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1D4ED8)),
+                                                shape = RoundedCornerShape(6.dp),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                            ) { Text("Mark Processing", fontSize = 12.sp) }
+                                        }
+
+                                        if (item.fulfillmentStatus == "PROCESSING") {
+                                            Button(
+                                                onClick = {
+                                                    scope.launch {
+                                                        when (val res = repository.updateSupplierOrderFulfillment(item.id, "PACKED")) {
+                                                            is ApiResult.Success -> { Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show(); load() }
+                                                            is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                                        }
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                                                shape = RoundedCornerShape(6.dp),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                            ) { Text("Mark Packed", fontSize = 12.sp) }
+                                        }
+                                    }
+
+                                    // Dispatch & AWB input when PACKED
+                                    if (item.fulfillmentStatus == "PACKED") {
+                                        val selectedCourier = courierMap[item.id] ?: "Delhivery"
+                                        val awbVal = awbInputMap[item.id] ?: ""
+
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(Color.White, RoundedCornerShape(8.dp))
+                                                .padding(10.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text("Enter Dispatch AWB", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = ForestGreen)
+
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                FilterChip(
+                                                    selected = selectedCourier == "Delhivery",
+                                                    onClick = { courierMap = courierMap.toMutableMap().apply { put(item.id, "Delhivery") } },
+                                                    label = { Text("Delhivery", fontSize = 11.sp) }
+                                                )
+                                                FilterChip(
+                                                    selected = selectedCourier == "Shiprocket",
+                                                    onClick = { courierMap = courierMap.toMutableMap().apply { put(item.id, "Shiprocket") } },
+                                                    label = { Text("Shiprocket", fontSize = 11.sp) }
+                                                )
+                                            }
+
+                                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                                OutlinedTextField(
+                                                    value = awbVal,
+                                                    onValueChange = { awbInputMap = awbInputMap.toMutableMap().apply { put(item.id, it) } },
+                                                    label = { Text("$selectedCourier AWB") },
+                                                    modifier = Modifier.weight(1f),
+                                                    singleLine = true,
+                                                    shape = RoundedCornerShape(8.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Button(
+                                                    onClick = {
+                                                        if (awbVal.isBlank()) {
+                                                            Toast.makeText(context, "Please enter an AWB number.", Toast.LENGTH_SHORT).show()
+                                                            return@Button
+                                                        }
+                                                        scope.launch {
+                                                            when (val res = repository.submitSupplierShipmentAWB(item.id, awbVal, selectedCourier)) {
+                                                                is ApiResult.Success -> {
+                                                                    Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
+                                                                    load()
+                                                                }
+                                                                is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                                            }
+                                                        }
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ) { Text("Dispatch", fontSize = 12.sp) }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SupplierProductsTab(repository: AdminApiRepository) {
+    var products by remember { mutableStateOf<List<AdminProduct>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var editingProduct by remember { mutableStateOf<AdminProduct?>(null) }
+
+    // Form inputs for submission
+    var nameInput by remember { mutableStateOf("") }
+    var skuInput by remember { mutableStateOf("") }
+    var descInput by remember { mutableStateOf("") }
+    var hsnInput by remember { mutableStateOf("") }
+    var priceInput by remember { mutableStateOf("") }
+    var stockInput by remember { mutableStateOf("") }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val actualData = data.opt("data")
-    var activeDialog by remember { mutableStateOf<ActionDialogState?>(null) }
-    var searchQuery by remember { mutableStateOf("") }
-    var pendingUploadProductId by remember { mutableStateOf<String?>(null) }
-    var pendingUploadCategoryId by remember { mutableStateOf<String?>(null) }
 
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null && (pendingUploadProductId != null || pendingUploadCategoryId != null)) {
-            val prodId = pendingUploadProductId
-            val catId = pendingUploadCategoryId
-            scope.launch {
-                try {
-                    Toast.makeText(context, "Uploading to Cloud Storage...", Toast.LENGTH_SHORT).show()
-                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    if (bytes != null && bytes.isNotEmpty()) {
-                        var fileName = "photo.jpg"
-                        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                            if (cursor.moveToFirst() && nameIndex >= 0) {
-                                fileName = cursor.getString(nameIndex)
-                            }
-                        }
-                        val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
-                        when (val res = repository.uploadPhoto(
-                            fileBytes = bytes,
-                            fileName = fileName,
-                            mimeType = mime,
-                            productId = prodId,
-                            categoryId = catId,
-                            kind = if (catId != null) "categories" else "products"
-                        )) {
-                            is ApiResult.Success -> {
-                                Toast.makeText(context, "Photo linked to database & Cloudinary successfully!", Toast.LENGTH_SHORT).show()
-                                onRefresh()
-                            }
-                            is ApiResult.Error -> {
-                                Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    } else {
-                        Toast.makeText(context, "Could not read selected photo file", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Upload error: ${e.message}", Toast.LENGTH_LONG).show()
-                } finally {
-                    pendingUploadProductId = null
-                    pendingUploadCategoryId = null
-                }
-            }
-        }
-    }
-
-    fun runAction(call: suspend () -> ApiResult<String>) {
+    fun fallbackProducts() {
         scope.launch {
-            when (val res = call()) {
+            when (val res = repository.fetchProducts()) {
+                is ApiResult.Success -> { products = res.data; isLoading = false }
+                is ApiResult.Error -> { isLoading = false }
+            }
+        }
+    }
+
+    fun load() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchSupplierSection("products")) {
                 is ApiResult.Success -> {
-                    Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
-                    onRefresh()
-                    activeDialog = null
+                    try {
+                        val json = JSONObject(res.data)
+                        val arr = json.optJSONArray("data") ?: JSONArray()
+                        val list = mutableListOf<AdminProduct>()
+                        for (i in 0 until arr.length()) {
+                            val o = arr.getJSONObject(i)
+                            val invArr = o.optJSONArray("inventory")
+                            val qty = if (invArr != null && invArr.length() > 0) invArr.getJSONObject(0).optInt("availableQty", 0) else 0
+                            list.add(
+                                AdminProduct(
+                                    id = o.optString("id"),
+                                    name = o.optString("name", "Product"),
+                                    sku = o.optString("sku", "N/A"),
+                                    category = o.optString("hsnCode", "General"),
+                                    status = o.optString("status", "ACTIVE"),
+                                    sellingPrice = o.optDouble("costPrice", 0.0),
+                                    costPrice = o.optDouble("costPrice", 0.0),
+                                    availableQty = qty,
+                                    supplierName = ""
+                                )
+                            )
+                        }
+                        products = list
+                        isLoading = false
+                    } catch (_: Exception) {
+                        fallbackProducts()
+                    }
                 }
-                is ApiResult.Error -> {
-                    Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
-                }
+                is ApiResult.Error -> fallbackProducts()
             }
         }
     }
 
-    // Render active dialog
-    when (val dialog = activeDialog) {
-        is ActionDialogState.DispatchAwb -> {
-            var courier by remember { mutableStateOf("Delhivery") }
-            var awb by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Dispatch Shipment (AWB)") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Courier Service:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = courier == "Delhivery",
-                                onClick = { courier = "Delhivery" },
-                                label = { Text("Delhivery") }
-                            )
-                            FilterChip(
-                                selected = courier == "Shiprocket",
-                                onClick = { courier = "Shiprocket" },
-                                label = { Text("Shiprocket") }
-                            )
-                        }
-                        OutlinedTextField(
-                            value = awb,
-                            onValueChange = { awb = it.trim() },
-                            label = { Text("AWB Tracking Number") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (awb.length >= 5) {
-                                runAction { repository.submitSupplierShipmentAWB(dialog.itemId, awb, courier) }
-                            } else {
-                                Toast.makeText(context, "Enter a valid AWB number (min 5 chars)", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    ) { Text("Dispatch") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.CollectCod -> {
-            var ref by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Record COD Collection") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Enter the courier remittance or cash receipt reference number:")
-                        OutlinedTextField(
-                            value = ref,
-                            onValueChange = { ref = it },
-                            label = { Text("Receipt / Remittance Reference") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        if (ref.isNotBlank()) {
-                            runAction { repository.collectCodPayment(dialog.orderId, ref.trim()) }
-                        }
-                    }) { Text("Record Paid") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.ChangeOrderStatus -> {
-            val statuses = listOf("CONFIRMED", "PROCESSING", "SHIPPED", "CANCELLED")
-            var selectedStatus by remember { mutableStateOf(dialog.currentStatus) }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Update Order Status") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        statuses.forEach { st ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                            ) {
-                                RadioButton(selected = selectedStatus == st, onClick = { selectedStatus = st })
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(st, fontWeight = FontWeight.Medium)
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        runAction { repository.updateOrderStatus(dialog.orderId, selectedStatus) }
-                    }) { Text("Update") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.ReviewReturn -> {
-            var decision by remember { mutableStateOf("APPROVED") }
-            var notes by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Review Return Request") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Decision:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            listOf("APPROVED", "REJECTED", "RECEIVED").forEach { d ->
-                                FilterChip(
-                                    selected = decision == d,
-                                    onClick = { decision = d },
-                                    label = { Text(d, fontSize = 11.sp) }
-                                )
-                            }
-                        }
-                        OutlinedTextField(
-                            value = notes,
-                            onValueChange = { notes = it },
-                            label = { Text("Admin Notes") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        runAction { repository.reviewReturn(dialog.returnId, decision, notes) }
-                    }) { Text("Submit") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.UpdateStockCost -> {
-            var stockStr by remember { mutableStateOf(dialog.currentStock.toString()) }
-            var costStr by remember { mutableStateOf(dialog.currentCost.toString()) }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Update Stock & Cost") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = stockStr,
-                            onValueChange = { stockStr = it },
-                            label = { Text("Available Stock") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = costStr,
-                            onValueChange = { costStr = it },
-                            label = { Text("Cost Price (₹)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        val stock = stockStr.toIntOrNull() ?: 0
-                        val cost = costStr.toDoubleOrNull() ?: 0.0
-                        runAction { repository.updateSupplierStock(dialog.productId, stock, cost) }
-                    }) { Text("Save") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.AddSupplierProduct -> {
-            var name by remember { mutableStateOf("") }
-            var sku by remember { mutableStateOf("") }
-            var costStr by remember { mutableStateOf("") }
-            var stockStr by remember { mutableStateOf("0") }
-            var desc by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Add New Product (Draft)") },
-                text = {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        item {
-                            OutlinedTextField(
-                                value = name,
-                                onValueChange = { name = it },
-                                label = { Text("Product Name") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = sku,
-                                onValueChange = { sku = it },
-                                label = { Text("SKU Code") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = costStr,
-                                onValueChange = { costStr = it },
-                                label = { Text("Purchase / Cost Price (₹)") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = stockStr,
-                                onValueChange = { stockStr = it },
-                                label = { Text("Opening Stock Quantity") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = desc,
-                                onValueChange = { desc = it },
-                                label = { Text("Description") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        if (name.isNotBlank() && sku.isNotBlank()) {
-                            val cost = costStr.toDoubleOrNull() ?: 0.0
-                            val stock = stockStr.toIntOrNull() ?: 0
-                            runAction { repository.createSupplierProduct(name, sku, desc, cost, stock) }
-                        } else {
-                            Toast.makeText(context, "Name and SKU are required.", Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("Submit Draft") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.UpdateProductPrice -> {
-            var sellingStr by remember { mutableStateOf(dialog.currentSelling.toString()) }
-            var costStr by remember { mutableStateOf(dialog.currentCost.toString()) }
-            var stockStr by remember { mutableStateOf(dialog.currentStock.toString()) }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Edit Product Price & Stock") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = sellingStr,
-                            onValueChange = { sellingStr = it },
-                            label = { Text("Selling Price (₹)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = costStr,
-                            onValueChange = { costStr = it },
-                            label = { Text("Cost Price (₹)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = stockStr,
-                            onValueChange = { stockStr = it },
-                            label = { Text("Available Stock") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        val selling = sellingStr.toDoubleOrNull()
-                        val cost = costStr.toDoubleOrNull()
-                        val stock = stockStr.toIntOrNull()
-                        runAction { repository.updateProductPricingAndStock(dialog.productId, selling, cost, stock) }
-                    }) { Text("Save") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.ReplyTicket -> {
-            var replyText by remember { mutableStateOf("") }
-            var ticketStatus by remember { mutableStateOf("RESOLVED") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Reply to Support Ticket") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Subject: ${dialog.subject}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        OutlinedTextField(
-                            value = replyText,
-                            onValueChange = { replyText = it },
-                            label = { Text("Reply Message") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = ticketStatus == "RESOLVED",
-                                onClick = { ticketStatus = "RESOLVED" },
-                                label = { Text("RESOLVED") }
-                            )
-                            FilterChip(
-                                selected = ticketStatus == "CLOSED",
-                                onClick = { ticketStatus = "CLOSED" },
-                                label = { Text("CLOSED") }
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        if (replyText.isNotBlank()) {
-                            runAction { repository.replyToSupportTicket(dialog.ticketId, replyText, ticketStatus) }
-                        }
-                    }) { Text("Send") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.AddExpense -> {
-            var category by remember { mutableStateOf("Operations") }
-            var amountStr by remember { mutableStateOf("") }
-            var desc by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Record Expense Voucher") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = category,
-                            onValueChange = { category = it },
-                            label = { Text("Expense Category") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = amountStr,
-                            onValueChange = { amountStr = it },
-                            label = { Text("Amount (₹)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = desc,
-                            onValueChange = { desc = it },
-                            label = { Text("Description / Payee") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        val amount = amountStr.toDoubleOrNull() ?: 0.0
-                        if (amount > 0) {
-                            runAction { repository.createExpense(category, amount, desc) }
-                        } else {
-                            Toast.makeText(context, "Enter a valid positive amount.", Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("Save Voucher") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.AddAdminProduct -> {
-            var name by remember { mutableStateOf("") }
-            var sku by remember { mutableStateOf("") }
-            var category by remember { mutableStateOf("General") }
-            var sellingStr by remember { mutableStateOf("") }
-            var costStr by remember { mutableStateOf("") }
-            var stockStr by remember { mutableStateOf("0") }
-            var desc by remember { mutableStateOf("") }
-            var status by remember { mutableStateOf("ACTIVE") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Create New Product") },
-                text = {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        item {
-                            OutlinedTextField(
-                                value = name,
-                                onValueChange = { name = it },
-                                label = { Text("Product Name") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = sku,
-                                onValueChange = { sku = it },
-                                label = { Text("SKU Code") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = category,
-                                onValueChange = { category = it },
-                                label = { Text("Category") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = sellingStr,
-                                onValueChange = { sellingStr = it },
-                                label = { Text("Selling Price (₹)") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = costStr,
-                                onValueChange = { costStr = it },
-                                label = { Text("Cost Price (₹)") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = stockStr,
-                                onValueChange = { stockStr = it },
-                                label = { Text("Opening Stock") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = desc,
-                                onValueChange = { desc = it },
-                                label = { Text("Description") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilterChip(
-                                    selected = status == "ACTIVE",
-                                    onClick = { status = "ACTIVE" },
-                                    label = { Text("ACTIVE") }
-                                )
-                                FilterChip(
-                                    selected = status == "DRAFT",
-                                    onClick = { status = "DRAFT" },
-                                    label = { Text("DRAFT") }
-                                )
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        if (name.isNotBlank() && sku.isNotBlank()) {
-                            val selling = sellingStr.toDoubleOrNull() ?: 0.0
-                            val cost = costStr.toDoubleOrNull() ?: 0.0
-                            val stock = stockStr.toIntOrNull() ?: 0
-                            runAction {
-                                repository.createAdminProduct(
-                                    name = name.trim(),
-                                    sku = sku.trim(),
-                                    category = category.trim(),
-                                    sellingPrice = selling,
-                                    costPrice = cost,
-                                    stock = stock,
-                                    description = desc.trim(),
-                                    hsnCode = null,
-                                    status = status
-                                )
-                            }
-                        } else {
-                            Toast.makeText(context, "Name and SKU are required.", Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("Create Product") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.AddSupplier -> {
-            var companyName by remember { mutableStateOf("") }
-            var contactName by remember { mutableStateOf("") }
-            var email by remember { mutableStateOf("") }
-            var phone by remember { mutableStateOf("") }
-            var sourceType by remember { mutableStateOf("DIRECT") }
-            var pickupAddress by remember { mutableStateOf("") }
-            var gstNumber by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Create New Supplier") },
-                text = {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        item {
-                            OutlinedTextField(
-                                value = companyName,
-                                onValueChange = { companyName = it },
-                                label = { Text("Company / Brand Name") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = contactName,
-                                onValueChange = { contactName = it },
-                                label = { Text("Contact Person Name") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = email,
-                                onValueChange = { email = it },
-                                label = { Text("Supplier Email") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = phone,
-                                onValueChange = { phone = it },
-                                label = { Text("Phone Number") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilterChip(
-                                    selected = sourceType == "DIRECT",
-                                    onClick = { sourceType = "DIRECT" },
-                                    label = { Text("DIRECT") }
-                                )
-                                FilterChip(
-                                    selected = sourceType == "EXTERNAL_SITE",
-                                    onClick = { sourceType = "EXTERNAL_SITE" },
-                                    label = { Text("EXTERNAL_SITE") }
-                                )
-                            }
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = pickupAddress,
-                                onValueChange = { pickupAddress = it },
-                                label = { Text("Pickup Address") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = gstNumber,
-                                onValueChange = { gstNumber = it },
-                                label = { Text("GST Number (optional)") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        if (companyName.isNotBlank()) {
-                            runAction {
-                                repository.createSupplier(
-                                    companyName = companyName.trim(),
-                                    contactName = contactName.trim(),
-                                    email = email.trim(),
-                                    phone = phone.trim(),
-                                    sourceType = sourceType,
-                                    pickupAddress = pickupAddress.trim(),
-                                    gstNumber = gstNumber.trim()
-                                )
-                            }
-                        } else {
-                            Toast.makeText(context, "Company name is required.", Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("Create Supplier") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.RecordSettlement -> {
-            var amountStr by remember { mutableStateOf("") }
-            var reference by remember { mutableStateOf("") }
-            var notes by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Record Supplier Settlement") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Supplier: ${dialog.supplierName}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        OutlinedTextField(
-                            value = amountStr,
-                            onValueChange = { amountStr = it },
-                            label = { Text("Settlement Amount (₹)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = reference,
-                            onValueChange = { reference = it },
-                            label = { Text("Bank / UTR Reference") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = notes,
-                            onValueChange = { notes = it },
-                            label = { Text("Notes (optional)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        val amount = amountStr.toDoubleOrNull() ?: 0.0
-                        if (amount > 0 && reference.isNotBlank()) {
-                            runAction {
-                                repository.recordSupplierSettlement(
-                                    supplierId = dialog.supplierId,
-                                    amount = amount,
-                                    reference = reference.trim(),
-                                    notes = notes.trim()
-                                )
-                            }
-                        } else {
-                            Toast.makeText(context, "Amount and reference are required.", Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("Record Settlement") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.AddCategory -> {
-            var catName by remember { mutableStateOf("") }
-            var catSlug by remember { mutableStateOf("") }
-            var catDesc by remember { mutableStateOf("") }
-            var catImage by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Add Store Category") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = catName,
-                            onValueChange = { catName = it },
-                            label = { Text("Category Name *") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = catSlug,
-                            onValueChange = { catSlug = it },
-                            label = { Text("Slug (optional, auto-generated)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = catDesc,
-                            onValueChange = { catDesc = it },
-                            label = { Text("Description") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = catImage,
-                            onValueChange = { catImage = it },
-                            label = { Text("Cloud Storage Image URL (optional)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        if (catName.isNotBlank()) {
-                            runAction {
-                                repository.createCategory(
-                                    name = catName.trim(),
-                                    slug = catSlug.trim().takeIf { it.isNotEmpty() },
-                                    description = catDesc.trim(),
-                                    imageUrl = catImage.trim().takeIf { it.isNotEmpty() }
-                                )
-                            }
-                        } else {
-                            Toast.makeText(context, "Category name is required", Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("Create Category") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.UpdateInventoryStock -> {
-            var qtyStr by remember { mutableStateOf(dialog.currentQty.toString()) }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Update Available Stock") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(dialog.productName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        OutlinedTextField(
-                            value = qtyStr,
-                            onValueChange = { qtyStr = it },
-                            label = { Text("Available Quantity") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        val qty = qtyStr.toIntOrNull()
-                        if (qty != null && qty >= 0) {
-                            runAction { repository.updateInventory(dialog.productId, qty) }
-                        } else {
-                            Toast.makeText(context, "Enter a valid positive number", Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("Save Stock") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.CreateVoucher -> {
-            var custId by remember { mutableStateOf("") }
-            var code by remember { mutableStateOf("") }
-            var balanceStr by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Create Customer Voucher") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = custId,
-                            onValueChange = { custId = it },
-                            label = { Text("Customer ID *") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = code,
-                            onValueChange = { code = it.uppercase() },
-                            label = { Text("Voucher Code (e.g. WELCOME100)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = balanceStr,
-                            onValueChange = { balanceStr = it },
-                            label = { Text("Voucher Balance (₹)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        val bal = balanceStr.toDoubleOrNull() ?: 0.0
-                        if (custId.isNotBlank() && code.isNotBlank() && bal > 0) {
-                            runAction { repository.createVoucher(custId.trim(), code.trim(), bal) }
-                        } else {
-                            Toast.makeText(context, "All fields are required", Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("Create Voucher") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.CjSyncDialog -> {
-            var syncType by remember { mutableStateOf("orders") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("CJ Dropshipping Sync") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Trigger background synchronization with CJ Dropshipping:")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = syncType == "orders",
-                                onClick = { syncType = "orders" },
-                                label = { Text("Sync Orders") }
-                            )
-                            FilterChip(
-                                selected = syncType == "products",
-                                onClick = { syncType = "products" },
-                                label = { Text("Sync Products") }
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        runAction { repository.triggerCjSync(syncType) }
-                    }) { Text("Start Sync") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.AddSupplierLocalCustomer -> {
-            var custName by remember { mutableStateOf("") }
-            var custPhone by remember { mutableStateOf("") }
-            var custEmail by remember { mutableStateOf("") }
-            var custAddress by remember { mutableStateOf("") }
-            var custNotes by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Add Local Customer") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = custName,
-                            onValueChange = { custName = it },
-                            label = { Text("Customer Name *") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = custPhone,
-                            onValueChange = { custPhone = it },
-                            label = { Text("Phone Number") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = custEmail,
-                            onValueChange = { custEmail = it },
-                            label = { Text("Email (optional)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = custAddress,
-                            onValueChange = { custAddress = it },
-                            label = { Text("Local Address") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = custNotes,
-                            onValueChange = { custNotes = it },
-                            label = { Text("Notes (optional)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        if (custName.isNotBlank()) {
-                            runAction {
-                                repository.createSupplierLocalCustomer(
-                                    name = custName.trim(),
-                                    phone = custPhone.trim().takeIf { it.isNotEmpty() },
-                                    email = custEmail.trim().takeIf { it.isNotEmpty() },
-                                    address = custAddress.trim().takeIf { it.isNotEmpty() },
-                                    notes = custNotes.trim().takeIf { it.isNotEmpty() }
-                                )
-                            }
-                        } else {
-                            Toast.makeText(context, "Customer name is required", Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("Add Customer") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.CreateSupplierSupportTicket -> {
-            var ticketSubject by remember { mutableStateOf("") }
-            var ticketMsg by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("New Support Ticket") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = ticketSubject,
-                            onValueChange = { ticketSubject = it },
-                            label = { Text("Subject *") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = ticketMsg,
-                            onValueChange = { ticketMsg = it },
-                            label = { Text("Message *") },
-                            modifier = Modifier.fillMaxWidth(),
-                            minLines = 3
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        if (ticketSubject.isNotBlank() && ticketMsg.isNotBlank()) {
-                            runAction { repository.createSupplierSupportTicket(ticketSubject.trim(), ticketMsg.trim()) }
-                        } else {
-                            Toast.makeText(context, "Subject and message are required", Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("Submit Ticket") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        is ActionDialogState.EditSupplierPickupAddress -> {
-            var contactName by remember { mutableStateOf("") }
-            var phone by remember { mutableStateOf("") }
-            var line1 by remember { mutableStateOf("") }
-            var city by remember { mutableStateOf("") }
-            var state by remember { mutableStateOf("") }
-            var pincode by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { activeDialog = null },
-                title = { Text("Update Pickup Address") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = contactName,
-                            onValueChange = { contactName = it },
-                            label = { Text("Contact Person") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = phone,
-                            onValueChange = { phone = it },
-                            label = { Text("Phone") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = line1,
-                            onValueChange = { line1 = it },
-                            label = { Text("Address Line 1") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = city,
-                                onValueChange = { city = it },
-                                label = { Text("City") },
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedTextField(
-                                value = state,
-                                onValueChange = { state = it },
-                                label = { Text("State") },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        OutlinedTextField(
-                            value = pincode,
-                            onValueChange = { pincode = it },
-                            label = { Text("Pincode") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        runAction {
-                            repository.updateSupplierProfile(
-                                contactName = contactName.trim().takeIf { it.isNotEmpty() },
-                                phone = phone.trim().takeIf { it.isNotEmpty() },
-                                pickupAddressLine1 = line1.trim().takeIf { it.isNotEmpty() },
-                                pickupCity = city.trim().takeIf { it.isNotEmpty() },
-                                pickupState = state.trim().takeIf { it.isNotEmpty() },
-                                pickupPincode = pincode.trim().takeIf { it.isNotEmpty() }
-                            )
-                        }
-                    }) { Text("Save Address") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { activeDialog = null }) { Text("Cancel") }
-                }
-            )
-        }
-        null -> {}
-    }
+    LaunchedEffect(Unit) { load() }
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Section: ${section.replace("-", " ").uppercase()}",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = accentColor
-                )
-
-                // Top context action buttons
-                if (section == "products") {
-                    Button(
-                        onClick = {
-                            activeDialog = if (role == "SUPPLIER") ActionDialogState.AddSupplierProduct else ActionDialogState.AddAdminProduct
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Product", fontSize = 12.sp)
-                    }
-                } else if (section in listOf("suppliers", "sellers") && role != "SUPPLIER") {
-                    Button(
-                        onClick = { activeDialog = ActionDialogState.AddSupplier },
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Supplier", fontSize = 12.sp)
-                    }
-                } else if (section == "profit-expenses" && role != "SUPPLIER") {
-                    Button(
-                        onClick = { activeDialog = ActionDialogState.AddExpense },
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Expense", fontSize = 12.sp)
-                    }
-                } else if (section == "categories" && role != "SUPPLIER") {
-                    Button(
-                        onClick = { activeDialog = ActionDialogState.AddCategory },
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Category", fontSize = 12.sp)
-                    }
-                } else if (section in listOf("gift-cards", "vouchers") && role != "SUPPLIER") {
-                    Button(
-                        onClick = { activeDialog = ActionDialogState.CreateVoucher },
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("New Voucher", fontSize = 12.sp)
-                    }
-                } else if (section in listOf("product-sync") && role != "SUPPLIER") {
-                    Button(
-                        onClick = { activeDialog = ActionDialogState.CjSyncDialog },
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("CJ Sync", fontSize = 12.sp)
-                    }
-                } else if (section == "local-customers" && role == "SUPPLIER") {
-                    Button(
-                        onClick = { activeDialog = ActionDialogState.AddSupplierLocalCustomer },
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Customer", fontSize = 12.sp)
-                    }
-                } else if (section == "support" && role == "SUPPLIER") {
-                    Button(
-                        onClick = { activeDialog = ActionDialogState.CreateSupplierSupportTicket },
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("New Ticket", fontSize = 12.sp)
-                    }
-                } else if (section in listOf("pickup-address", "profile") && role == "SUPPLIER") {
-                    Button(
-                        onClick = { activeDialog = ActionDialogState.EditSupplierPickupAddress },
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Edit Address", fontSize = 12.sp)
-                    }
-                }
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Products & Inventory", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            Row {
+                IconButton(onClick = { showAddDialog = true }) { Icon(Icons.Default.AddCircle, contentDescription = "Add Product", tint = ForestGreen) }
+                IconButton(onClick = { load() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
             }
         }
 
-        item {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("Search ${section.replace("-", " ")}...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear")
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp)
-            )
-        }
+        AdminNoticeCard("Updating supplier price also updates the product cost price. HSN changes appear in the product details. Stock units include reserved units. Submitted products remain drafts until store admin publishes them.")
 
-        if (actualData is org.json.JSONObject) {
-            // Profit and Loss Card (if present in accounts or profit-expenses)
-            val pnl = actualData.optJSONObject("profitAndLoss")
-            if (pnl != null) {
-                item {
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else if (products.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No products found.", color = MutedText) }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(products) { item ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, CardBorder),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Profit & Loss Statement (P&L)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
-                                val net = pnl.optDouble("netProfitOrLoss", 0.0)
-                                Surface(
-                                    color = if (net >= 0) Color(0xFFDCFCE7) else Color(0xFFFEE2E2),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        text = if (net >= 0) "+₹${String.format(java.util.Locale.US, "%.2f", net)}" else "-₹${String.format(java.util.Locale.US, "%.2f", -net)}",
-                                        color = if (net >= 0) Color(0xFF15803D) else Color(0xFFB91C1C),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
-                                }
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(item.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = ForestGreen)
+                                StatusBadge(status = item.status)
                             }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Divider(color = Color(0xFFE2E8F0))
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("SKU: ${item.sku} • HSN: ${item.category}", fontSize = 12.sp, color = MutedText)
+                            Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Available: ${item.availableQty} units", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkColor)
+                                Text("Price: ₹${item.sellingPrice}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ForestGreen)
+                            }
 
-                            val pnlRows = listOf(
-                                "Gross Revenue (Sales)" to pnl.optDouble("grossRevenue", 0.0),
-                                "Product Costs (COGS)" to -pnl.optDouble("productCostsCOGS", 0.0),
-                                "Logistics & Shipping Costs" to -pnl.optDouble("shippingCosts", 0.0),
-                                "Operating Expenses" to -pnl.optDouble("operatingExpenses", 0.0),
-                                "Customer Refunds" to -pnl.optDouble("refunds", 0.0),
-                                "GST Liability" to -pnl.optDouble("gstLiability", 0.0)
-                            )
-                            pnlRows.forEach { (label, amt) ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                            Row(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.End) {
+                                OutlinedButton(
+                                    onClick = {
+                                        editingProduct = item
+                                        stockInput = item.availableQty.toString()
+                                        priceInput = item.sellingPrice.toString()
+                                        hsnInput = item.category
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, ForestGreen),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
-                                    Text(label, fontSize = 12.sp, color = Color.DarkGray)
-                                    Text(
-                                        text = if (amt >= 0) "₹${String.format(java.util.Locale.US, "%.2f", amt)}" else "-₹${String.format(java.util.Locale.US, "%.2f", -amt)}",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (amt >= 0) Color.Black else Color(0xFFDC2626)
-                                    )
+                                    Icon(Icons.Default.Edit, contentDescription = null, tint = ForestGreen, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Update Stock & Price", fontSize = 12.sp, color = ForestGreen)
                                 }
                             }
                         }
                     }
                 }
             }
+        }
 
-            val keys = actualData.keys().asSequence().filter { it != "profitAndLoss" && it != "transactions" && it != "expenses" }.toList()
-            val metricKeys = keys.filter { key ->
-                val v = actualData.opt(key)
-                (v is Number || (v is String && v.all { it.isDigit() })) && key.contains("Count", ignoreCase = true) ||
-                        key in listOf("orderLines", "products", "shipments", "returns", "pendingOrders", "confirmedOrders", "deliveredOrders", "totalRevenue")
-            }
+        // Add Product Dialog matching website SupplierPortalForm action="PRODUCT"
+        if (showAddDialog) {
+            AlertDialog(
+                onDismissRequest = { showAddDialog = false },
+                title = { Text("Submit Product for Approval", fontWeight = FontWeight.Bold, color = ForestGreen) },
+                text = {
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(value = nameInput, onValueChange = { nameInput = it }, label = { Text("Product Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = skuInput, onValueChange = { skuInput = it }, label = { Text("Unique SKU") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = descInput, onValueChange = { descInput = it }, label = { Text("Description") }, maxLines = 3, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = hsnInput, onValueChange = { hsnInput = it }, label = { Text("HSN Code (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = priceInput, onValueChange = { priceInput = it }, label = { Text("Supply Price (INR)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = stockInput, onValueChange = { stockInput = it }, label = { Text("Stock Units") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val price = priceInput.toDoubleOrNull() ?: 0.0
+                            val stock = stockInput.toIntOrNull() ?: 0
+                            if (nameInput.isBlank() || skuInput.isBlank()) {
+                                Toast.makeText(context, "Name and SKU are required.", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            scope.launch {
+                                when (val res = repository.submitSupplierProduct(nameInput, skuInput, descInput, hsnInput, price, stock)) {
+                                    is ApiResult.Success -> {
+                                        Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
+                                        showAddDialog = false
+                                        load()
+                                    }
+                                    is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreen)
+                    ) { Text("Submit Draft") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
 
-            if (metricKeys.isNotEmpty()) {
-                val chunks = metricKeys.chunked(2)
-                chunks.forEach { chunk ->
-                    item {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            chunk.forEach { k ->
-                                MetricCard(
-                                    label = k.replace(Regex("([a-z])([A-Z])"), "$1 $2").replaceFirstChar { it.uppercase() },
-                                    value = actualData.optString(k, "0"),
-                                    accentColor = accentColor,
-                                    modifier = Modifier.weight(1f)
+        // Inline Update Stock & Price Dialog matching website SupplierPortalForm action="STOCK"
+        if (editingProduct != null) {
+            AlertDialog(
+                onDismissRequest = { editingProduct = null },
+                title = { Text("Update Stock & Price: ${editingProduct!!.name}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ForestGreen) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("SKU: ${editingProduct!!.sku}", fontSize = 12.sp, color = MutedText)
+                        OutlinedTextField(value = stockInput, onValueChange = { stockInput = it }, label = { Text("Stock Units") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = priceInput, onValueChange = { priceInput = it }, label = { Text("Supplier Price (INR)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = hsnInput, onValueChange = { hsnInput = it }, label = { Text("HSN Code") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val stock = stockInput.toIntOrNull() ?: 0
+                            val price = priceInput.toDoubleOrNull() ?: 0.0
+                            scope.launch {
+                                when (val res = repository.updateSupplierProductStock(editingProduct!!.id, stock, price, hsnInput)) {
+                                    is ApiResult.Success -> {
+                                        Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
+                                        editingProduct = null
+                                        load()
+                                    }
+                                    is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreen)
+                    ) { Text("Save Changes") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { editingProduct = null }) { Text("Cancel") }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun SupplierShipmentsTab(repository: AdminApiRepository) {
+    var shipments by remember { mutableStateOf<List<SupplierShipmentItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchSupplierSection("shipments")) {
+                is ApiResult.Success -> {
+                    try {
+                        val json = JSONObject(res.data)
+                        val arr = json.optJSONArray("data") ?: JSONArray()
+                        val list = mutableListOf<SupplierShipmentItem>()
+                        for (i in 0 until arr.length()) {
+                            val o = arr.getJSONObject(i)
+                            val orderObj = o.optJSONObject("customerOrder")
+                            val events = o.optJSONArray("trackingEvents")
+                            val lastEventDesc = if (events != null && events.length() > 0) events.getJSONObject(0).optString("description", "") else ""
+                            list.add(
+                                SupplierShipmentItem(
+                                    id = o.optString("id"),
+                                    trackingNumber = o.optString("trackingNumber", "AWB Pending"),
+                                    courierName = o.optString("courierName", "Delhivery"),
+                                    status = o.optString("status", "IN_TRANSIT"),
+                                    orderId = orderObj?.optString("marketplaceOrderId") ?: "N/A",
+                                    latestEvent = lastEventDesc
                                 )
-                            }
-                            if (chunk.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
-                }
-            }
-
-            val otherKeys = keys.filter { it !in metricKeys }
-            if (otherKeys.isNotEmpty()) {
-                items(otherKeys) { key ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                key.replace(Regex("([a-z])([A-Z])"), "$1 $2").replaceFirstChar { it.uppercase() },
-                                fontSize = 13.sp,
-                                color = Color.Gray
                             )
-                            Text(actualData.optString(key, "-"), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
-                    }
+                        shipments = list
+                    } catch (_: Exception) {}
+                    isLoading = false
                 }
+                is ApiResult.Error -> isLoading = false
             }
+        }
+    }
 
-            // If nested transactions or expenses list exist in JSONObject
-            val subArray = actualData.optJSONArray("transactions") ?: actualData.optJSONArray("expenses")
-            if (subArray != null && subArray.length() > 0) {
-                item {
-                    Text(
-                        text = if (actualData.has("transactions")) "Recent Transactions" else "Recorded Vouchers",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-                items((0 until subArray.length()).toList()) { index ->
-                    val itemObj = subArray.getJSONObject(index)
+    LaunchedEffect(Unit) { load() }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Shipments & Tracking", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            IconButton(onClick = { load() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+        }
+
+        AdminNoticeCard("Choose Shiprocket or Delhivery and enter an AWB already booked with that provider. This records dispatch and activates live courier tracking for your store orders.")
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else if (shipments.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No supplier shipments recorded.", color = MutedText) }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(shipments) { s ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        border = BorderStroke(1.dp, CardBorder),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            itemObj.keys().forEach { key ->
-                                val value = itemObj.opt(key)
-                                if (value != null && value != org.json.JSONObject.NULL) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(key.replace(Regex("([a-z])([A-Z])"), "$1 $2").replaceFirstChar { it.uppercase() }, fontSize = 12.sp, color = Color.Gray)
-                                        Text(value.toString(), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                                    }
-                                }
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("AWB: ${s.trackingNumber}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ForestGreen)
+                                StatusBadge(status = s.status)
                             }
-                        }
-                    }
-                }
-            }
-        } else if (actualData is org.json.JSONArray) {
-            if (actualData.length() == 0) {
-                item {
-                    Text("No records found in this section.", color = Color.Gray)
-                }
-            } else {
-                val allIndices = (0 until actualData.length()).toList()
-                val filteredIndices = if (searchQuery.isBlank()) allIndices else allIndices.filter { idx ->
-                    val obj = actualData.getJSONObject(idx)
-                    obj.toString().contains(searchQuery.trim(), ignoreCase = true)
-                }
-
-                if (filteredIndices.isEmpty()) {
-                    item {
-                        Text(
-                            text = if (searchQuery.isNotBlank()) "No records matching \"$searchQuery\"." else "No records found.",
-                            color = Color.Gray,
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    }
-                } else {
-                    items(filteredIndices) { index ->
-                        val itemObj = actualData.getJSONObject(index)
-                        val recordId = itemObj.optString("id", "")
-                        val recordStatus = itemObj.optString("status", itemObj.optString("fulfillmentStatus", ""))
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                // Cloud Storage Image preview for products or categories
-                                val imageUrlsArray = itemObj.optJSONArray("imageUrls")
-                                val singleImageUrl = itemObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
-                                val displayPhoto = if (imageUrlsArray != null && imageUrlsArray.length() > 0) {
-                                    imageUrlsArray.optString(0, "")
-                                } else singleImageUrl
-
-                                if (!displayPhoto.isNullOrEmpty()) {
-                                    AsyncImage(
-                                        model = displayPhoto,
-                                        contentDescription = "Cloud Storage Image",
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(140.dp)
-                                            .clip(RoundedCornerShape(8.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                }
-                            itemObj.keys().forEach { key ->
-                                val value = itemObj.opt(key)
-                                if (value != null && value != org.json.JSONObject.NULL && key != "orderItems") {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            key.replace(Regex("([a-z])([A-Z])"), "$1 $2").replaceFirstChar { it.uppercase() },
-                                            fontSize = 12.sp,
-                                            color = Color.Gray,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Text(
-                                            text = value.toString(),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color.Black
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Dynamic Action Rows for both Supplier & Admin
-                            if (recordId.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Divider(color = Color(0xFFF1F5F9))
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            Text("Courier: ${s.courierName} • Order #${s.orderId}", fontSize = 12.sp, color = InkColor)
+                            if (s.latestEvent.isNotBlank()) {
+                                Surface(
+                                    color = IvoryBg,
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    if (role == "SUPPLIER") {
-                                        // SUPPLIER ACTIONS
-                                        if (section in listOf("orders", "notifications")) {
-                                            if (recordStatus != "ACCEPTED" && recordStatus != "PACKED" && recordStatus != "SHIPPED") {
-                                                OutlinedButton(
-                                                    onClick = { runAction { repository.updateSupplierOrderFulfillment(recordId, "ACCEPTED") } },
-                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                                    modifier = Modifier.weight(1f)
-                                                ) { Text("Accept", fontSize = 11.sp) }
-                                            }
-                                            if (recordStatus == "ACCEPTED" || recordStatus == "PROCESSING") {
-                                                Button(
-                                                    onClick = { runAction { repository.updateSupplierOrderFulfillment(recordId, "PACKED") } },
-                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                                    modifier = Modifier.weight(1f)
-                                                ) { Text("Pack", fontSize = 11.sp) }
-                                            }
-                                            if (recordStatus == "PACKED") {
-                                                Button(
-                                                    onClick = { activeDialog = ActionDialogState.DispatchAwb(recordId) },
-                                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                                    modifier = Modifier.weight(1f)
-                                                ) { Text("Ship AWB", fontSize = 11.sp) }
-                                            }
-                                        } else if (section == "returns") {
-                                            val supplierReceived = itemObj.optString("supplierReceivedAt", "").isNotEmpty()
-                                            if (!supplierReceived) {
-                                                Button(
-                                                    onClick = { runAction { repository.confirmSupplierReturnReceived(recordId) } },
-                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                                    modifier = Modifier.weight(1f)
-                                                ) { Text("Confirm Received", fontSize = 11.sp) }
-                                            }
-                                        } else if (section == "products") {
-                                            val stock = itemObj.optInt("availableQty", itemObj.optJSONObject("inventory")?.optInt("availableQty", 0) ?: 0)
-                                            val cost = itemObj.optDouble("costPrice", 0.0)
-                                            Button(
-                                                onClick = { activeDialog = ActionDialogState.UpdateStockCost(recordId, stock, cost) },
-                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) { Text("Stock", fontSize = 10.sp) }
-                                            OutlinedButton(
-                                                onClick = {
-                                                    pendingUploadProductId = recordId
-                                                    photoPickerLauncher.launch("image/*")
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) {
-                                                Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(12.dp))
-                                                Spacer(modifier = Modifier.width(2.dp))
-                                                Text("Photo", fontSize = 10.sp)
-                                            }
-                                        }
-                                    } else {
-                                        // ADMIN & MANAGER ACTIONS
-                                        if (section == "orders") {
-                                            if (recordStatus != "DELIVERED" && recordStatus != "CANCELLED") {
-                                                Button(
-                                                    onClick = { runAction { repository.confirmOrderDelivery(recordId) } },
-                                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                    modifier = Modifier.weight(1f)
-                                                ) { Text("Delivered", fontSize = 11.sp) }
-                                            }
-                                            OutlinedButton(
-                                                onClick = { activeDialog = ActionDialogState.CollectCod(recordId) },
-                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) { Text("Collect COD", fontSize = 11.sp) }
-                                            OutlinedButton(
-                                                onClick = { activeDialog = ActionDialogState.ChangeOrderStatus(recordId, recordStatus) },
-                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) { Text("Status", fontSize = 11.sp) }
-                                        } else if (section == "returns") {
-                                            Button(
-                                                onClick = { activeDialog = ActionDialogState.ReviewReturn(recordId) },
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) { Text("Review Return", fontSize = 11.sp) }
-                                        } else if (section == "products") {
-                                            val currentStatus = itemObj.optString("status", "DRAFT")
-                                            val nextStatus = if (currentStatus == "ACTIVE") "DRAFT" else "ACTIVE"
-                                            OutlinedButton(
-                                                onClick = { runAction { repository.updateProductStatus(recordId, nextStatus) } },
-                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) { Text(if (currentStatus == "ACTIVE") "Deactivate" else "Activate", fontSize = 10.sp) }
-                                            val selling = itemObj.optDouble("sellingPrice", 0.0)
-                                            val cost = itemObj.optDouble("costPrice", 0.0)
-                                            val stock = itemObj.optInt("availableQty", 0)
-                                            Button(
-                                                onClick = { activeDialog = ActionDialogState.UpdateProductPrice(recordId, selling, cost, stock) },
-                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) { Text("Edit Price", fontSize = 10.sp) }
-                                            OutlinedButton(
-                                                onClick = {
-                                                    pendingUploadProductId = recordId
-                                                    photoPickerLauncher.launch("image/*")
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) {
-                                                Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(12.dp))
-                                                Spacer(modifier = Modifier.width(2.dp))
-                                                Text("Photo", fontSize = 10.sp)
-                                            }
-                                        } else if (section == "categories") {
-                                            OutlinedButton(
-                                                onClick = {
-                                                    pendingUploadCategoryId = recordId
-                                                    photoPickerLauncher.launch("image/*")
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) {
-                                                Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(12.dp))
-                                                Spacer(modifier = Modifier.width(2.dp))
-                                                Text("Image", fontSize = 10.sp)
-                                            }
-                                        } else if (section == "inventory") {
-                                            val prodObj = itemObj.optJSONObject("product")
-                                            val pId = prodObj?.optString("id", "") ?: itemObj.optString("productId", "")
-                                            val pName = prodObj?.optString("name", "Product") ?: "Product"
-                                            val currentQty = itemObj.optInt("availableQty", 0)
-                                            if (pId.isNotEmpty()) {
-                                                Button(
-                                                    onClick = { activeDialog = ActionDialogState.UpdateInventoryStock(pId, pName, currentQty) },
-                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                                    modifier = Modifier.weight(1f)
-                                                ) { Text("Update Stock", fontSize = 11.sp) }
-                                            }
-                                        } else if (section == "users") {
-                                            val isActive = itemObj.optBoolean("isActive", true)
-                                            Button(
-                                                onClick = { runAction { repository.toggleUserStatus(recordId, !isActive) } },
-                                                colors = ButtonDefaults.buttonColors(containerColor = if (isActive) Color(0xFFDC2626) else Color(0xFF16A34A)),
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) { Text(if (isActive) "Deactivate" else "Activate", fontSize = 11.sp) }
-                                        } else if (section in listOf("contact-messages", "support")) {
-                                            val subject = itemObj.optString("subject", "Inquiry")
-                                            Button(
-                                                onClick = { activeDialog = ActionDialogState.ReplyTicket(recordId, subject) },
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) { Text("Reply", fontSize = 11.sp) }
-                                        } else if (section in listOf("suppliers", "sellers")) {
-                                            val company = itemObj.optString("companyName", "Supplier")
-                                            Button(
-                                                onClick = { activeDialog = ActionDialogState.RecordSettlement(recordId, company) },
-                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
-                                            ) { Text("Settlement", fontSize = 10.sp) }
-                                        }
-                                                modifier = Modifier.weight(1f)
-                                            ) { Text("Settlement", fontSize = 10.sp) }
-                                        }
-                                    }
+                                    Text("Latest: ${s.latestEvent}", fontSize = 11.sp, color = MutedText, modifier = Modifier.padding(8.dp))
                                 }
                             }
                         }
                     }
                 }
-            }
-        } else {
-            item {
-                Text(actualData?.toString() ?: "No content", fontSize = 13.sp)
             }
         }
     }
 }
 
 @Composable
-fun MetricCard(label: String, value: String, accentColor: Color, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+fun SupplierReturnsTab(repository: AdminApiRepository) {
+    var returnsList by remember { mutableStateOf<List<AdminReturn>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    fun fallbackReturns() {
+        scope.launch {
+            when (val res = repository.fetchReturns()) {
+                is ApiResult.Success -> { returnsList = res.data; isLoading = false }
+                is ApiResult.Error -> { isLoading = false }
+            }
+        }
+    }
+
+    fun load() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchSupplierSection("returns")) {
+                is ApiResult.Success -> {
+                    try {
+                        val json = JSONObject(res.data)
+                        val arr = json.optJSONArray("data") ?: JSONArray()
+                        val list = mutableListOf<AdminReturn>()
+                        for (i in 0 until arr.length()) {
+                            val o = arr.getJSONObject(i)
+                            list.add(
+                                AdminReturn(
+                                    id = o.optString("id"),
+                                    customerOrderId = "",
+                                    reason = o.optString("reason", "Customer return"),
+                                    status = o.optString("status", "OPEN"),
+                                    refundAmount = 0.0,
+                                    supplierReceived = !o.isNull("supplierReceivedAt"),
+                                    createdAt = ""
+                                )
+                            )
+                        }
+                        returnsList = list
+                        isLoading = false
+                    } catch (_: Exception) {
+                        fallbackReturns()
+                    }
+                }
+                is ApiResult.Error -> fallbackReturns()
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { load() }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Returns & RTO", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            IconButton(onClick = { load() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+        }
+
+        AdminNoticeCard("Review customer return requests. When an approved return physically reaches your pickup or return location, confirm receipt below.")
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else if (returnsList.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No assigned returns or RTO shipments.", color = MutedText) }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(returnsList) { r ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, CardBorder),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Return ID #${r.id.takeLast(6)}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ForestGreen)
+                                StatusBadge(status = r.status)
+                            }
+                            Text("Reason: ${r.reason}", fontSize = 13.sp, color = InkColor)
+                            Text("Warehouse Receipt: ${if (r.supplierReceived) "Confirmed" else "Pending"}", fontSize = 12.sp, color = if (r.supplierReceived) Color(0xFF16A34A) else Color(0xFFD97706))
+
+                            // Action matching website action="RETURN_RECEIVED"
+                            if (!r.supplierReceived && r.status == "APPROVED") {
+                                HorizontalDivider(color = CardBorder)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                when (val res = repository.confirmSupplierReturnReceived(r.id)) {
+                                                    is ApiResult.Success -> {
+                                                        Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
+                                                        load()
+                                                    }
+                                                    is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("Confirm Return Received", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SupplierPaymentsTab(repository: AdminApiRepository, section: String, title: String) {
+    var settlements by remember { mutableStateOf<List<SupplierSettlementItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchSupplierSection(section)) {
+                is ApiResult.Success -> {
+                    try {
+                        val json = JSONObject(res.data)
+                        val arr = json.optJSONArray("data") ?: JSONArray()
+                        val list = mutableListOf<SupplierSettlementItem>()
+                        for (i in 0 until arr.length()) {
+                            val o = arr.getJSONObject(i)
+                            list.add(
+                                SupplierSettlementItem(
+                                    id = o.optString("id"),
+                                    amount = o.optDouble("amount", 0.0),
+                                    paidAt = o.optString("paidAt", "Pending"),
+                                    reference = o.optString("reference", "N/A"),
+                                    notes = o.optString("notes", "")
+                                )
+                            )
+                        }
+                        settlements = list
+                    } catch (_: Exception) {}
+                    isLoading = false
+                }
+                is ApiResult.Error -> isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(section) { load() }
+
+    val totalSettled = settlements.sumOf { it.amount }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(title, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            IconButton(onClick = { load() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+        }
+
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            KpiCard("Recorded Settlements", "₹${"%.2f".format(totalSettled)}", Icons.Default.AccountBalance, ForestGreen, Modifier.weight(1f), "Total payout history")
+            KpiCard("Entries Count", settlements.size.toString(), Icons.Default.Receipt, LuxuryGold, Modifier.weight(1f), "Settled transactions")
+        }
+
+        AdminNoticeCard("These records reflect processed supplier settlements. Bank transfers are handled through verified finance reconciliation.")
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else if (settlements.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No supplier settlements recorded.", color = MutedText) }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(settlements) { s ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, CardBorder),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Payout: ₹${s.amount}", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ForestGreen)
+                                Text(s.paidAt.take(10), fontSize = 12.sp, color = MutedText)
+                            }
+                            Text("Reference: ${s.reference}", fontSize = 12.sp, color = InkColor)
+                            if (s.notes.isNotBlank()) Text("Notes: ${s.notes}", fontSize = 11.sp, color = MutedText)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SupplierLocalCustomersTab(repository: AdminApiRepository) {
+    var customers by remember { mutableStateOf<List<SupplierLocalCustomerItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchSupplierSection("local-customers")) {
+                is ApiResult.Success -> {
+                    try {
+                        val json = JSONObject(res.data)
+                        val arr = json.optJSONArray("data") ?: JSONArray()
+                        val list = mutableListOf<SupplierLocalCustomerItem>()
+                        for (i in 0 until arr.length()) {
+                            val o = arr.getJSONObject(i)
+                            list.add(
+                                SupplierLocalCustomerItem(
+                                    id = o.optString("id"),
+                                    name = o.optString("name", "Customer"),
+                                    phone = o.optString("phone", "N/A"),
+                                    email = o.optString("email", ""),
+                                    address = o.optString("address", "")
+                                )
+                            )
+                        }
+                        customers = list
+                    } catch (_: Exception) {}
+                    isLoading = false
+                }
+                is ApiResult.Error -> isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { load() }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Local Customers Directory", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            IconButton(onClick = { load() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+        }
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else if (customers.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No local customers found.", color = MutedText) }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(customers) { c ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, CardBorder),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(c.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = ForestGreen)
+                            Text("Phone: ${c.phone}", fontSize = 13.sp, color = InkColor)
+                            if (c.email.isNotBlank()) Text("Email: ${c.email}", fontSize = 12.sp, color = MutedText)
+                            if (c.address.isNotBlank()) Text("Address: ${c.address}", fontSize = 12.sp, color = MutedText)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SupplierSupportTab(repository: AdminApiRepository) {
+    var tickets by remember { mutableStateOf<List<SupplierSupportItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchSupplierSection("support")) {
+                is ApiResult.Success -> {
+                    try {
+                        val json = JSONObject(res.data)
+                        val arr = json.optJSONArray("data") ?: JSONArray()
+                        val list = mutableListOf<SupplierSupportItem>()
+                        for (i in 0 until arr.length()) {
+                            val o = arr.getJSONObject(i)
+                            list.add(
+                                SupplierSupportItem(
+                                    id = o.optString("id"),
+                                    subject = o.optString("subject", "Inquiry"),
+                                    message = o.optString("message", ""),
+                                    status = o.optString("status", "OPEN"),
+                                    reply = o.optString("reply", "")
+                                )
+                            )
+                        }
+                        tickets = list
+                    } catch (_: Exception) {}
+                    isLoading = false
+                }
+                is ApiResult.Error -> isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { load() }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Supplier Support Desk", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            IconButton(onClick = { load() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+        }
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else if (tickets.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No support tickets recorded.", color = MutedText) }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(tickets) { t ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, CardBorder),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(t.subject, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = ForestGreen)
+                                StatusBadge(status = t.status)
+                            }
+                            Text("Inquiry: ${t.message}", fontSize = 13.sp, color = InkColor)
+                            if (t.reply.isNotBlank()) {
+                                Surface(
+                                    color = IvoryBg,
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Store Admin Reply: ${t.reply}", fontSize = 12.sp, color = ForestGreen, fontWeight = FontWeight.Medium, modifier = Modifier.padding(10.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SupplierProfileTab(repository: AdminApiRepository, section: String, title: String, user: UserSession) {
+    var rawData by remember { mutableStateOf<JSONObject?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isEditing by remember { mutableStateOf(false) }
+
+    // Editable fields matching SupplierPortalForm action="PROFILE"
+    var contactName by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var pickupAddress by remember { mutableStateOf("") }
+    var city by remember { mutableStateOf("") }
+    var state by remember { mutableStateOf("") }
+    var pincode by remember { mutableStateOf("") }
+    var gstNumber by remember { mutableStateOf("") }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        isLoading = true
+        scope.launch {
+            when (val res = repository.fetchSupplierSection(section)) {
+                is ApiResult.Success -> {
+                    try {
+                        val json = JSONObject(res.data)
+                        val data = json.optJSONObject("data") ?: json
+                        rawData = data
+                        contactName = data.optString("contactName", user.fullName)
+                        phone = data.optString("phone", data.optString("companyPhone", ""))
+                        pickupAddress = data.optString("pickupAddress", "")
+                        city = data.optString("pickupCity", "")
+                        state = data.optString("pickupState", "")
+                        pincode = data.optString("pickupPincode", "")
+                        gstNumber = data.optString("gstNumber", "")
+                    } catch (_: Exception) {}
+                    isLoading = false
+                }
+                is ApiResult.Error -> isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(section) { load() }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(title, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            Row {
+                IconButton(onClick = { isEditing = !isEditing }) { Icon(Icons.Default.Edit, contentDescription = "Edit", tint = ForestGreen) }
+                IconButton(onClick = { load() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen) }
+            }
+        }
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ForestGreen) }
+        } else {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, CardBorder),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Verified Supplier Information", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ForestGreen)
+                    HorizontalDivider(color = CardBorder)
+
+                    if (!isEditing) {
+                        Text("Company: ${rawData?.optString("companyName") ?: user.supplierName ?: "Zera's World Supplier"}", fontSize = 14.sp, color = InkColor, fontWeight = FontWeight.SemiBold)
+                        Text("Contact Person: ${contactName.ifBlank { user.fullName }}", fontSize = 14.sp, color = InkColor)
+                        Text("Contact Phone: ${phone.ifBlank { "Not provided" }}", fontSize = 14.sp, color = InkColor)
+
+                        if (gstNumber.isNotBlank()) {
+                            Text("GST Number: $gstNumber", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ForestGreen)
+                        }
+
+                        if (pickupAddress.isNotBlank()) {
+                            Text("Pickup Address: $pickupAddress, $city, $state - $pincode", fontSize = 13.sp, color = MutedText)
+                        }
+
+                        if (rawData?.has("companyRegistrationNumber") == true && !rawData!!.optString("companyRegistrationNumber").isNullOrBlank()) {
+                            Text("Registration: ${rawData!!.optString("companyRegistrationNumber")}", fontSize = 13.sp, color = MutedText)
+                        }
+
+                        Button(
+                            onClick = { isEditing = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Edit Supplier Details")
+                        }
+                    } else {
+                        // Editable fields matching SupplierPortalForm action="PROFILE"
+                        OutlinedTextField(value = contactName, onValueChange = { contactName = it }, label = { Text("Contact Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Contact Phone") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = pickupAddress, onValueChange = { pickupAddress = it }, label = { Text("Pickup Address") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(value = city, onValueChange = { city = it }, label = { Text("City") }, singleLine = true, modifier = Modifier.weight(1f))
+                            OutlinedTextField(value = state, onValueChange = { state = it }, label = { Text("State") }, singleLine = true, modifier = Modifier.weight(1f))
+                        }
+                        OutlinedTextField(value = pincode, onValueChange = { pincode = it }, label = { Text("Pincode") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = gstNumber, onValueChange = { gstNumber = it }, label = { Text("GST Number") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        val params = mapOf(
+                                            "contactName" to contactName,
+                                            "phone" to phone,
+                                            "pickupAddress" to pickupAddress,
+                                            "pickupCity" to city,
+                                            "pickupState" to state,
+                                            "pickupPincode" to pincode,
+                                            "gstNumber" to gstNumber
+                                        )
+                                        when (val res = repository.saveSupplierProfile(params)) {
+                                            is ApiResult.Success -> {
+                                                Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
+                                                isEditing = false
+                                                load()
+                                            }
+                                            is ApiResult.Error -> Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Save Changes") }
+
+                            OutlinedButton(
+                                onClick = { isEditing = false },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Cancel") }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SupplierSectionDetailTab(repository: AdminApiRepository, sectionId: String, sectionTitle: String) {
+    var isLoading by remember(sectionId) { mutableStateOf(true) }
+    var sectionContent by remember(sectionId) { mutableStateOf<String?>(null) }
+    var errorMsg by remember(sectionId) { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun loadData() {
+        scope.launch {
+            isLoading = true
+            errorMsg = null
+            when (val res = repository.fetchSupplierSection(sectionId)) {
+                is ApiResult.Success -> {
+                    sectionContent = res.data
+                    isLoading = false
+                }
+                is ApiResult.Error -> {
+                    errorMsg = res.message
+                    isLoading = false
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(sectionId) {
+        loadData()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(label, fontSize = 13.sp, color = Color.Gray)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = accentColor)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(sectionTitle, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ForestGreen)
+            IconButton(onClick = { loadData() }) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ForestGreen)
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, CardBorder),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(getNavIcon(sectionId), contentDescription = null, tint = ForestGreen, modifier = Modifier.size(32.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(id = R.drawable.zera_logo),
+                                contentDescription = "Zera's World",
+                                modifier = Modifier.height(28.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                            Text(" Supplier Portal", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ForestGreen)
+                        }
+                        Text("Section: $sectionTitle", fontSize = 12.sp, color = MutedText)
+                    }
+                }
+                HorizontalDivider(color = CardBorder)
+
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = ForestGreen, modifier = Modifier.size(28.dp))
+                    }
+                } else {
+                    Text(
+                        text = "Section details and workflows for $sectionTitle are backed by the website database at zerasworld.in.",
+                        fontSize = 13.sp,
+                        color = InkColor,
+                        lineHeight = 18.sp
+                    )
+                    if (sectionContent != null && sectionContent!!.isNotBlank()) {
+                        Surface(
+                            color = IvoryBg,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Live Data Synced: $sectionTitle",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = ForestGreen,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -2404,7 +3101,6 @@ fun AlertsTab(
     repository: AdminApiRepository,
     fcmToken: String,
     isTokenRegistered: Boolean,
-    hasNotifPermission: Boolean,
     onTokenRegisterClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -2413,64 +3109,40 @@ fun AlertsTab(
     var isSendingTestAlert by remember { mutableStateOf(false) }
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                border = BorderStroke(1.dp, CardBorder),
+                shape = RoundedCornerShape(14.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Firebase Notification Setup", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text("Firebase Notification Setup", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = ForestGreen)
                     Spacer(modifier = Modifier.height(8.dp))
-
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (isTokenRegistered) Icons.Default.CheckCircle else Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = if (isTokenRegistered) Color(0xFF16A34A) else Color(0xFFEAB308),
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Icon(imageVector = if (isTokenRegistered) Icons.Default.CheckCircle else Icons.Default.Warning, contentDescription = null, tint = if (isTokenRegistered) Color(0xFF16A34A) else Color(0xFFEAB308), modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (isTokenRegistered) "Registered on Server" else "Not Registered on Server",
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isTokenRegistered) Color(0xFF16A34A) else Color(0xFFCA8A04)
-                        )
+                        Text(text = if (isTokenRegistered) "Device Registered on Server" else "Not Registered on Server", fontWeight = FontWeight.SemiBold, color = if (isTokenRegistered) Color(0xFF16A34A) else Color(0xFFCA8A04))
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text("FCM Token:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                    Text(
-                        text = fcmToken,
-                        fontSize = 11.sp,
-                        color = Color.DarkGray,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFF1F5F9), RoundedCornerShape(4.dp))
-                            .padding(8.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text("FCM Device Token:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MutedText)
+                    Text(text = fcmToken, fontSize = 11.sp, color = InkColor, modifier = Modifier.fillMaxWidth().background(IvoryBg, RoundedCornerShape(6.dp)).padding(10.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = onTokenRegisterClick,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, ForestGreen)
                         ) {
-                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Sync, contentDescription = null, tint = ForestGreen, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Register Token", fontSize = 12.sp)
+                            Text("Register Token", fontSize = 11.sp, color = ForestGreen, fontWeight = FontWeight.Bold)
                         }
-
                         Button(
                             onClick = {
                                 isSendingTestAlert = true
@@ -2489,80 +3161,33 @@ fun AlertsTab(
                                 }
                             },
                             enabled = !isSendingTestAlert,
+                            colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                            shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Test Order Alert", fontSize = 12.sp)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Button(
-                        onClick = {
-                            isSendingTestAlert = true
-                            scope.launch {
-                                when (val res = repository.sendTestAlert("RETURN_ALERT")) {
-                                    is ApiResult.Success -> {
-                                        isSendingTestAlert = false
-                                        Toast.makeText(context, res.data, Toast.LENGTH_SHORT).show()
-                                        notificationLogs = sessionManager.getNotificationLogs()
-                                    }
-                                    is ApiResult.Error -> {
-                                        isSendingTestAlert = false
-                                        Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                        enabled = !isSendingTestAlert,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Test Return Request Alert", fontSize = 12.sp)
+                        ) { Text("Test Order Alert", fontSize = 11.sp) }
                     }
                 }
             }
         }
-
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Received Push Alerts Log", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Received Push Alerts Log", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = ForestGreen)
                 if (notificationLogs.isNotEmpty()) {
-                    TextButton(onClick = {
-                        sessionManager.clearNotificationLogs()
-                        notificationLogs = emptyList()
-                    }) {
-                        Text("Clear Log", fontSize = 12.sp, color = Color.Red)
-                    }
+                    TextButton(onClick = { sessionManager.clearNotificationLogs(); notificationLogs = emptyList() }) { Text("Clear Log", fontSize = 12.sp, color = Color.Red) }
                 }
             }
         }
-
         if (notificationLogs.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No push alerts received yet.", color = Color.Gray)
-                }
-            }
+            item { Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Text("No push alerts received yet.", color = MutedText) } }
         } else {
             items(notificationLogs) { log ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, CardBorder),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = when (log.type) {
                                 "ORDER_ALERT" -> Icons.Default.ShoppingCart
@@ -2571,239 +3196,21 @@ fun AlertsTab(
                             },
                             contentDescription = null,
                             tint = when (log.type) {
-                                "ORDER_ALERT" -> MaterialTheme.colorScheme.tertiary
-                                "RETURN_ALERT" -> MaterialTheme.colorScheme.secondary
-                                else -> MaterialTheme.colorScheme.primary
+                                "ORDER_ALERT" -> ForestGreen
+                                "RETURN_ALERT" -> LuxuryGold
+                                else -> ForestDeep
                             },
                             modifier = Modifier.size(28.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(log.title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text(log.body, fontSize = 13.sp, color = Color.DarkGray)
-                            Text(
-                                SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(log.timestamp)),
-                                fontSize = 10.sp,
-                                color = Color.Gray,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
+                            Text(log.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ForestGreen)
+                            Text(log.body, fontSize = 13.sp, color = InkColor)
+                            Text(SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(log.timestamp)), fontSize = 10.sp, color = MutedText, modifier = Modifier.padding(top = 4.dp))
                         }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-fun OrdersTab(repository: AdminApiRepository) {
-    var ordersList by remember { mutableStateOf<List<AdminOrder>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    val scope = rememberCoroutineScope()
-
-    fun loadOrders() {
-        isLoading = true
-        errorMessage = null
-        scope.launch {
-            when (val res = repository.fetchOrders()) {
-                is ApiResult.Success -> {
-                    ordersList = res.data
-                    isLoading = false
-                }
-                is ApiResult.Error -> {
-                    errorMessage = res.message
-                    isLoading = false
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        loadOrders()
-    }
-
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Admin Orders", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            IconButton(onClick = { loadOrders() }) {
-                Icon(Icons.Default.Refresh, contentDescription = "Refresh Orders")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (!errorMessage.isNullOrEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(errorMessage!!, color = Color.Red)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = { loadOrders() }) {
-                        Text("Retry")
-                    }
-                }
-            }
-        } else if (ordersList.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No orders found.", color = Color.Gray)
-            }
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(ordersList) { order ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Order #${order.marketplaceOrderId}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                StatusBadge(status = order.status)
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("Customer: ${order.customerName}", fontSize = 13.sp, color = Color.DarkGray)
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("${order.itemsCount} Items", fontSize = 12.sp, color = Color.Gray)
-                                Text("₹${order.totalAmount}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ReturnsTab(repository: AdminApiRepository) {
-    var returnsList by remember { mutableStateOf<List<AdminReturn>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    val scope = rememberCoroutineScope()
-
-    fun loadReturns() {
-        isLoading = true
-        errorMessage = null
-        scope.launch {
-            when (val res = repository.fetchReturns()) {
-                is ApiResult.Success -> {
-                    returnsList = res.data
-                    isLoading = false
-                }
-                is ApiResult.Error -> {
-                    errorMessage = res.message
-                    isLoading = false
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        loadReturns()
-    }
-
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Return Requests", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            IconButton(onClick = { loadReturns() }) {
-                Icon(Icons.Default.Refresh, contentDescription = "Refresh Returns")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (!errorMessage.isNullOrEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(errorMessage!!, color = Color.Red)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = { loadReturns() }) {
-                        Text("Retry")
-                    }
-                }
-            }
-        } else if (returnsList.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No return requests.", color = Color.Gray)
-            }
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(returnsList) { item ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Return ID #${item.id.takeLast(6)}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                StatusBadge(status = item.status)
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("Reason: ${item.reason}", fontSize = 13.sp, color = Color.DarkGray)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("Refund Amount: ₹${item.refundAmount}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun StatusBadge(status: String) {
-    val bgColor = when (status.uppercase()) {
-        "DELIVERED", "COMPLETED", "APPROVED" -> Color(0xFFDCFCE7)
-        "SHIPPED", "CONFIRMED" -> Color(0xFFDBEAFE)
-        "PENDING", "OPEN" -> Color(0xFFFEF9C3)
-        "CANCELLED", "REJECTED" -> Color(0xFFFEE2E2)
-        else -> Color(0xFFF1F5F9)
-    }
-
-    val textColor = when (status.uppercase()) {
-        "DELIVERED", "COMPLETED", "APPROVED" -> Color(0xFF15803D)
-        "SHIPPED", "CONFIRMED" -> Color(0xFF1D4ED8)
-        "PENDING", "OPEN" -> Color(0xFFA16207)
-        "CANCELLED", "REJECTED" -> Color(0xFFB91C1C)
-        else -> Color(0xFF475569)
-    }
-
-    Surface(
-        color = bgColor,
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Text(
-            text = status,
-            color = textColor,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
     }
 }

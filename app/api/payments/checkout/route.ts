@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   if (!user || user.role !== "CUSTOMER") return NextResponse.json({ message: "Please sign in as a customer to continue to payment." }, { status: 401 });
   if (rateLimited(request, `checkout-stock:${user.id}`, 20, 60000)) return NextResponse.json({ message: "Please wait before checking stock again." }, { status: 429 });
   const { cart, shippingAddress, paymentMethod } = parsed.data;
-  if (["cod", "gift_card"].includes(paymentMethod) && !parsed.data.idempotencyKey) return NextResponse.json({ message: "Checkout reference missing. Refresh the payment page and try again." }, { status: 400 });
+  if (!parsed.data.idempotencyKey) return NextResponse.json({ message: "Checkout reference missing. Refresh the payment page and try again." }, { status: 400 });
   if (paymentMethod === "gift_card" && !parsed.data.giftCardCode) return NextResponse.json({ message: "Choose your gift card." }, { status: 400 });
   const idempotencyKey = parsed.data.idempotencyKey || randomUUID();
   try {

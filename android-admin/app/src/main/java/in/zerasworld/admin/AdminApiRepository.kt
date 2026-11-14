@@ -7,6 +7,7 @@ import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -68,56 +69,91 @@ data class AdminReturn(
     val createdAt: String
 )
 
+data class NavItem(
+    val id: String,
+    val label: String
+)
+
+data class NavGroup(
+    val label: String,
+    val items: List<NavItem>
+)
+
+data class NavResponse(
+    val role: String,
+    val groups: List<NavGroup>
+)
+
+data class SupplierDashboardMetrics(
+    val orderLines: Int = 0,
+    val products: Int = 0,
+    val shipments: Int = 0,
+    val returns: Int = 0
+)
+
+data class SupplierShipmentItem(
+    val id: String,
+    val trackingNumber: String,
+    val courierName: String,
+    val status: String,
+    val orderId: String,
+    val latestEvent: String
+)
+
+data class SupplierSettlementItem(
+    val id: String,
+    val amount: Double,
+    val paidAt: String,
+    val reference: String,
+    val notes: String
+)
+
+data class SupplierLocalCustomerItem(
+    val id: String,
+    val name: String,
+    val phone: String,
+    val email: String,
+    val address: String
+)
+
+data class SupplierSupportItem(
+    val id: String,
+    val subject: String,
+    val message: String,
+    val status: String,
+    val reply: String
+)
+
 sealed class ApiResult<out T> {
     data class Success<out T>(val data: T) : ApiResult<T>()
     data class Error(val message: String) : ApiResult<Nothing>()
 }
 
-data class NavigationItem(
-    val id: String,
-    val label: String
-)
-
-data class NavigationGroup(
-    val label: String,
-    val items: List<NavigationItem>
-)
-
-data class NavigationResponse(
-    val role: String,
-    val groups: List<NavigationGroup>
-)
-
 class AdminApiRepository(private val sessionManager: AdminSessionManager) {
 
-    private val cookieStore = mutableMapOf<String, List<Cookie>>()
+    private val sessionOrigin get() = okhttp3.HttpUrl.Companion.run { sessionManager.baseUrl.toHttpUrl() }
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                if (!chain.request().url.isHttps) throw java.io.IOException("Use an HTTPS server URL.")
+                chain.proceed(chain.request())
+            }
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .cookieJar(object : CookieJar {
                 override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-                    cookieStore[url.host] = cookies
-                    cookies.firstOrNull { it.name == "supplierbridge_session" || it.name == "auth_session" }?.let { sessionCookie ->
-                        sessionManager.authToken = sessionCookie.value
+                    if (url.scheme != sessionOrigin.scheme || url.host != sessionOrigin.host || url.port != sessionOrigin.port) return
+                    cookies.firstOrNull { it.name == "supplierbridge_session" }?.let { sessionCookie ->
+                        sessionManager.authToken = if (sessionCookie.expiresAt > System.currentTimeMillis()) sessionCookie.toString() else null
                     }
                 }
 
                 override fun loadForRequest(url: HttpUrl): List<Cookie> {
-                    val savedToken = sessionManager.authToken
-                    if (!savedToken.isNullOrEmpty()) {
-                        return listOf(
-                            Cookie.Builder()
-                                .domain(url.host)
-                                .path("/")
-                                .name("supplierbridge_session")
-                                .value(savedToken)
-                                .httpOnly()
-                                .build()
-                        )
-                    }
-                    return cookieStore[url.host] ?: emptyList()
+                    if (!url.isHttps || url.host != sessionOrigin.host || url.port != sessionOrigin.port) return emptyList()
+                    val savedCookie = sessionManager.authToken ?: return emptyList()
+                    val cookie = Cookie.parse(sessionOrigin, savedCookie) ?: return emptyList()
+                    return if (cookie.name == "supplierbridge_session" && cookie.matches(url) && cookie.expiresAt > System.currentTimeMillis()) listOf(cookie) else emptyList()
                 }
             })
             .build()
@@ -125,11 +161,11 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-    suspend fun login(portal: String = "APP", loginId: String, password: String): ApiResult<UserSession> = withContext(Dispatchers.IO) {
+    suspend fun login(portal: String, loginId: String, password: String): ApiResult<UserSession> = withContext(Dispatchers.IO) {
         try {
             val url = "${sessionManager.baseUrl}/api/auth/login"
             val bodyObj = JSONObject().apply {
-                put("portal", portal) // ADMIN, SUPPLIER, or APP
+                put("portal", portal) // ADMIN or SUPPLIER
                 put("loginId", loginId.trim())
                 put("password", password)
             }
@@ -203,52 +239,72 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
 
     suspend fun fetchOrders(): ApiResult<List<AdminOrder>> = withContext(Dispatchers.IO) {
         try {
-            val url = "${sessionManager.baseUrl}/api/orders"
-            val request = Request.Builder().url(url).get().build()
+            val primaryUrl = "${sessionManager.baseUrl}/api/mobile/admin/orders"
+            var responseStr = ""
+            var isSuccessful = false
 
-            client.newCall(request).execute().use { response ->
-                val responseStr = response.body?.string() ?: ""
-                if (response.isSuccessful) {
-                    val orders = mutableListOf<AdminOrder>()
-                    val root = JSONObject(responseStr)
-                    val jsonArray = root.optJSONArray("data") ?: JSONArray(responseStr)
-                    for (i in 0 until jsonArray.length()) {
-                        val obj = jsonArray.getJSONObject(i)
-                        val itemsArray = obj.optJSONArray("orderItems")
-                        val itemsList = mutableListOf<AdminOrderItem>()
-                        if (itemsArray != null) {
-                            for (j in 0 until itemsArray.length()) {
-                                val itemObj = itemsArray.getJSONObject(j)
-                                itemsList.add(
-                                    AdminOrderItem(
-                                        id = itemObj.optString("id", ""),
-                                        productId = itemObj.optString("productId", null),
-                                        sku = itemObj.optString("marketplaceSku", null),
-                                        quantity = itemObj.optInt("quantity", 1),
-                                        unitPrice = itemObj.optDouble("unitPrice", 0.0),
-                                        fulfillmentStatus = itemObj.optString("fulfillmentStatus", "PENDING"),
-                                        supplierId = itemObj.optString("supplierId", null)
-                                    )
-                                )
-                            }
-                        }
-                        orders.add(
-                            AdminOrder(
-                                id = obj.optString("id", ""),
-                                marketplaceOrderId = obj.optString("marketplaceOrderId", "N/A"),
-                                customerName = obj.optString("customerName", "Guest Customer"),
-                                status = obj.optString("status", "PENDING"),
-                                totalAmount = obj.optDouble("totalAmount", 0.0),
-                                itemsCount = itemsList.size,
-                                createdAt = obj.optString("createdAt", ""),
-                                items = itemsList
-                            )
-                        )
-                    }
-                    ApiResult.Success(orders)
-                } else {
-                    ApiResult.Error("Failed to load orders (HTTP ${response.code})")
+            val request1 = Request.Builder().url(primaryUrl).get().build()
+            client.newCall(request1).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    responseStr = resp.body?.string() ?: ""
+                    isSuccessful = true
                 }
+            }
+
+            if (!isSuccessful) {
+                val fallbackUrl = "${sessionManager.baseUrl}/api/orders"
+                val request2 = Request.Builder().url(fallbackUrl).get().build()
+                client.newCall(request2).execute().use { resp ->
+                    responseStr = resp.body?.string() ?: ""
+                    isSuccessful = resp.isSuccessful
+                }
+            }
+
+            if (isSuccessful && responseStr.isNotBlank()) {
+                val orders = mutableListOf<AdminOrder>()
+                val jsonArray = try {
+                    val root = JSONObject(responseStr)
+                    root.optJSONArray("data") ?: root.optJSONArray("orders") ?: JSONArray()
+                } catch (_: Exception) {
+                    try { JSONArray(responseStr) } catch (_: Exception) { JSONArray() }
+                }
+
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    val itemsArray = obj.optJSONArray("orderItems") ?: obj.optJSONArray("items")
+                    val itemsList = mutableListOf<AdminOrderItem>()
+                    if (itemsArray != null) {
+                        for (j in 0 until itemsArray.length()) {
+                            val itemObj = itemsArray.getJSONObject(j)
+                            itemsList.add(
+                                AdminOrderItem(
+                                    id = itemObj.optString("id", ""),
+                                    productId = itemObj.optString("productId", null),
+                                    sku = itemObj.optString("marketplaceSku", null),
+                                    quantity = itemObj.optInt("quantity", 1),
+                                    unitPrice = itemObj.optDouble("unitPrice", 0.0),
+                                    fulfillmentStatus = itemObj.optString("fulfillmentStatus", "PENDING"),
+                                    supplierId = itemObj.optString("supplierId", null)
+                                )
+                            )
+                        }
+                    }
+                    orders.add(
+                        AdminOrder(
+                            id = obj.optString("id", ""),
+                            marketplaceOrderId = obj.optString("marketplaceOrderId", "N/A"),
+                            customerName = obj.optString("customerName", "Guest Customer"),
+                            status = obj.optString("status", "PENDING"),
+                            totalAmount = obj.optDouble("totalAmount", 0.0),
+                            itemsCount = itemsList.size,
+                            createdAt = obj.optString("createdAt", ""),
+                            items = itemsList
+                        )
+                    )
+                }
+                ApiResult.Success(orders)
+            } else {
+                ApiResult.Error("Failed to load orders.")
             }
         } catch (e: Exception) {
             ApiResult.Error(e.localizedMessage ?: "Error loading orders.")
@@ -257,37 +313,71 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
 
     suspend fun fetchProducts(): ApiResult<List<AdminProduct>> = withContext(Dispatchers.IO) {
         try {
-            val url = "${sessionManager.baseUrl}/api/products"
-            val request = Request.Builder().url(url).get().build()
+            val primaryUrl = "${sessionManager.baseUrl}/api/mobile/admin/products"
+            var responseStr = ""
+            var isSuccessful = false
 
-            client.newCall(request).execute().use { response ->
-                val responseStr = response.body?.string() ?: ""
-                if (response.isSuccessful) {
-                    val products = mutableListOf<AdminProduct>()
-                    val root = JSONObject(responseStr)
-                    val jsonArray = root.optJSONArray("data") ?: JSONArray(responseStr)
-                    for (i in 0 until jsonArray.length()) {
-                        val obj = jsonArray.getJSONObject(i)
-                        val supplierObj = obj.optJSONObject("supplier")
-                        val supplierName = supplierObj?.optString("companyName") ?: "Zera's World Direct"
-                        products.add(
-                            AdminProduct(
-                                id = obj.optString("id", ""),
-                                name = obj.optString("name", "Product"),
-                                sku = obj.optString("sku", "SKU-N/A"),
-                                category = obj.optString("category", "General"),
-                                status = obj.optString("status", "DRAFT"),
-                                sellingPrice = obj.optDouble("sellingPrice", 0.0),
-                                costPrice = obj.optDouble("costPrice", 0.0),
-                                availableQty = obj.optInt("availableQty", 0),
-                                supplierName = supplierName
-                            )
-                        )
-                    }
-                    ApiResult.Success(products)
-                } else {
-                    ApiResult.Error("Failed to load products (HTTP ${response.code})")
+            val request1 = Request.Builder().url(primaryUrl).get().build()
+            client.newCall(request1).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    responseStr = resp.body?.string() ?: ""
+                    isSuccessful = true
                 }
+            }
+
+            if (!isSuccessful) {
+                val fallbackUrl = "${sessionManager.baseUrl}/api/products"
+                val request2 = Request.Builder().url(fallbackUrl).get().build()
+                client.newCall(request2).execute().use { resp ->
+                    responseStr = resp.body?.string() ?: ""
+                    isSuccessful = resp.isSuccessful
+                }
+            }
+
+            if (isSuccessful && responseStr.isNotBlank()) {
+                val products = mutableListOf<AdminProduct>()
+                val jsonArray = try {
+                    val root = JSONObject(responseStr)
+                    root.optJSONArray("data") ?: root.optJSONArray("products") ?: JSONArray()
+                } catch (_: Exception) {
+                    try { JSONArray(responseStr) } catch (_: Exception) { JSONArray() }
+                }
+
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    val supplierObj = obj.optJSONObject("supplier")
+                    val supplierName = supplierObj?.optString("companyName") ?: "Zera's World Direct"
+
+                    var qty = obj.optInt("availableQty", -1)
+                    if (qty < 0) qty = obj.optInt("stock", -1)
+                    if (qty < 0) {
+                        val invArr = obj.optJSONArray("inventory")
+                        if (invArr != null && invArr.length() > 0) {
+                            qty = invArr.optJSONObject(0)?.optInt("availableQty", 0) ?: 0
+                        } else {
+                            val invObj = obj.optJSONObject("inventory")
+                            qty = invObj?.optInt("availableQty", 0) ?: 0
+                        }
+                    }
+                    if (qty < 0) qty = 0
+
+                    products.add(
+                        AdminProduct(
+                            id = obj.optString("id", ""),
+                            name = obj.optString("name", "Product"),
+                            sku = obj.optString("sku", "SKU-N/A"),
+                            category = obj.optString("category", "General"),
+                            status = obj.optString("status", "DRAFT"),
+                            sellingPrice = obj.optDouble("sellingPrice", 0.0),
+                            costPrice = obj.optDouble("costPrice", 0.0),
+                            availableQty = qty,
+                            supplierName = supplierName
+                        )
+                    )
+                }
+                ApiResult.Success(products)
+            } else {
+                ApiResult.Error("Failed to load products.")
             }
         } catch (e: Exception) {
             ApiResult.Error(e.localizedMessage ?: "Error loading products.")
@@ -296,33 +386,53 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
 
     suspend fun fetchSuppliers(): ApiResult<List<AdminSupplier>> = withContext(Dispatchers.IO) {
         try {
-            val url = "${sessionManager.baseUrl}/api/suppliers"
-            val request = Request.Builder().url(url).get().build()
+            val primaryUrl = "${sessionManager.baseUrl}/api/mobile/admin/suppliers"
+            var responseStr = ""
+            var isSuccessful = false
 
-            client.newCall(request).execute().use { response ->
-                val responseStr = response.body?.string() ?: ""
-                if (response.isSuccessful) {
-                    val suppliers = mutableListOf<AdminSupplier>()
-                    val root = JSONObject(responseStr)
-                    val jsonArray = root.optJSONArray("data") ?: JSONArray(responseStr)
-                    for (i in 0 until jsonArray.length()) {
-                        val obj = jsonArray.getJSONObject(i)
-                        suppliers.add(
-                            AdminSupplier(
-                                id = obj.optString("id", ""),
-                                companyName = obj.optString("companyName", "Supplier"),
-                                contactName = obj.optString("contactName", ""),
-                                email = obj.optString("email", ""),
-                                phone = obj.optString("phone", ""),
-                                status = obj.optString("status", "ACTIVE"),
-                                sourceType = obj.optString("sourceType", "DIRECT")
-                            )
-                        )
-                    }
-                    ApiResult.Success(suppliers)
-                } else {
-                    ApiResult.Error("Failed to load suppliers (HTTP ${response.code})")
+            val request1 = Request.Builder().url(primaryUrl).get().build()
+            client.newCall(request1).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    responseStr = resp.body?.string() ?: ""
+                    isSuccessful = true
                 }
+            }
+
+            if (!isSuccessful) {
+                val fallbackUrl = "${sessionManager.baseUrl}/api/suppliers"
+                val request2 = Request.Builder().url(fallbackUrl).get().build()
+                client.newCall(request2).execute().use { resp ->
+                    responseStr = resp.body?.string() ?: ""
+                    isSuccessful = resp.isSuccessful
+                }
+            }
+
+            if (isSuccessful && responseStr.isNotBlank()) {
+                val suppliers = mutableListOf<AdminSupplier>()
+                val jsonArray = try {
+                    val root = JSONObject(responseStr)
+                    root.optJSONArray("data") ?: root.optJSONArray("suppliers") ?: JSONArray()
+                } catch (_: Exception) {
+                    try { JSONArray(responseStr) } catch (_: Exception) { JSONArray() }
+                }
+
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    suppliers.add(
+                        AdminSupplier(
+                            id = obj.optString("id", ""),
+                            companyName = obj.optString("companyName", "Supplier"),
+                            contactName = obj.optString("contactName", ""),
+                            email = obj.optString("email", ""),
+                            phone = obj.optString("phone", ""),
+                            status = obj.optString("status", "ACTIVE"),
+                            sourceType = obj.optString("sourceType", "DIRECT")
+                        )
+                    )
+                }
+                ApiResult.Success(suppliers)
+            } else {
+                ApiResult.Error("Failed to load suppliers.")
             }
         } catch (e: Exception) {
             ApiResult.Error(e.localizedMessage ?: "Error loading suppliers.")
@@ -423,6 +533,426 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
         }
     }
 
+    suspend fun confirmSupplierReturnReceived(returnId: String): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/supplier/actions"
+            val bodyObj = JSONObject().apply {
+                put("action", "RETURN_RECEIVED")
+                put("returnId", returnId)
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyObj.toString().toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = JSONObject(responseStr).optString("message", "Return receipt confirmed.")
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Action failed (HTTP ${response.code})" }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to confirm return.")
+        }
+    }
+
+    suspend fun updateSupplierProductStock(productId: String, stock: Int, costPrice: Double, hsnCode: String?): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/supplier/actions"
+            val bodyObj = JSONObject().apply {
+                put("action", "STOCK")
+                put("productId", productId)
+                put("stock", stock)
+                put("costPrice", costPrice)
+                if (!hsnCode.isNullOrBlank()) put("hsnCode", hsnCode)
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyObj.toString().toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = JSONObject(responseStr).optString("message", "Stock updated successfully.")
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Update failed (HTTP ${response.code})" }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to update stock.")
+        }
+    }
+
+    suspend fun submitSupplierProduct(name: String, sku: String, description: String, hsnCode: String?, costPrice: Double, stock: Int): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/supplier/actions"
+            val bodyObj = JSONObject().apply {
+                put("action", "PRODUCT")
+                put("name", name.trim())
+                put("sku", sku.trim())
+                put("description", description.trim())
+                if (!hsnCode.isNullOrBlank()) put("hsnCode", hsnCode.trim())
+                put("costPrice", costPrice)
+                put("stock", stock)
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyObj.toString().toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = JSONObject(responseStr).optString("message", "Product submitted as draft for approval.")
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Submission failed (HTTP ${response.code})" }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to submit product.")
+        }
+    }
+
+    suspend fun saveSupplierProfile(fields: Map<String, Any?>): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/supplier/actions"
+            val bodyObj = JSONObject().apply {
+                put("action", "PROFILE")
+                fields.forEach { (k, v) -> if (v != null) put(k, v) }
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyObj.toString().toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = JSONObject(responseStr).optString("message", "Profile updated successfully.")
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Update failed (HTTP ${response.code})" }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to save profile.")
+        }
+    }
+
+    suspend fun confirmAdminOrderDelivery(orderId: String): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/admin/orders/$orderId/delivery"
+            val request = Request.Builder()
+                .url(url)
+                .post("{}".toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = JSONObject(responseStr).optString("message", "Delivery confirmed.")
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Confirmation failed (HTTP ${response.code})" }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to confirm delivery.")
+        }
+    }
+
+    suspend fun deleteAdminPendingOrder(orderId: String): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/admin/orders/$orderId/delete"
+            val request = Request.Builder()
+                .url(url)
+                .post("{}".toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = JSONObject(responseStr).optString("message", "Order deleted.")
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Deletion failed (HTTP ${response.code})" }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to delete order.")
+        }
+    }
+
+    suspend fun processAdminReturnRefund(returnId: String): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/admin/returns/$returnId/refund"
+            val request = Request.Builder()
+                .url(url)
+                .post("{}".toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = JSONObject(responseStr).optString("message", "Refund processed successfully.")
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Refund failed (HTTP ${response.code})" }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to process refund.")
+        }
+    }
+
+    suspend fun updateAdminProductStock(productId: String, availableQty: Int): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/admin/products/$productId/stock"
+            val bodyObj = JSONObject().apply {
+                put("availableQty", availableQty)
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyObj.toString().toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = JSONObject(responseStr).optString("message", "Product stock updated.")
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Stock update failed (HTTP ${response.code})" }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to update product stock.")
+        }
+    }
+
+    suspend fun createAdminProduct(
+        name: String,
+        sku: String,
+        sellingPrice: Double,
+        costPrice: Double = 0.0,
+        mrp: Double? = null,
+        stock: Int = 0,
+        category: String? = null,
+        brand: String? = null,
+        size: String? = null,
+        color: String? = null,
+        description: String? = null,
+        hsnCode: String? = null,
+        deliveryCharge: Double? = null,
+        status: String = "ACTIVE",
+        supplierId: String? = null,
+        imageUrls: List<String> = emptyList()
+    ): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/mobile/admin/actions"
+            val bodyObj = JSONObject().apply {
+                put("action", "PRODUCT_CREATE")
+                put("name", name)
+                put("sku", sku)
+                put("sellingPrice", sellingPrice)
+                put("costPrice", costPrice)
+                if (mrp != null && mrp > 0) put("mrp", mrp)
+                put("stock", stock)
+                if (!category.isNullOrBlank()) put("category", category)
+                if (!brand.isNullOrBlank()) put("brand", brand)
+                if (!size.isNullOrBlank()) put("size", size)
+                if (!color.isNullOrBlank()) put("color", color)
+                if (!description.isNullOrBlank()) put("description", description)
+                if (!hsnCode.isNullOrBlank()) put("hsnCode", hsnCode)
+                if (deliveryCharge != null && deliveryCharge >= 0) put("deliveryCharge", deliveryCharge)
+                put("status", status)
+                if (!supplierId.isNullOrBlank()) put("supplierId", supplierId)
+                if (imageUrls.isNotEmpty()) {
+                    val arr = JSONArray()
+                    imageUrls.forEach { arr.put(it) }
+                    put("imageUrls", arr)
+                }
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyObj.toString().toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = try { JSONObject(responseStr).optString("message", "Product created successfully.") } catch (_: Exception) { "Product created successfully." }
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Failed to create product (HTTP ${response.code})" }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to create product.")
+        }
+    }
+
+    suspend fun createAdminSupplier(
+        companyName: String,
+        contactName: String?,
+        email: String?,
+        phone: String?,
+        sourceType: String = "DIRECT",
+        pickupAddress: String? = null,
+        pickupCity: String? = null,
+        pickupState: String? = null,
+        gstNumber: String? = null
+    ): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/mobile/admin/actions"
+            val bodyObj = JSONObject().apply {
+                put("action", "SUPPLIER_CREATE")
+                put("companyName", companyName)
+                if (!contactName.isNullOrBlank()) put("contactName", contactName)
+                if (!email.isNullOrBlank()) put("email", email)
+                if (!phone.isNullOrBlank()) put("phone", phone)
+                put("sourceType", sourceType)
+                if (!pickupAddress.isNullOrBlank()) put("pickupAddress", pickupAddress)
+                if (!pickupCity.isNullOrBlank()) put("pickupCity", pickupCity)
+                if (!pickupState.isNullOrBlank()) put("pickupState", pickupState)
+                if (!gstNumber.isNullOrBlank()) put("gstNumber", gstNumber)
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyObj.toString().toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = try { JSONObject(responseStr).optString("message", "Supplier created successfully.") } catch (_: Exception) { "Supplier created successfully." }
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Failed to create supplier (HTTP ${response.code})" }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to create supplier.")
+        }
+    }
+
+    suspend fun createAdminExpense(category: String, amount: Double, description: String?): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/mobile/admin/actions"
+            val bodyObj = JSONObject().apply {
+                put("action", "EXPENSE_CREATE")
+                put("category", category)
+                put("amount", amount)
+                if (!description.isNullOrBlank()) put("description", description)
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyObj.toString().toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = try { JSONObject(responseStr).optString("message", "Expense recorded.") } catch (_: Exception) { "Expense recorded." }
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Failed to record expense." }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to record expense.")
+        }
+    }
+
+    suspend fun createSupplierSettlement(supplierId: String, amount: Double, reference: String, notes: String? = null): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/mobile/admin/actions"
+            val bodyObj = JSONObject().apply {
+                put("action", "SUPPLIER_SETTLEMENT")
+                put("supplierId", supplierId)
+                put("amount", amount)
+                put("reference", reference)
+                if (!notes.isNullOrBlank()) put("notes", notes)
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyObj.toString().toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = try { JSONObject(responseStr).optString("message", "Settlement recorded.") } catch (_: Exception) { "Settlement recorded." }
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Failed to record settlement." }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to record settlement.")
+        }
+    }
+
+    suspend fun replySupportTicket(ticketId: String, reply: String, status: String = "RESOLVED"): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${sessionManager.baseUrl}/api/mobile/admin/actions"
+            val bodyObj = JSONObject().apply {
+                put("action", "SUPPORT_REPLY")
+                put("ticketId", ticketId)
+                put("reply", reply)
+                put("status", status)
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyObj.toString().toRequestBody(jsonMediaType))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val msg = try { JSONObject(responseStr).optString("message", "Reply sent.") } catch (_: Exception) { "Reply sent." }
+                    ApiResult.Success(msg)
+                } else {
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Failed to send reply." }
+                    ApiResult.Error(msg)
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "Failed to send reply.")
+        }
+    }
+
     suspend fun sendTestAlert(alertType: String): ApiResult<String> = withContext(Dispatchers.IO) {
         try {
             val url = "${sessionManager.baseUrl}/api/admin/device-token/test-alert"
@@ -452,9 +982,8 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
         }
     }
 
-    suspend fun login(loginId: String, password: String): ApiResult<UserSession> = login("APP", loginId, password)
-
-    suspend fun fetchNavigation(): ApiResult<NavigationResponse> = withContext(Dispatchers.IO) {
+    suspend fun fetchNavigation(): ApiResult<NavResponse> = withContext(Dispatchers.IO) {
+        val userRole = sessionManager.getUser()?.role ?: "ADMIN"
         try {
             val url = "${sessionManager.baseUrl}/api/mobile/navigation"
             val request = Request.Builder().url(url).get().build()
@@ -462,53 +991,105 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
             client.newCall(request).execute().use { response ->
                 val responseStr = response.body?.string() ?: ""
                 if (response.isSuccessful) {
-                    val root = JSONObject(responseStr)
-                    val role = root.optString("role", "")
-                    val groupsArray = root.optJSONArray("groups") ?: JSONArray()
-                    val groups = mutableListOf<NavigationGroup>()
-                    for (i in 0 until groupsArray.length()) {
-                        val groupObj = groupsArray.getJSONObject(i)
-                        val label = groupObj.optString("label", "")
-                        val itemsArray = groupObj.optJSONArray("items") ?: JSONArray()
-                        val items = mutableListOf<NavigationItem>()
-                        for (j in 0 until itemsArray.length()) {
-                            val itemObj = itemsArray.getJSONObject(j)
-                            items.add(NavigationItem(id = itemObj.optString("id", ""), label = itemObj.optString("label", "")))
+                    val json = JSONObject(responseStr)
+                    val role = json.optString("role", userRole)
+                    val groupsArr = json.optJSONArray("groups") ?: JSONArray()
+                    val groupsList = mutableListOf<NavGroup>()
+                    for (i in 0 until groupsArr.length()) {
+                        val gObj = groupsArr.getJSONObject(i)
+                        val gLabel = gObj.optString("label", "Section")
+                        val itemsArr = gObj.optJSONArray("items") ?: JSONArray()
+                        val itemsList = mutableListOf<NavItem>()
+                        for (j in 0 until itemsArr.length()) {
+                            val iObj = itemsArr.getJSONObject(j)
+                            itemsList.add(NavItem(iObj.optString("id"), iObj.optString("label")))
                         }
-                        groups.add(NavigationGroup(label = label, items = items))
+                        groupsList.add(NavGroup(gLabel, itemsList))
                     }
-                    ApiResult.Success(NavigationResponse(role = role, groups = groups))
+                    if (groupsList.isNotEmpty()) {
+                        ApiResult.Success(NavResponse(role, groupsList))
+                    } else {
+                        ApiResult.Success(getDefaultNavigation(userRole))
+                    }
                 } else {
-                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { null }
-                    ApiResult.Error(msg ?: "Failed to fetch navigation (HTTP ${response.code})")
+                    ApiResult.Success(getDefaultNavigation(userRole))
                 }
             }
-        } catch (e: Exception) {
-            ApiResult.Error(e.localizedMessage ?: "Failed to load navigation.")
+        } catch (_: Exception) {
+            ApiResult.Success(getDefaultNavigation(userRole))
         }
     }
 
-    suspend fun fetchSupplierSection(section: String): ApiResult<JSONObject> = withContext(Dispatchers.IO) {
-        try {
-            val url = "${sessionManager.baseUrl}/api/mobile/supplier/$section"
-            val request = Request.Builder().url(url).get().build()
-
-            client.newCall(request).execute().use { response ->
-                val responseStr = response.body?.string() ?: ""
-                if (response.isSuccessful) {
-                    val root = JSONObject(responseStr)
-                    ApiResult.Success(root)
-                } else {
-                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { null }
-                    ApiResult.Error(msg ?: "Failed to load supplier $section (HTTP ${response.code})")
-                }
-            }
-        } catch (e: Exception) {
-            ApiResult.Error(e.localizedMessage ?: "Failed to load supplier section $section.")
+    fun getDefaultNavigation(role: String): NavResponse {
+        return if (role.equals("SUPPLIER", ignoreCase = true)) {
+            NavResponse(
+                role = "SUPPLIER",
+                groups = listOf(
+                    NavGroup("Overview", listOf(
+                        NavItem("dashboard", "Dashboard"),
+                        NavItem("orders", "Orders"),
+                        NavItem("products", "Products & Inventory"),
+                        NavItem("local-customers", "Local customers")
+                    )),
+                    NavGroup("Fulfilment", listOf(
+                        NavItem("shipments", "Shipments & Tracking"),
+                        NavItem("returns", "Returns & RTO")
+                    )),
+                    NavGroup("Business", listOf(
+                        NavItem("payments", "Payments & Settlements"),
+                        NavItem("reports", "Reports")
+                    )),
+                    NavGroup("Account", listOf(
+                        NavItem("notifications", "Notifications"),
+                        NavItem("profile", "Contact & Settings"),
+                        NavItem("pickup-address", "Pickup / Local Address"),
+                        NavItem("company-profile", "Company Profile"),
+                        NavItem("support", "Support")
+                    ))
+                )
+            )
+        } else {
+            NavResponse(
+                role = "ADMIN",
+                groups = listOf(
+                    NavGroup("Overview", listOf(
+                        NavItem("dashboard", "Dashboard"),
+                        NavItem("analytics", "Analytics")
+                    )),
+                    NavGroup("Commerce", listOf(
+                        NavItem("products", "Products"),
+                        NavItem("orders", "Orders"),
+                        NavItem("notifications", "Notifications"),
+                        NavItem("contact-messages", "Contact requests"),
+                        NavItem("customers", "Customers"),
+                        NavItem("inventory", "Inventory"),
+                        NavItem("returns", "Returns & RTO"),
+                        NavItem("sellers", "Seller channels"),
+                        NavItem("categories", "Categories")
+                    )),
+                    NavGroup("Dropshipping", listOf(
+                        NavItem("suppliers", "Suppliers"),
+                        NavItem("fulfillment", "Fulfillment"),
+                        NavItem("product-sync", "Product Sync"),
+                        NavItem("tracking", "Tracking")
+                    )),
+                    NavGroup("Finance", listOf(
+                        NavItem("accounts", "Accounts"),
+                        NavItem("gift-cards", "Gift cards"),
+                        NavItem("payments", "Payments"),
+                        NavItem("invoices", "Invoices"),
+                        NavItem("profit-expenses", "Profit & Expenses")
+                    )),
+                    NavGroup("System", listOf(
+                        NavItem("settings", "Settings"),
+                        NavItem("users", "Users & Roles")
+                    ))
+                )
+            )
         }
     }
 
-    suspend fun fetchAdminSection(section: String): ApiResult<JSONObject> = withContext(Dispatchers.IO) {
+    suspend fun fetchAdminSection(section: String): ApiResult<String> = withContext(Dispatchers.IO) {
         try {
             val url = "${sessionManager.baseUrl}/api/mobile/admin/$section"
             val request = Request.Builder().url(url).get().build()
@@ -516,435 +1097,80 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
             client.newCall(request).execute().use { response ->
                 val responseStr = response.body?.string() ?: ""
                 if (response.isSuccessful) {
-                    val root = JSONObject(responseStr)
-                    ApiResult.Success(root)
+                    ApiResult.Success(responseStr)
                 } else {
-                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { null }
-                    ApiResult.Error(msg ?: "Failed to load admin section $section (HTTP ${response.code})")
+                    ApiResult.Error("HTTP ${response.code}: $responseStr")
                 }
             }
         } catch (e: Exception) {
-            ApiResult.Error(e.localizedMessage ?: "Failed to load admin section $section.")
+            ApiResult.Error(e.localizedMessage ?: "Failed to load section $section")
         }
     }
 
-    suspend fun postSupplierAction(actionBody: JSONObject): ApiResult<String> = withContext(Dispatchers.IO) {
+    suspend fun fetchSupplierSection(section: String): ApiResult<String> = withContext(Dispatchers.IO) {
         try {
-            val url = "${sessionManager.baseUrl}/api/supplier/actions"
-            val request = Request.Builder()
-                .url(url)
-                .post(actionBody.toString().toRequestBody(jsonMediaType))
-                .header("Content-Type", "application/json")
-                .build()
+            val url = "${sessionManager.baseUrl}/api/mobile/supplier/$section"
+            val request = Request.Builder().url(url).get().build()
 
             client.newCall(request).execute().use { response ->
                 val responseStr = response.body?.string() ?: ""
                 if (response.isSuccessful) {
-                    val msg = JSONObject(responseStr).optString("message", "Supplier action completed.")
-                    ApiResult.Success(msg)
+                    ApiResult.Success(responseStr)
                 } else {
-                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Action failed (HTTP ${response.code})" }
-                    ApiResult.Error(msg)
+                    ApiResult.Error("HTTP ${response.code}: $responseStr")
                 }
             }
         } catch (e: Exception) {
-            ApiResult.Error(e.localizedMessage ?: "Failed to execute supplier action.")
+            ApiResult.Error(e.localizedMessage ?: "Failed to load section $section")
         }
-    }
-
-    suspend fun updateSupplierStock(productId: String, stock: Int, costPrice: Double, hsnCode: String? = null): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "STOCK")
-            put("productId", productId)
-            put("stock", stock)
-            put("costPrice", costPrice)
-            if (!hsnCode.isNullOrEmpty()) put("hsnCode", hsnCode)
-        }
-        return postSupplierAction(body)
-    }
-
-    suspend fun createSupplierProduct(name: String, sku: String, description: String, costPrice: Double, stock: Int, hsnCode: String? = null): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "PRODUCT")
-            put("name", name)
-            put("sku", sku)
-            put("description", description)
-            put("costPrice", costPrice)
-            put("stock", stock)
-            if (!hsnCode.isNullOrEmpty()) put("hsnCode", hsnCode)
-        }
-        return postSupplierAction(body)
-    }
-
-    suspend fun confirmSupplierReturnReceived(returnId: String): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "RETURN_RECEIVED")
-            put("returnId", returnId)
-        }
-        return postSupplierAction(body)
-    }
-
-    suspend fun createSupplierLocalCustomer(
-        name: String,
-        phone: String? = null,
-        email: String? = null,
-        address: String? = null,
-        notes: String? = null
-    ): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "LOCAL_CUSTOMER_CREATE")
-            put("name", name)
-            if (!phone.isNullOrEmpty()) put("phone", phone)
-            if (!email.isNullOrEmpty()) put("email", email)
-            if (!address.isNullOrEmpty()) put("address", address)
-            if (!notes.isNullOrEmpty()) put("notes", notes)
-        }
-        return postSupplierAction(body)
-    }
-
-    suspend fun createSupplierSupportTicket(
-        subject: String,
-        message: String
-    ): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "SUPPORT_TICKET_CREATE")
-            put("subject", subject)
-            put("message", message)
-        }
-        return postSupplierAction(body)
-    }
-
-    suspend fun updateSupplierProfile(
-        contactName: String? = null,
-        phone: String? = null,
-        pickupAddress: String? = null,
-        pickupAddressLine1: String? = null,
-        pickupAddressLine2: String? = null,
-        pickupCity: String? = null,
-        pickupDistrict: String? = null,
-        pickupState: String? = null,
-        pickupPincode: String? = null,
-        companyName: String? = null,
-        companyEmail: String? = null,
-        companyPhone: String? = null,
-        gstNumber: String? = null
-    ): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "PROFILE")
-            if (!contactName.isNullOrEmpty()) put("contactName", contactName)
-            if (!phone.isNullOrEmpty()) put("phone", phone)
-            if (!pickupAddress.isNullOrEmpty()) put("pickupAddress", pickupAddress)
-            if (!pickupAddressLine1.isNullOrEmpty()) put("pickupAddressLine1", pickupAddressLine1)
-            if (!pickupAddressLine2.isNullOrEmpty()) put("pickupAddressLine2", pickupAddressLine2)
-            if (!pickupCity.isNullOrEmpty()) put("pickupCity", pickupCity)
-            if (!pickupDistrict.isNullOrEmpty()) put("pickupDistrict", pickupDistrict)
-            if (!pickupState.isNullOrEmpty()) put("pickupState", pickupState)
-            if (!pickupPincode.isNullOrEmpty()) put("pickupPincode", pickupPincode)
-            if (!companyEmail.isNullOrEmpty()) put("companyEmail", companyEmail)
-            if (!companyPhone.isNullOrEmpty()) put("companyPhone", companyPhone)
-            if (!gstNumber.isNullOrEmpty()) put("gstNumber", gstNumber)
-        }
-        return postSupplierAction(body)
-    }
-
-    suspend fun postAdminAction(actionBody: JSONObject): ApiResult<String> = withContext(Dispatchers.IO) {
-        try {
-            val url = "${sessionManager.baseUrl}/api/mobile/admin/actions"
-            val request = Request.Builder()
-                .url(url)
-                .post(actionBody.toString().toRequestBody(jsonMediaType))
-                .header("Content-Type", "application/json")
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                val responseStr = response.body?.string() ?: ""
-                if (response.isSuccessful) {
-                    val msg = JSONObject(responseStr).optString("message", "Admin action completed.")
-                    ApiResult.Success(msg)
-                } else {
-                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Admin action failed (HTTP ${response.code})" }
-                    ApiResult.Error(msg)
-                }
-            }
-        } catch (e: Exception) {
-            ApiResult.Error(e.localizedMessage ?: "Failed to execute admin action.")
-        }
-    }
-
-    suspend fun confirmOrderDelivery(orderId: String): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "ORDER_DELIVERY")
-            put("orderId", orderId)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun collectCodPayment(orderId: String, reference: String): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "COD_COLLECTION")
-            put("orderId", orderId)
-            put("reference", reference)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun updateOrderStatus(orderId: String, status: String): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "ORDER_STATUS")
-            put("orderId", orderId)
-            put("status", status)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun reviewReturn(returnId: String, decision: String, notes: String = ""): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "RETURN_REVIEW")
-            put("returnId", returnId)
-            put("decision", decision)
-            put("notes", notes)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun updateProductStatus(productId: String, status: String): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "PRODUCT_STATUS")
-            put("productId", productId)
-            put("status", status)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun updateProductPricingAndStock(productId: String, sellingPrice: Double?, costPrice: Double?, stock: Int?): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "PRODUCT_UPDATE")
-            put("productId", productId)
-            if (sellingPrice != null) put("sellingPrice", sellingPrice)
-            if (costPrice != null) put("costPrice", costPrice)
-            if (stock != null) put("stock", stock)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun toggleUserStatus(userId: String, isActive: Boolean): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "USER_STATUS")
-            put("userId", userId)
-            put("isActive", isActive)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun replyToSupportTicket(ticketId: String, reply: String, status: String = "RESOLVED"): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "SUPPORT_REPLY")
-            put("ticketId", ticketId)
-            put("reply", reply)
-            put("status", status)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun createExpense(category: String, amount: Double, description: String? = null): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "EXPENSE_CREATE")
-            put("category", category)
-            put("amount", amount)
-            if (!description.isNullOrEmpty()) put("description", description)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun createAdminProduct(
-        name: String,
-        sku: String,
-        category: String?,
-        sellingPrice: Double,
-        costPrice: Double,
-        stock: Int,
-        description: String?,
-        hsnCode: String?,
-        status: String = "ACTIVE",
-        supplierId: String? = null
-    ): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "PRODUCT_CREATE")
-            put("name", name)
-            put("sku", sku)
-            if (!category.isNullOrEmpty()) put("category", category)
-            put("sellingPrice", sellingPrice)
-            put("costPrice", costPrice)
-            put("stock", stock)
-            if (!description.isNullOrEmpty()) put("description", description)
-            if (!hsnCode.isNullOrEmpty()) put("hsnCode", hsnCode)
-            put("status", status)
-            if (!supplierId.isNullOrEmpty()) put("supplierId", supplierId)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun createSupplier(
-        companyName: String,
-        contactName: String?,
-        email: String?,
-        phone: String?,
-        sourceType: String = "DIRECT",
-        pickupAddress: String? = null,
-        pickupCity: String? = null,
-        pickupState: String? = null,
-        gstNumber: String? = null
-    ): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "SUPPLIER_CREATE")
-            put("companyName", companyName)
-            if (!contactName.isNullOrEmpty()) put("contactName", contactName)
-            if (!email.isNullOrEmpty()) put("email", email)
-            if (!phone.isNullOrEmpty()) put("phone", phone)
-            put("sourceType", sourceType)
-            if (!pickupAddress.isNullOrEmpty()) put("pickupAddress", pickupAddress)
-            if (!pickupCity.isNullOrEmpty()) put("pickupCity", pickupCity)
-            if (!pickupState.isNullOrEmpty()) put("pickupState", pickupState)
-            if (!gstNumber.isNullOrEmpty()) put("gstNumber", gstNumber)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun recordSupplierSettlement(
-        supplierId: String,
-        amount: Double,
-        reference: String,
-        notes: String? = null,
-        paidAt: String? = null
-    ): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "SUPPLIER_SETTLEMENT")
-            put("supplierId", supplierId)
-            put("amount", amount)
-            put("reference", reference)
-            if (!notes.isNullOrEmpty()) put("notes", notes)
-            if (!paidAt.isNullOrEmpty()) put("paidAt", paidAt)
-        }
-        return postAdminAction(body)
     }
 
     suspend fun uploadPhoto(
         fileBytes: ByteArray,
-        fileName: String,
+        fileName: String = "photo.jpg",
         mimeType: String = "image/jpeg",
+        kind: String = "products",
         productId: String? = null,
-        categoryId: String? = null,
-        kind: String = "products"
-    ): ApiResult<JSONObject> = withContext(Dispatchers.IO) {
+        categoryId: String? = null
+    ): ApiResult<String> = withContext(Dispatchers.IO) {
         try {
-            val url = "$baseUrl/api/mobile/upload"
-            val builder = MultipartBody.Builder().setType(MultipartBody.FORM)
-            builder.addFormDataPart("file", fileName, fileBytes.toRequestBody(mimeType.toMediaType()))
-            builder.addFormDataPart("kind", kind)
-            if (!productId.isNullOrEmpty()) builder.addFormDataPart("productId", productId)
-            if (!categoryId.isNullOrEmpty()) builder.addFormDataPart("categoryId", categoryId)
+            val url = "${sessionManager.baseUrl}/api/mobile/upload"
+            val bodyBuilder = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart(
+                    "file",
+                    fileName,
+                    fileBytes.toRequestBody(mimeType.toMediaTypeOrNull())
+                )
+                .addFormDataPart("kind", kind)
+
+            if (!productId.isNullOrBlank()) {
+                bodyBuilder.addFormDataPart("productId", productId)
+            }
+            if (!categoryId.isNullOrBlank()) {
+                bodyBuilder.addFormDataPart("categoryId", categoryId)
+            }
 
             val request = Request.Builder()
                 .url(url)
-                .post(builder.build())
+                .post(bodyBuilder.build())
                 .build()
 
             client.newCall(request).execute().use { response ->
-                val bodyStr = response.body?.string().orEmpty()
+                val responseStr = response.body?.string() ?: ""
                 if (response.isSuccessful) {
-                    ApiResult.Success(if (bodyStr.isNotEmpty()) JSONObject(bodyStr) else JSONObject())
+                    val json = JSONObject(responseStr)
+                    val imageUrl = json.optString("url", "")
+                    val msg = json.optString("message", "Photo uploaded to cloud storage and linked successfully.")
+                    ApiResult.Success(imageUrl.ifBlank { msg })
                 } else {
-                    val msg = parseErrorMessage(bodyStr, "Upload failed with HTTP ${response.code}")
-                    ApiResult.Error(msg, response.code)
+                    val msg = try { JSONObject(responseStr).optString("message") } catch (_: Exception) { "Upload failed (HTTP ${response.code})" }
+                    ApiResult.Error(msg)
                 }
             }
         } catch (e: Exception) {
-            ApiResult.Error(e.message ?: "Failed to upload photo")
+            ApiResult.Error(e.localizedMessage ?: "Failed to upload photo.")
         }
-    }
-
-    suspend fun createCategory(
-        name: String,
-        slug: String? = null,
-        description: String = "",
-        imageUrl: String? = null
-    ): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "CATEGORY_CREATE")
-            put("name", name)
-            if (!slug.isNullOrEmpty()) put("slug", slug)
-            put("description", description)
-            if (!imageUrl.isNullOrEmpty()) put("imageUrl", imageUrl)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun updateCategory(
-        categoryId: String,
-        name: String? = null,
-        description: String? = null,
-        imageUrl: String? = null,
-        isVisible: Boolean? = null
-    ): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "CATEGORY_UPDATE")
-            put("categoryId", categoryId)
-            if (!name.isNullOrEmpty()) put("name", name)
-            if (!description.isNullOrEmpty()) put("description", description)
-            if (!imageUrl.isNullOrEmpty()) put("imageUrl", imageUrl)
-            if (isVisible != null) put("isVisible", isVisible)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun updateInventory(productId: String, availableQty: Int): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "INVENTORY_UPDATE")
-            put("productId", productId)
-            put("availableQty", availableQty)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun createVoucher(
-        customerId: String,
-        code: String,
-        balance: Double,
-        expiresAt: String? = null
-    ): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "VOUCHER_CREATE")
-            put("customerId", customerId)
-            put("code", code)
-            put("balance", balance)
-            if (!expiresAt.isNullOrEmpty()) put("expiresAt", expiresAt)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun deleteProductPhoto(productId: String, photoUrl: String): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "PHOTO_DELETE")
-            put("productId", productId)
-            put("photoUrl", photoUrl)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun setProductCoverPhoto(productId: String, photoUrl: String): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "PHOTO_COVER")
-            put("productId", productId)
-            put("photoUrl", photoUrl)
-        }
-        return postAdminAction(body)
-    }
-
-    suspend fun triggerCjSync(syncType: String = "orders"): ApiResult<String> {
-        val body = JSONObject().apply {
-            put("action", "CJ_SYNC")
-            put("syncType", syncType)
-        }
-        return postAdminAction(body)
     }
 }
+
