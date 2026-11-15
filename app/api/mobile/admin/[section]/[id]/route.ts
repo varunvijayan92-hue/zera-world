@@ -43,6 +43,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ sect
       default: throw new AccessError("This section does not have a record detail endpoint.", 404);
     }
     if (!data) throw new AccessError("Record not found.", 404);
+    if (section === "orders" || section === "invoices") {
+      const payments = await prisma.paymentTransaction.findMany({ where: { orderId: id }, orderBy: { createdAt: "desc" },
+        select: { id: true, provider: true, paymentStatus: true, amount: true, currency: true, gatewayPaymentId: true } });
+      data = { ...data as object, payments, receiptNotice: "Order summary; not a separately numbered tax invoice." };
+    }
     return NextResponse.json({ data }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return apiError(error); }
 }

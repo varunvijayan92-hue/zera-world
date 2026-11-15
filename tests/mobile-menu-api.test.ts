@@ -12,6 +12,7 @@ import { GET as navigation } from "../app/api/mobile/navigation/route";
 import { GET as adminSection } from "../app/api/mobile/admin/[section]/route";
 import { GET as supplierDetail } from "../app/api/mobile/supplier/[section]/[id]/route";
 import { GET as supplierSection } from "../app/api/mobile/supplier/[section]/route";
+import { GET as adminDetail } from "../app/api/mobile/admin/[section]/[id]/route";
 
 function mockModel(t: TestContext, name: string, methods: Record<string, unknown>) {
   const client = prisma as unknown as Record<string, unknown>;
@@ -117,5 +118,25 @@ test("every published admin and supplier menu executes its read handler", async 
   for (const [, entries] of supplierNavigation) for (const [, section] of entries) {
     const response = await supplierSection(new Request(`https://store.test/api/mobile/supplier/${section}`), { params: Promise.resolve({ section }) });
     assert.equal(response.status, 200, section);
+  }
+});
+
+test("order and invoice detail expose payment state required by native COD collection", async t => {
+  t.mock.method(authContext, "current", async () => ({ id: "admin", role: "ADMIN", isActive: true }));
+  mockModel(t, "customerOrder", { findUnique: async () => ({ id: "order", status: "DELIVERED", deliveredAt: new Date(), totalAmount: "499.00", orderItems: [] }) });
+  mockModel(t, "paymentTransaction", { findMany: async (args: any) => {
+    assert.deepEqual(args.where, { orderId: "order" });
+    assert.equal(args.select.paymentStatus, true);
+    assert.equal(args.select.amount, true);
+    assert.equal(args.select.gatewaySignature, undefined);
+    return [{ id: "payment", provider: "COD", paymentStatus: "PENDING", amount: "499.00" }];
+  } });
+  for (const section of ["orders", "invoices"]) {
+    const response = await adminDetail(new Request("https://store.test/"), { params: Promise.resolve({ section, id: "order" }) });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.data.payments[0].provider, "COD");
+    assert.equal(body.data.payments[0].paymentStatus, "PENDING");
+    assert.match(body.data.receiptNotice, /not a separately numbered tax invoice/);
   }
 });
