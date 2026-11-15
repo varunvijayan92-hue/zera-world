@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { adminNavigation } from "@/lib/admin-navigation";
 import { supplierNavigation } from "@/lib/supplier-navigation";
 import { supplierAccess, AccessError, apiError } from "@/lib/portal-access";
+import { mobileMenuContract } from "@/lib/mobile-menu-contract";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export async function GET() {
           items: group.items.map(item => ({
             id: item.href.slice("/admin/".length),
             label: item.label,
+            api: mobileMenuContract("ADMIN", item.href.slice("/admin/".length)),
           })),
         })),
       }, { headers: { "Cache-Control": "private, no-store" } });
@@ -28,7 +30,7 @@ export async function GET() {
         role: user.role,
         groups: supplierNavigation.map(([label, entries]) => ({
           label,
-          items: entries.map(([name, id]) => ({ id, label: name })),
+          items: entries.map(([name, id]) => ({ id, label: name, api: mobileMenuContract("SUPPLIER", id) })),
         })),
       }, { headers: { "Cache-Control": "private, no-store" } });
     }

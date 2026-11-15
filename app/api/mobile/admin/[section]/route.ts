@@ -1,14 +1,19 @@
+import { mobileListQuery, mobileListMeta } from "@/lib/mobile-list";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { portalUser, AccessError, apiError } from "@/lib/portal-access";
 import { financeReport } from "@/lib/finance-report";
+import { integrationFields } from "@/lib/integration-settings";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_request: Request, context: { params: Promise<{ section: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ section: string }> }) {
   try {
-    await portalUser("ADMIN");
+    await portalUser("ADMIN", request);
     const { section } = await context.params;
+    let query;
+    try { query = mobileListQuery(request); } catch (error) { throw new AccessError(error instanceof Error ? error.message : "Invalid pagination."); }
+    const { page, limit, skip } = query;
     let data: unknown;
 
     switch (section) {
@@ -41,7 +46,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
 
       case "products":
         data = await prisma.product.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { id: "desc" },
           select: {
             id: true,
@@ -60,7 +65,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
 
       case "orders":
         data = await prisma.customerOrder.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -86,7 +91,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
 
       case "notifications":
         data = await prisma.orderItem.findMany({
-          take: 50,
+          take: limit, skip,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -101,25 +106,28 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
         break;
 
       case "contact-messages":
-        data = await prisma.supportTicket.findMany({
-          take: 50,
+        data = await prisma.auditLog.findMany({
+          where: { action: "CONTACT_REQUEST", entityType: "ContactMessage" },
+          take: limit, skip,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
-            subject: true,
-            message: true,
-            status: true,
-            reply: true,
+            entityId: true,
+            details: true,
             createdAt: true,
-            user: { select: { fullName: true, email: true } },
           },
         });
+        break;
+
+      case "support":
+        data = await prisma.supportTicket.findMany({ take: limit, skip, orderBy: { createdAt: "desc" },
+          select: { id: true, subject: true, message: true, status: true, reply: true, createdAt: true, user: { select: { fullName: true, email: true } } } });
         break;
 
       case "customers":
         data = await prisma.user.findMany({
           where: { role: "CUSTOMER" },
-          take: 100,
+          take: limit, skip,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -134,7 +142,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
 
       case "inventory":
         data = await prisma.inventory.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { id: "asc" },
           select: {
             id: true,
@@ -150,7 +158,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
 
       case "returns":
         data = await prisma.returnRequest.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -167,10 +175,17 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
         });
         break;
 
-      case "sellers":
+      case "sellers": {
+        const saved = await prisma.integrationSetting.findMany({ where: { provider: { in: ["AMAZON", "FLIPKART"] } }, select: { provider: true, updatedAt: true } });
+        data = ["AMAZON", "FLIPKART"].map(provider => ({ provider, configured: saved.some(item => item.provider === provider),
+          updatedAt: saved.find(item => item.provider === provider)?.updatedAt || null,
+          fields: integrationFields[provider as "AMAZON" | "FLIPKART"], connectorEnabled: false,
+          message: "Credentials can be saved. A live marketplace connector is not enabled." }));
+        break;
+      }
       case "suppliers":
         data = await prisma.supplier.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { id: "asc" },
           select: {
             id: true,
@@ -188,7 +203,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
 
       case "categories":
         data = await prisma.storeCategory.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { sortOrder: "asc" },
           select: {
             id: true,
@@ -207,7 +222,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
       case "fulfillment":
       case "tracking":
         data = await prisma.shipment.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -227,7 +242,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
 
       case "product-sync":
         data = await prisma.syncJob.findMany({
-          take: 50,
+          take: limit, skip,
           orderBy: { startedAt: "desc" },
           select: {
             id: true,
@@ -242,9 +257,12 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
         break;
 
       case "accounts": {
-        const p = await financeReport();
+        const url = new URL(request.url);
+        let p;
+        try { p = await financeReport(url.searchParams.get("from") || undefined, url.searchParams.get("to") || undefined); }
+        catch (error) { if (error instanceof Error && /date|range|start before/.test(error.message)) throw new AccessError(error.message); throw error; }
         const transactions = await prisma.paymentTransaction.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -274,7 +292,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
 
       case "payments":
         data = await prisma.paymentTransaction.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -291,7 +309,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
 
       case "gift-cards":
         data = await prisma.customerVoucher.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -307,7 +325,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
       case "invoices":
         data = await prisma.customerOrder.findMany({
           where: { status: { in: ["CONFIRMED", "SHIPPED", "DELIVERED"] } },
-          take: 100,
+          take: limit, skip,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -324,9 +342,12 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
         break;
 
       case "profit-expenses": {
-        const p = await financeReport();
+        const url = new URL(request.url);
+        let p;
+        try { p = await financeReport(url.searchParams.get("from") || undefined, url.searchParams.get("to") || undefined); }
+        catch (error) { if (error instanceof Error && /date|range|start before/.test(error.message)) throw new AccessError(error.message); throw error; }
         const expenses = await prisma.expense.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { expenseDate: "desc" },
           select: {
             id: true,
@@ -352,19 +373,24 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
         break;
       }
 
-      case "settings":
-        data = await prisma.integrationSetting.findMany({
+      case "settings": {
+        const saved = await prisma.integrationSetting.findMany({
           select: {
             id: true,
             provider: true,
             updatedAt: true,
           },
         });
+        data = Object.entries(integrationFields).map(([provider, fields]) => ({
+          provider, fields, configured: saved.some(item => item.provider === provider),
+          updatedAt: saved.find(item => item.provider === provider)?.updatedAt || null,
+        }));
         break;
+      }
 
       case "users":
         data = await prisma.user.findMany({
-          take: 100,
+          take: limit, skip,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -381,7 +407,7 @@ export async function GET(_request: Request, context: { params: Promise<{ sectio
         throw new AccessError("Unknown admin section.", 404);
     }
 
-    return NextResponse.json({ data }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ data, meta: mobileListMeta(data, page, limit) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return apiError(error);
   }

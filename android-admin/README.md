@@ -1,5 +1,7 @@
 # Zera's World Android Admin & Supplier Portal
 
+For the complete mobile menu contracts, pagination, record details, workflow routes and Android connection examples, see [MENU_API.md](MENU_API.md). Product form endpoints are documented in [PRODUCT_API.md](PRODUCT_API.md).
+
 A native Android application built with **Jetpack Compose** providing complete role-based management access for **Administrators**, **Managers**, and **Suppliers**. The app communicates natively with the Zera's World Next.js backend via authenticated REST APIs, sharing the identical database, business rules, and cloud storage infrastructure as the website.
 
 ---

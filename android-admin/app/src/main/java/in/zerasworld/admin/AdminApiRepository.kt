@@ -71,7 +71,8 @@ data class AdminReturn(
 
 data class NavItem(
     val id: String,
-    val label: String
+    val label: String,
+    val api: JSONObject? = null
 )
 
 data class NavGroup(
@@ -140,7 +141,7 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
                 chain.proceed(chain.request())
             }
             .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
             .cookieJar(object : CookieJar {
                 override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
                     if (url.scheme != sessionOrigin.scheme || url.host != sessionOrigin.host || url.port != sessionOrigin.port) return
@@ -1002,7 +1003,7 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
                         val itemsList = mutableListOf<NavItem>()
                         for (j in 0 until itemsArr.length()) {
                             val iObj = itemsArr.getJSONObject(j)
-                            itemsList.add(NavItem(iObj.optString("id"), iObj.optString("label")))
+                            itemsList.add(NavItem(iObj.optString("id"), iObj.optString("label"), iObj.optJSONObject("api")))
                         }
                         groupsList.add(NavGroup(gLabel, itemsList))
                     }
@@ -1089,9 +1090,10 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
         }
     }
 
-    suspend fun fetchAdminSection(section: String): ApiResult<String> = withContext(Dispatchers.IO) {
+    suspend fun fetchAdminSection(section: String, page: Int = 1, limit: Int = 100): ApiResult<String> = withContext(Dispatchers.IO) {
         try {
-            val url = "${sessionManager.baseUrl}/api/mobile/admin/$section"
+            require(section.matches(Regex("[a-z-]+")) && page > 0 && limit in 1..200)
+            val url = "${sessionManager.baseUrl}/api/mobile/admin/$section?page=$page&limit=$limit"
             val request = Request.Builder().url(url).get().build()
 
             client.newCall(request).execute().use { response ->
@@ -1107,9 +1109,10 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
         }
     }
 
-    suspend fun fetchSupplierSection(section: String): ApiResult<String> = withContext(Dispatchers.IO) {
+    suspend fun fetchSupplierSection(section: String, page: Int = 1, limit: Int = 100): ApiResult<String> = withContext(Dispatchers.IO) {
         try {
-            val url = "${sessionManager.baseUrl}/api/mobile/supplier/$section"
+            require(section.matches(Regex("[a-z-]+")) && page > 0 && limit in 1..200)
+            val url = "${sessionManager.baseUrl}/api/mobile/supplier/$section?page=$page&limit=$limit"
             val request = Request.Builder().url(url).get().build()
 
             client.newCall(request).execute().use { response ->
@@ -1122,6 +1125,23 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
             }
         } catch (e: Exception) {
             ApiResult.Error(e.localizedMessage ?: "Failed to load section $section")
+        }
+    }
+
+    // Executes the JSON operations advertised by /api/mobile/navigation using the session cookie.
+    suspend fun requestMobileApi(path: String, method: String = "GET", payload: JSONObject? = null): ApiResult<String> = withContext(Dispatchers.IO) {
+        try {
+            require(path.startsWith("/api/mobile/") && !path.contains("..") && !path.contains("\\") && !path.contains("#"))
+            require(method in listOf("GET", "POST", "PATCH", "PUT", "DELETE"))
+            val requestBody = if (method == "GET") null else (payload ?: JSONObject()).toString().toRequestBody(jsonMediaType)
+            val request = Request.Builder().url("${sessionManager.baseUrl}$path").method(method, requestBody).build()
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                if (response.isSuccessful) ApiResult.Success(body)
+                else ApiResult.Error("HTTP ${response.code}: $body")
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.localizedMessage ?: "API request failed")
         }
     }
 

@@ -62,9 +62,10 @@ const actions = z.discriminatedUnion("action", [
 export async function POST(request: Request) {
   try {
     const { user, supplier } = await supplierAccess(request);
-    const parsed = actions.safeParse(await request.json());
+    const parsed = actions.safeParse(await request.json().catch(() => null));
     if (!parsed.success) throw new AccessError(parsed.error.issues[0]?.message || "Check the supplier details.");
     const body = parsed.data;
+    let createdProduct: { id: string } | undefined;
     await prisma.$transaction(async (tx) => {
       if (body.action === "ORDER" || body.action === "SHIPMENT") {
         const item = await tx.orderItem.findFirst({ where: { id: body.itemId, supplierId: supplier.id }, include: { customerOrder: true } });
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
       } else if (body.action === "STOCK") {
         await updateSupplierCatalog(tx, supplier.id, body);
       } else if (body.action === "PRODUCT") {
-        await tx.product.create({ data: { supplierId: supplier.id, name: body.name, sku: body.sku, description: body.description, hsnCode: body.hsnCode || null, costPrice: body.costPrice, status: "DRAFT", supplierProducts: { create: { supplierId: supplier.id, supplierProductCode: body.sku, purchasePrice: body.costPrice } }, inventory: { create: { supplierId: supplier.id, availableQty: body.stock } } } });
+        createdProduct = await tx.product.create({ data: { supplierId: supplier.id, name: body.name, sku: body.sku, description: body.description, hsnCode: body.hsnCode || null, costPrice: body.costPrice, status: "DRAFT", supplierProducts: { create: { supplierId: supplier.id, supplierProductCode: body.sku, purchasePrice: body.costPrice } }, inventory: { create: { supplierId: supplier.id, availableQty: body.stock } } }, select: { id: true } });
       } else if (body.action === "LOCAL_CUSTOMER_CREATE") {
         await tx.supplierLocalCustomer.create({
           data: {
@@ -122,6 +123,6 @@ export async function POST(request: Request) {
     if (body.action === "PRODUCT") returnMessage = "Product submitted as a draft for admin approval.";
     else if (body.action === "LOCAL_CUSTOMER_CREATE") returnMessage = "Local customer added.";
     else if (body.action === "SUPPORT_TICKET_CREATE") returnMessage = "Support ticket submitted.";
-    return NextResponse.json({ message: returnMessage });
+    return NextResponse.json({ message: returnMessage, ...(createdProduct ? { data: createdProduct } : {}) });
   } catch (error) { return apiError(error); }
 }
