@@ -1,8 +1,9 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import { useClientReady } from "./use-client-ready";
-type Provider = "RAZORPAY" | "DELHIVERY" | "SHIPROCKET" | "AMAZON" | "FLIPKART";
+type Provider = "RAZORPAY" | "DELHIVERY" | "SHIPROCKET" | "AMAZON" | "FLIPKART" | "FAST2SMS_WHATSAPP";
 const definitions: Record<Provider, { url: string; fields: [string, string, boolean][] }> = {
+  FAST2SMS_WHATSAPP: { url: "https://www.fast2sms.com/dev/whatsapp", fields: [["apiKey", "API key", true], ["phoneNumberId", "Connected WhatsApp phone number ID", false], ["orderTemplateId", "Order template message ID (optional; one summary variable)", false], ["paymentTemplateId", "Payment template message ID (optional; one amount variable)", false], ["shippedTemplateId", "Shipment template message ID (optional; one summary variable)", false], ["deliveredTemplateId", "Delivered template message ID (optional; one summary variable)", false]] },
   RAZORPAY: { url: "https://api.razorpay.com/v1", fields: [["keyId", "Key ID", false], ["keySecret", "Key secret", true], ["webhookSecret", "Webhook secret (optional)", true]] },
   DELHIVERY: { url: "https://track.delhivery.com", fields: [["apiToken", "API token", true], ["pickupLocation", "Registered pickup location (optional)", false]] },
   SHIPROCKET: { url: "https://apiv2.shiprocket.in/v1/external", fields: [["email", "API user email", false], ["password", "API user password", true], ["pickupLocation", "Registered pickup location (optional)", false]] },

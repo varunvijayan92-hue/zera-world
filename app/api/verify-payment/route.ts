@@ -6,6 +6,7 @@ import { gatewayError, resolveRazorpayCredentials, razorpayGateway } from "@/lib
 import { nextPaymentStatus, paymentMatches } from "@/lib/payment-state";
 import { queuePaidCjOrder } from "@/lib/cj-fulfilment-queue";
 import { dispatchAlert } from "@/lib/notifications";
+import { queueOrderWhatsApp, scheduleWhatsAppNotifications } from "@/lib/whatsapp-notifications";
 
 const verificationSchema = z.object({
   razorpay_payment_id: z.string().regex(/^pay_[a-zA-Z0-9]+$/),
@@ -54,12 +55,14 @@ export async function POST(request: Request) {
       if ((status || current.paymentStatus) === "PAID") {
         await tx.customerOrder.updateMany({ where: { id: current.orderId, status: "PENDING" }, data: { status: "CONFIRMED" } });
         await queuePaidCjOrder(tx, current.orderId);
+        await queueOrderWhatsApp(tx, current.orderId, "PAYMENT_RECEIVED");
       }
       return { orderId: current.orderId, status: status || current.paymentStatus };
     }, { isolationLevel: "Serializable" });
     if (!saved) return NextResponse.json({ success: false, message: "This payment cannot confirm the order." }, { status: 400 });
 
     if (saved.status === "PAID") {
+      scheduleWhatsAppNotifications();
       try {
         await dispatchAlert({
           type: "PAYMENT_ALERT",

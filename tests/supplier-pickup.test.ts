@@ -64,7 +64,7 @@ test("admin AWB recording snapshots the supplier mapping and rejects unrelated s
     supplier: { findUnique: async () => ({ status: "ACTIVE", shiprocketPickupLocation: "SUPPLIER_001" }) },
     customerOrder: { findUnique: async () => ({ id: "o1", status: "CONFIRMED", orderItems: [{ supplierId: "s1" }] }), update: async () => ({}) },
     paymentTransaction: { findFirst: async () => ({ paymentStatus: "PAID" }) },
-    shipment: { findFirst: async () => null, create: async ({ data }: { data: typeof shipments[number] }) => { shipments.push(data); } },
+    shipment: { findFirst: async () => null, create: async ({ data }: { data: typeof shipments[number] }) => { shipments.push(data); return { id: "shipment-1", ...data }; } },
     orderItem: { updateMany: async () => ({}), count: async () => 0 }, auditLog: { create: async () => ({}) },
   };
   Object.assign(prisma, { $transaction: async (work: (client: typeof tx) => unknown) => work(tx) });

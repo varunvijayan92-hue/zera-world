@@ -7,6 +7,7 @@ import { updateSupplierCatalog } from "@/lib/supplier-catalog";
 import { updateSupplierProfile } from "@/lib/supplier-profile";
 import { shipmentPickupLocation } from "@/lib/supplier-pickup";
 import { supplierAccess, AccessError, apiError } from "@/lib/portal-access";
+import { queueOrderWhatsApp, scheduleWhatsAppNotifications } from "@/lib/whatsapp-notifications";
 import { dispatchAlert } from "@/lib/notifications";
 
 const actions = z.discriminatedUnion("action", [
@@ -82,7 +83,8 @@ export async function POST(request: Request) {
           const existing = await tx.shipment.findFirst({ where: { trackingNumber: body.awb } });
           if (existing) throw new AccessError("This AWB is already recorded. Review the existing shipment.", 409);
           const pickupLocation = await shipmentPickupLocation(tx, supplier.id, body.courierName);
-          await tx.shipment.create({ data: { customerOrderId: item.customerOrderId, supplierId: supplier.id, pickupLocation, courierName: body.courierName, trackingNumber: body.awb, status: "IN_TRANSIT", trackingEvents: { create: { eventType: "DISPATCHED", description: "Supplier entered the shipment AWB." } } } });
+          const shipment = await tx.shipment.create({ data: { customerOrderId: item.customerOrderId, supplierId: supplier.id, pickupLocation, courierName: body.courierName, trackingNumber: body.awb, status: "IN_TRANSIT", trackingEvents: { create: { eventType: "DISPATCHED", description: "Supplier entered the shipment AWB." } } } });
+          await queueOrderWhatsApp(tx, item.customerOrderId, "SHIPPED", shipment.id);
           await tx.orderItem.update({ where: { id: item.id }, data: { fulfillmentStatus: "SHIPPED", status: "SHIPPED" } });
           if (!await tx.orderItem.count({ where: { customerOrderId: item.customerOrderId, status: { not: "SHIPPED" } } })) await tx.customerOrder.update({ where: { id: item.customerOrderId }, data: { status: "SHIPPED" } });
         }
@@ -133,6 +135,7 @@ export async function POST(request: Request) {
       } catch (err) { console.error("Supplier return alert dispatch failed", err); }
     }
 
+    if (body.action === "SHIPMENT") scheduleWhatsAppNotifications();
     let returnMessage = "Supplier details updated.";
     if (body.action === "PRODUCT") returnMessage = "Product submitted as a draft for admin approval.";
     else if (body.action === "LOCAL_CUSTOMER_CREATE") returnMessage = "Local customer added.";

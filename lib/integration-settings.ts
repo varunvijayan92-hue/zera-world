@@ -6,6 +6,7 @@ export const integrationFields = {
   DELHIVERY: ["apiToken", "pickupLocation"],
   SHIPROCKET: ["email", "password", "pickupLocation"],
   CJ_DROPSHIPPING: ["apiKey"],
+  FAST2SMS_WHATSAPP: ["apiKey", "phoneNumberId", "orderTemplateId", "paymentTemplateId", "shippedTemplateId", "deliveredTemplateId"],
   AMAZON: ["sellerId", "marketplaceId", "clientId", "clientSecret", "refreshToken"],
   FLIPKART: ["sellerId", "clientId", "clientSecret"],
 } as const;

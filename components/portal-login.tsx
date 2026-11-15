@@ -16,7 +16,7 @@ export function PortalLogin({ supplier = false, next }: { supplier?: boolean; ne
     const email = String(form.get("email")); const password = String(form.get("password"));
     try {
       const endpoint = challenge ? "/api/auth/verify-otp" : register ? "/api/auth/register" : "/api/auth/login";
-      const body = challenge ? { challengeId: challenge, code: form.get("code") } : register ? { email, password, fullName: form.get("fullName") } : { loginId: email, password, portal: supplier ? "SUPPLIER" : "CUSTOMER" };
+      const body = challenge ? { challengeId: challenge, code: form.get("code") } : register ? { email, password, fullName: form.get("fullName"), phone: form.get("phone"), whatsappEnabled: form.get("whatsappEnabled") === "on" } : { loginId: email, password, portal: supplier ? "SUPPLIER" : "CUSTOMER" };
       const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json();
       if (!response.ok) throw Error(result.message);
@@ -38,6 +38,7 @@ export function PortalLogin({ supplier = false, next }: { supplier?: boolean; ne
     <form onSubmit={submit}><fieldset disabled={!ready || busy} className="space-y-4">
       {challenge ? <><p className="text-sm">Check your email, including your spam folder, for the sign-in code.</p><label className="block text-sm">Email verification code<input name="code" type="text" inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} required autoComplete="one-time-code" autoFocus className="mt-2 w-full rounded-xl border p-3" /></label></> : <>
         {register ? <label className="block text-sm">Full name<input name="fullName" required maxLength={100} autoComplete="name" className="mt-2 w-full rounded-xl border p-3" /></label> : null}
+        {register ? <><label className="block text-sm">WhatsApp phone number<input name="phone" type="tel" inputMode="tel" required maxLength={20} autoComplete="tel" placeholder="10-digit Indian mobile number" className="mt-2 w-full rounded-xl border p-3" /></label><label className="flex items-start gap-3 text-sm"><input type="checkbox" name="whatsappEnabled" className="mt-1" /><span>Send my order, payment and delivery updates to this number on WhatsApp. I can turn these off in My account.</span></label></> : null}
         <label className="block text-sm">{supplier ? "Login ID or email" : "Email"}<input name="email" type={supplier ? "text" : "email"} required autoComplete={supplier ? "username" : "email"} className="mt-2 w-full rounded-xl border p-3" /></label>
         <label className="block text-sm">Password<input name="password" type="password" required minLength={register ? 12 : 6} autoComplete={register ? "new-password" : "current-password"} className="mt-2 w-full rounded-xl border p-3" /></label>
       </>}

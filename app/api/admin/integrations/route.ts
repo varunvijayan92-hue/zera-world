@@ -7,7 +7,7 @@ import { integrationFields } from "@/lib/integration-settings";
 import { AccessError, apiError } from "@/lib/portal-access";
 import { isSameOriginRequest } from "@/lib/request-origin";
 
-const schema = z.object({ provider: z.enum(["RAZORPAY", "DELHIVERY", "SHIPROCKET", "CJ_DROPSHIPPING", "AMAZON", "FLIPKART"]), credentials: z.record(z.string().max(4096)) });
+const schema = z.object({ provider: z.enum(["RAZORPAY", "DELHIVERY", "SHIPROCKET", "CJ_DROPSHIPPING", "FAST2SMS_WHATSAPP", "AMAZON", "FLIPKART"]), credentials: z.record(z.string().max(4096)) });
 export async function POST(request: Request) {
   try {
     const user = await getCurrentUser();
@@ -17,13 +17,19 @@ export async function POST(request: Request) {
     const { provider, credentials } = parsed.data;
     const existing = await prisma.integrationSetting.findUnique({ where: { provider } });
     const merged = existing ? decryptCredentials(existing.encryptedCredentials) : {};
+    if (provider === "FAST2SMS_WHATSAPP") {
+      merged.apiKey ||= process.env.FAST2SMS_API_KEY || "";
+      merged.phoneNumberId ||= process.env.FAST2SMS_WHATSAPP_PHONE_NUMBER_ID || "";
+    }
     for (const key of integrationFields[provider]) {
       const value = provider === "SHIPROCKET" && key === "password" ? credentials[key] : credentials[key]?.trim();
       if (value) merged[key] = value;
     }
-    const required = integrationFields[provider].filter((key) => !["webhookSecret", "pickupLocation"].includes(key));
+    const required = integrationFields[provider].filter((key) => !["webhookSecret", "pickupLocation", "orderTemplateId", "paymentTemplateId", "shippedTemplateId", "deliveredTemplateId"].includes(key));
     if (required.some((key) => !merged[key])) throw new AccessError("Complete the required API credentials. Blank fields preserve previously saved values.");
     if (provider === "SHIPROCKET" && !z.string().email().safeParse(merged.email).success) throw new AccessError("Enter a valid Shiprocket API user email.");
+    if (provider === "FAST2SMS_WHATSAPP" && !/^\d{5,30}$/.test(merged.phoneNumberId)) throw new AccessError("Enter the WhatsApp phone number ID from Fast2SMS, not a mobile number.");
+    if (provider === "FAST2SMS_WHATSAPP" && ["orderTemplateId", "paymentTemplateId", "shippedTemplateId", "deliveredTemplateId"].some(key => merged[key] && !/^\d{1,20}$/.test(merged[key]))) throw new AccessError("Use the numeric Fast2SMS message ID for each template.");
     const encryptedCredentials = encryptCredentials(merged);
     await prisma.$transaction([
       prisma.integrationSetting.upsert({ where: { provider }, create: { provider, encryptedCredentials }, update: { encryptedCredentials } }),

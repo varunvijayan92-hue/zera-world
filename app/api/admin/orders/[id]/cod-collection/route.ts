@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { portalUser, AccessError, apiError } from "@/lib/portal-access";
+import { queueOrderWhatsApp, scheduleWhatsAppNotifications } from "@/lib/whatsapp-notifications";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -17,8 +18,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (payment.paymentStatus === "PAID") return;
       if (payment.paymentStatus !== "PENDING" || Number(payment.amount) !== Number(order.totalAmount)) throw new AccessError("This COD payment requires admin reconciliation.", 409);
       await tx.paymentTransaction.update({ where: { id: payment.id }, data: { paymentStatus: "PAID", gatewayPaymentId: `COD:${parsed.data.reference}`, verificationTimestamp: new Date() } });
+      await queueOrderWhatsApp(tx, id, "PAYMENT_RECEIVED");
       await tx.auditLog.create({ data: { userId: actor.id, action: "COD_PAYMENT_RECEIVED", entityType: "CustomerOrder", entityId: id, details: { reference: parsed.data.reference, amount: Number(payment.amount) } } });
     }, { isolationLevel: "Serializable" });
+    scheduleWhatsAppNotifications();
     return NextResponse.json({ message: "COD payment receipt recorded." });
   } catch (error) { return apiError(error); }
 }

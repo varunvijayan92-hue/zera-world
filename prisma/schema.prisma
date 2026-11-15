@@ -33,6 +33,33 @@ model User {
   loginChallenge       CustomerLoginChallenge?
   adminAccountChallenge AdminAccountChallenge?
   passwordReset CustomerPasswordReset?
+  whatsappPreference CustomerWhatsAppPreference?
+  whatsappNotifications WhatsAppNotification[]
+}
+
+model CustomerWhatsAppPreference {
+  userId String @id
+  enabled Boolean @default(false)
+  updatedAt DateTime @default(now()) @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model WhatsAppNotification {
+  id String @id
+  userId String
+  orderId String
+  event String
+  reference String @default("")
+  status String @default("QUEUED")
+  requestId String?
+  attempts Int @default(0)
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  order CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@index([status, createdAt])
+  @@index([orderId])
 }
 
 model CustomerPasswordReset {
@@ -498,6 +525,7 @@ model SupplierApprovalDecision {
 }
 
 model CustomerOrder {
+  whatsappNotifications WhatsAppNotification[]
   salesChannel       String         @default("UNKNOWN")
   customerId         String?
   customer           User?           @relation(fields: [customerId], references: [id])

@@ -12,7 +12,7 @@ const adminResources: Record<string, string[]> = {
   accounts: ["accounts", "expenses", "reports/export"], "gift-cards": ["gift-cards"],
   payments: ["orders/[id]/cod-collection", "returns/[id]/refund", "refunds"],
   invoices: ["reports/export"], "profit-expenses": ["expenses", "accounts/vouchers", "reports/export"],
-  settings: ["integrations", "account", "device-token"], users: ["users"],
+  settings: ["integrations", "account", "device-token", "whatsapp"], users: ["users"],
 };
 
 const adminActions: Record<string, string[]> = {

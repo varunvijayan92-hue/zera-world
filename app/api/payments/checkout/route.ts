@@ -16,6 +16,7 @@ import { cjCheckoutStock } from "@/lib/cj-checkout-stock";
 import { rateLimited } from "@/lib/rate-limit";
 import { buildSupplierOrderEmailText, emailDelivery } from "@/lib/email";
 import { dispatchAlert } from "@/lib/notifications";
+import { queueOrderWhatsApp, scheduleWhatsAppNotifications } from "@/lib/whatsapp-notifications";
 
 function codResponse(order: { id: string; marketplaceOrderId: string; status: string; totalAmount: unknown }, repeated = false, paymentStatus = "PENDING") {
   return NextResponse.json({ order_id: null, amount: Math.round(Number(order.totalAmount) * 100), currency: "INR", payment_status: paymentStatus, data: { order: { id: order.id, marketplaceOrderId: order.marketplaceOrderId, status: order.status, totalAmount: order.totalAmount }, payment: { provider: "COD", status: paymentStatus } } }, { status: repeated ? 200 : 201 });
@@ -97,6 +98,8 @@ export async function POST(request: Request) {
         ...(giftCardId ? { giftCardId } : {}),
         idempotencyKey,
       } });
+      await queueOrderWhatsApp(tx, order.id, "ORDER_PLACED");
+      if (giftCardId) await queueOrderWhatsApp(tx, order.id, "PAYMENT_RECEIVED");
       if (giftCardId) await tx.auditLog.create({ data: { userId: user.id, action: "REDEEM_GIFT_CARD", entityType: "CustomerVoucher", entityId: giftCardId, details: { orderId: order.id, amount: amount.total } } });
       return { order, transaction, amount };
     }, { isolationLevel: "Serializable" });
@@ -115,6 +118,7 @@ export async function POST(request: Request) {
     }
 
     try {
+      scheduleWhatsAppNotifications();
       const supplierIds = [...new Set(result.order.orderItems.map((item) => item.supplierId).filter((id): id is string => Boolean(id)))];
       if (supplierIds.length > 0) {
         const suppliers = await prisma.supplier.findMany({

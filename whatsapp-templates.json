@@ -1,0 +1,23 @@
+[
+  {
+    "event": "ORDER_PLACED",
+    "name": "zera_order_placed_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "components": [{ "type": "BODY", "text": "Zera's World order confirmation: {{1}} View your order and payment details in My account at https://zerasworld.in/account. You receive this update because you enabled WhatsApp order notifications.", "example": { "body_text": [["Customer, we received order ORDER-123. Total: INR 499.00. Order status: CONFIRMED."]] } }]
+  },
+  {
+    "event": "SHIPPED",
+    "name": "zera_order_shipped_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "components": [{ "type": "BODY", "text": "Zera's World shipment update: {{1}} View tracking for this order at https://zerasworld.in/account. You can manage WhatsApp order notifications in My account.", "example": { "body_text": [["Customer, order ORDER-123 has shipped. Courier: Delhivery. Tracking: AWB123456."]] } }]
+  },
+  {
+    "event": "DELIVERED",
+    "name": "zera_order_delivered_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "components": [{ "type": "BODY", "text": "Zera's World delivery confirmation: {{1}} View your receipt, payment and return details at https://zerasworld.in/account. You can manage WhatsApp order notifications in My account.", "example": { "body_text": [["Customer, order ORDER-123, total INR 499.00, has been delivered."]] } }]
+  }
+]
