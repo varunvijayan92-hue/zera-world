@@ -332,11 +332,23 @@ export async function GET(request: Request, context: { params: Promise<{ section
             marketplaceOrderId: true,
             customerName: true,
             totalAmount: true,
+            subtotal: true,
             taxAmount: true,
             handlingAmount: true,
             shippingAmount: true,
             createdAt: true,
             deliveredAt: true,
+            shippingAddress: true,
+            orderItems: {
+              select: {
+                id: true,
+                marketplaceSku: true,
+                quantity: true,
+                unitPrice: true,
+                gstRate: true,
+                product: { select: { name: true } },
+              },
+            },
           },
         });
         break;
