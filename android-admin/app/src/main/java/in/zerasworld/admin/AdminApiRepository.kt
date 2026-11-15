@@ -730,7 +730,7 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
         try {
             val url = "${sessionManager.baseUrl}/api/admin/products/$productId/stock"
             val bodyObj = JSONObject().apply {
-                put("availableQty", availableQty)
+                put("quantity", availableQty)
             }
             val request = Request.Builder()
                 .url(url)
@@ -772,15 +772,15 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
         imageUrls: List<String> = emptyList()
     ): ApiResult<String> = withContext(Dispatchers.IO) {
         try {
-            val url = "${sessionManager.baseUrl}/api/mobile/admin/actions"
+            if (imageUrls.isNotEmpty()) return@withContext ApiResult.Error("Create the product, then upload photos from the product photo screen.")
+            val url = "${sessionManager.baseUrl}/api/mobile/products"
             val bodyObj = JSONObject().apply {
-                put("action", "PRODUCT_CREATE")
                 put("name", name)
                 put("sku", sku)
                 put("sellingPrice", sellingPrice)
                 put("costPrice", costPrice)
                 if (mrp != null && mrp > 0) put("mrp", mrp)
-                put("stock", stock)
+                put("availableQty", stock)
                 if (!category.isNullOrBlank()) put("category", category)
                 if (!brand.isNullOrBlank()) put("brand", brand)
                 if (!size.isNullOrBlank()) put("size", size)
@@ -1138,7 +1138,7 @@ class AdminApiRepository(private val sessionManager: AdminSessionManager) {
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
                 if (response.isSuccessful) ApiResult.Success(body)
-                else ApiResult.Error("HTTP ${response.code}: $body")
+                else ApiResult.Error(try { JSONObject(body).optString("message", "Request failed (HTTP ${response.code}).") } catch (_: Exception) { "Request failed (HTTP ${response.code})." })
             }
         } catch (e: Exception) {
             ApiResult.Error(e.localizedMessage ?: "API request failed")

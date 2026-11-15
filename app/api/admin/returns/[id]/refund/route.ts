@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { portalUser, AccessError, apiError } from "@/lib/portal-access";
 import { razorpayGateway } from "@/lib/razorpay";
+import { dispatchAlert } from "@/lib/notifications";
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await portalUser("ADMIN", request); const { id } = await params;
@@ -35,11 +36,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await tx.auditLog.create({ data: { userId: actor.id, action: "REQUEST_RETURN_REFUND", entityType: "ReturnRequest", entityId: id } });
       return { kind: "gateway" as const, refund, paymentId: payment.gatewayPaymentId!, amount: refundPaise };
     }, { isolationLevel: "Serializable" });
-    if (claim.kind === "gift_card") return NextResponse.json({ message: "Return refund credited to the original gift card. Expired cards receive 30 days to use the return credit." });
+    if (claim.kind === "gift_card") {
+      try {
+        await dispatchAlert({
+          type: "PAYMENT_ALERT",
+          title: "💸 Return Refund Credited",
+          body: `Return refund for #${id} credited to gift card.`,
+          data: { returnId: id, alertType: "PAYMENT_ALERT" },
+          targetRole: "ALL",
+        });
+      } catch (err) { console.error("Refund alert dispatch failed", err); }
+      return NextResponse.json({ message: "Return refund credited to the original gift card. Expired cards receive 30 days to use the return credit." });
+    }
     // A timeout may still mean the gateway received the refund. Keep the claim pending
     // and require reconciliation rather than issuing a second refund automatically.
     const result = await razorpayGateway.refund(claim.paymentId, claim.amount, id);
     await saveReturnRefund(claim.refund.id, result);
+    try {
+      await dispatchAlert({
+        type: "PAYMENT_ALERT",
+        title: "💸 Return Refund Processed",
+        body: `Return refund for #${id} processed via payment gateway.`,
+        data: { returnId: id, alertType: "PAYMENT_ALERT" },
+        targetRole: "ALL",
+      });
+    } catch (err) { console.error("Refund alert dispatch failed", err); }
     return NextResponse.json({ message: result.status === "processed" ? "Razorpay processed the return refund." : "Refund submitted. Reconcile its gateway status before recording it as completed." });
   } catch (error) { return apiError(error); }
 }

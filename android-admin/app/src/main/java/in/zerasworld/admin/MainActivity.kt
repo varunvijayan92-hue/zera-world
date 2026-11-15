@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -593,7 +594,7 @@ fun AdminDashboardScreen(
                 HorizontalDivider(color = CardBorder)
 
                 LazyColumn(
-                    modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp).testTag("admin-menu-list"),
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     navData.groups.forEach { group ->
@@ -712,12 +713,10 @@ fun AdminDashboardScreen(
             Box(modifier = Modifier.weight(1f)) {
                 when (currentSection) {
                     "dashboard" -> AdminSummaryTab(repository = repository, onNavigate = { id, label -> currentSection = id; currentSectionLabel = label })
-                    "orders" -> OrdersTab(repository = repository)
-                    "products" -> ProductsTab(repository = repository)
+                    "orders", "products", "categories", "inventory", "payments", "invoices", "returns" -> ConnectedAdminTab(repository, currentSection, currentSectionLabel, user.role)
                     "suppliers" -> SuppliersTab(repository = repository)
-                    "returns" -> ReturnsTab(repository = repository)
                     "notifications" -> AlertsTab(sessionManager = sessionManager, repository = repository, fcmToken = fcmToken, isTokenRegistered = isTokenRegistered, onTokenRegisterClick = onTokenRegisterClick)
-                    else -> AdminGenericSectionTab(repository = repository, sectionId = currentSection, sectionTitle = currentSectionLabel)
+                    else -> ConnectedAdminTab(repository, currentSection, currentSectionLabel, user.role)
                 }
             }
         }

@@ -2,7 +2,7 @@
 
 For the complete mobile menu contracts, pagination, record details, workflow routes and Android connection examples, see [MENU_API.md](MENU_API.md). Product form endpoints are documented in [PRODUCT_API.md](PRODUCT_API.md).
 
-A native Android application built with **Jetpack Compose** providing complete role-based management access for **Administrators**, **Managers**, and **Suppliers**. The app communicates natively with the Zera's World Next.js backend via authenticated REST APIs, sharing the identical database, business rules, and cloud storage infrastructure as the website.
+A native Android application built with **Jetpack Compose** for **Administrators**, **Managers**, and **Suppliers**. It uses authenticated REST APIs backed by the website database. See [WORKFLOW_VERIFICATION.md](WORKFLOW_VERIFICATION.md) for implemented screens, verified behavior and remaining gaps; this is not yet complete website parity.
 
 ---
 
@@ -10,10 +10,10 @@ A native Android application built with **Jetpack Compose** providing complete r
 
 ### 1. Unified Authentication & Role-Based Scoping
 - **Unified Portal Login (`portal: "APP"`)**: Authenticates Admin, Manager, and Supplier credentials against `/api/auth/login`.
-- **Session Management**: Native cookie jar securely maintains the backend session cookie (`supplierbridge_session` with fallback to `auth_session`).
+- **Session Management**: Native cookie jar maintains the backend `supplierbridge_session` cookie for the configured HTTPS server.
 - **Dynamic Navigation**: Loads server-defined navigation trees from `/api/mobile/navigation`:
-  - **Admin**: All 22 management sections (Dashboard, Orders, Shipments, Returns, Products, Suppliers, Accounts/P&L, Categories, Inventory, Customers, Delivery Staff, Reviews, Abandoned Carts, Expenses, Support, Sync Logs, etc.).
-  - **Supplier**: All 11 vendor sections (Dashboard, Orders, Notifications, Products, Shipments, Returns, Payments, Reports, Local Customers, Support, Pickup Address / Company Profile).
+  - **Admin**: 22 menu sections, with records rendered and explicit controls for the workflows listed in the verification guide.
+  - **Supplier**: 13 menu sections, including separate contact, pickup-address and company-profile views.
 
 ### 2. Cloud Storage (Cloudinary) & Database Linking
 - **Direct Cloud Upload API (`/api/mobile/upload`)**: Uploads photos directly to Cloudinary (`zeraworld/products/{id}` or `zeraworld/categories/{id}`) via authenticated multipart streams.
@@ -21,8 +21,8 @@ A native Android application built with **Jetpack Compose** providing complete r
 - **Native Photo Picker**: Integrated with Android's `ActivityResultContracts.GetContent()` for seamless photo selection from the device gallery or camera.
 - **Coil Image Loading**: Rich image thumbnails rendered in Compose cards with `coil-compose`.
 
-### 3. Real-Time Search & Filtering
-- Persistent **Search Bar** across all section views allows instant filtering of orders, products, customers, suppliers, inventory, and support tickets by ID, name, SKU, or status.
+### 3. Lists and pagination
+- Connected admin lists support page navigation and refresh. Search/filter controls vary by screen; a universal search bar is not implemented.
 
 ### 4. Interactive Operations & Actions
 

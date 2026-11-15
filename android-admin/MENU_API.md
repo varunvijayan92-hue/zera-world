@@ -95,7 +95,7 @@ repository.requestMobileApi(
 )
 ```
 
-Menu rendering and individual form screens still need to consume the returned fields. These changes do not deploy the server or install/test an Android build on a device.
+The connected admin screens consume these APIs for categories, inventory, product editing/photos, orders/receipts/COD and selected other actions. See [WORKFLOW_VERIFICATION.md](WORKFLOW_VERIFICATION.md) for tested coverage and remaining native gaps; endpoint availability alone does not prove screen or workflow parity.
 
 ## Mobile workflow route inventory
 

@@ -7,6 +7,7 @@ import { updateSupplierCatalog } from "@/lib/supplier-catalog";
 import { updateSupplierProfile } from "@/lib/supplier-profile";
 import { shipmentPickupLocation } from "@/lib/supplier-pickup";
 import { supplierAccess, AccessError, apiError } from "@/lib/portal-access";
+import { dispatchAlert } from "@/lib/notifications";
 
 const actions = z.discriminatedUnion("action", [
   z.object({ action: z.literal("RETURN_RECEIVED"), returnId: z.string().min(1) }),
@@ -119,6 +120,19 @@ export async function POST(request: Request) {
       }
       await tx.auditLog.create({ data: { userId: user.id, action: `SUPPLIER_${body.action}`, entityType: "Supplier", entityId: supplier.id } });
     }, { isolationLevel: "Serializable" });
+
+    if (body.action === "RETURN_RECEIVED") {
+      try {
+        await dispatchAlert({
+          type: "RETURN_ALERT",
+          title: "✅ Return Received by Supplier",
+          body: `Supplier ${supplier.companyName} confirmed receipt of return package #${body.returnId}.`,
+          data: { returnId: body.returnId, alertType: "RETURN_ALERT" },
+          targetRole: "ADMIN",
+        });
+      } catch (err) { console.error("Supplier return alert dispatch failed", err); }
+    }
+
     let returnMessage = "Supplier details updated.";
     if (body.action === "PRODUCT") returnMessage = "Product submitted as a draft for admin approval.";
     else if (body.action === "LOCAL_CUSTOMER_CREATE") returnMessage = "Local customer added.";

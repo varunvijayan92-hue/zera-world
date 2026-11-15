@@ -15,6 +15,7 @@ import { matchCjVariant } from "@/lib/cj-variant-match";
 import { cjCheckoutStock } from "@/lib/cj-checkout-stock";
 import { rateLimited } from "@/lib/rate-limit";
 import { buildSupplierOrderEmailText, emailDelivery } from "@/lib/email";
+import { dispatchAlert } from "@/lib/notifications";
 
 function codResponse(order: { id: string; marketplaceOrderId: string; status: string; totalAmount: unknown }, repeated = false, paymentStatus = "PENDING") {
   return NextResponse.json({ order_id: null, amount: Math.round(Number(order.totalAmount) * 100), currency: "INR", payment_status: paymentStatus, data: { order: { id: order.id, marketplaceOrderId: order.marketplaceOrderId, status: order.status, totalAmount: order.totalAmount }, payment: { provider: "COD", status: paymentStatus } } }, { status: repeated ? 200 : 201 });
@@ -193,6 +194,23 @@ export async function POST(request: Request) {
       }
     } catch (error) {
       console.error("Supplier order email could not be sent", error);
+    }
+
+    try {
+      await dispatchAlert({
+        type: "ORDER_ALERT",
+        title: `🚨 New Order ${result.order.marketplaceOrderId}`,
+        body: `Order for ₹${result.amount.total} received from ${shippingAddress.fullName}${paymentMethod === "cod" ? " (COD)" : ""}.`,
+        data: {
+          orderId: result.order.id,
+          marketplaceOrderId: result.order.marketplaceOrderId,
+          amount: String(result.amount.total),
+          alertType: "ORDER_ALERT",
+        },
+        targetRole: "ALL",
+      });
+    } catch (error) {
+      console.error("Order alert dispatch failed", error);
     }
 
     if (paymentMethod === "cod") return codResponse(result.order);

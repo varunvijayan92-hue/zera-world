@@ -6,6 +6,14 @@ One Next.js application and PostgreSQL/Prisma database serve the customer websit
 
 “Present” below means the source exists, not that a production workflow has passed acceptance testing. Automated route tests use mocked Prisma/provider calls; they do not establish real database concurrency or integration behaviour.
 
+## Follow-up checkout reliability change
+
+All payment methods now require a client submission reference before stock queries or order creation. Prepaid browser checkout retains the reference across reloads and removes it after confirmed payment. Repeated prepaid requests still return a conflict directing the customer to check existing orders; automatic payment-session recovery remains pending.
+
+Validation: the full 247-test suite initially passed 245 tests; two legacy prepaid fixtures lacked references. After updating those fixtures, all 10 focused payment/reference tests passed. The separate eight-test COD/reference run also passed. This is not evidence of database race safety, completed allocation, or full portal acceptance.
+
+Outstanding acceptance rows also include customer notification preferences, permission-based push, Android/iOS installation guidance, splash experience, low-stock alerts, mobile-app settings and native Android screen/API parity. These must not be inferred complete from the PWA manifests.
+
 ## Completed in this phase
 
 - Mapped source routes and models to the requested capabilities below.

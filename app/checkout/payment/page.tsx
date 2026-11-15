@@ -102,7 +102,12 @@ export default function PaymentPage() {
         let session = cachedCheckout.current?.fingerprint === fingerprint ? cachedCheckout.current.session : null;
         if (!session) {
           if (lastRequest.current !== fingerprint) {
-            submissionKey.current = crypto.randomUUID();
+            const storageKey = "zeraworld-prepaid-request";
+            let saved: { fingerprint?: string; key?: string } | null = null;
+            try { saved = JSON.parse(sessionStorage.getItem(storageKey) || "null"); } catch { /* Replace invalid saved data. */ }
+            submissionKey.current = saved?.fingerprint === fingerprint && typeof saved.key === "string" && saved.key.length >= 16
+              ? saved.key : crypto.randomUUID();
+            sessionStorage.setItem(storageKey, JSON.stringify({ fingerprint, key: submissionKey.current }));
             lastRequest.current = fingerprint;
           }
           const response = await fetch("/api/create-order", {
@@ -139,7 +144,10 @@ export default function PaymentPage() {
       });
       const result = await verified.json();
       if (!verified.ok || !result.success) throw new Error(result.message || "Payment verification failed. Try verification again before making another payment.");
-      if (result.payment_status === "PAID") localStorage.removeItem("zeraworld-cart");
+      if (result.payment_status === "PAID") {
+        localStorage.removeItem("zeraworld-cart");
+        sessionStorage.removeItem("zeraworld-prepaid-request");
+      }
       sessionStorage.removeItem(CHECKOUT_DRAFT_KEY);
       window.location.assign(getPostPaymentRedirectPath());
     } catch (error) {

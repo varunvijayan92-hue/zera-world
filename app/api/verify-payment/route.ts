@@ -5,6 +5,7 @@ import { verifyRazorpaySignature } from "@/lib/payment";
 import { gatewayError, resolveRazorpayCredentials, razorpayGateway } from "@/lib/razorpay";
 import { nextPaymentStatus, paymentMatches } from "@/lib/payment-state";
 import { queuePaidCjOrder } from "@/lib/cj-fulfilment-queue";
+import { dispatchAlert } from "@/lib/notifications";
 
 const verificationSchema = z.object({
   razorpay_payment_id: z.string().regex(/^pay_[a-zA-Z0-9]+$/),
@@ -57,6 +58,26 @@ export async function POST(request: Request) {
       return { orderId: current.orderId, status: status || current.paymentStatus };
     }, { isolationLevel: "Serializable" });
     if (!saved) return NextResponse.json({ success: false, message: "This payment cannot confirm the order." }, { status: 400 });
+
+    if (saved.status === "PAID") {
+      try {
+        await dispatchAlert({
+          type: "PAYMENT_ALERT",
+          title: "💰 Payment Confirmed",
+          body: `Online payment of ₹${(Number(payment.amount) / 100).toFixed(2)} confirmed.`,
+          data: {
+            orderId: saved.orderId,
+            paymentId: payment.id,
+            amount: (Number(payment.amount) / 100).toFixed(2),
+            alertType: "PAYMENT_ALERT",
+          },
+          targetRole: "ALL",
+        });
+      } catch (err) {
+        console.error("Payment alert dispatch failed", err);
+      }
+    }
+
     return NextResponse.json({ success: true, order_id: saved.orderId, payment_status: saved.status });
   } catch (error) {
     const failure = gatewayError(error);

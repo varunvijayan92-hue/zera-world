@@ -6,6 +6,7 @@ import { verifyRazorpaySignature } from "@/lib/payment";
 import { nextPaymentStatus, paymentMatches } from "@/lib/payment-state";
 import { paymentWebhookSchema } from "@/lib/validators";
 import { queuePaidCjOrder } from "@/lib/cj-fulfilment-queue";
+import { dispatchAlert } from "@/lib/notifications";
 
 export async function POST(request: Request) {
   let stored: Record<string, string>;
@@ -51,6 +52,25 @@ export async function POST(request: Request) {
       }
       return { status: 200 };
     }, { isolationLevel: "Serializable" });
+
+    if (result.status === 200 && !("duplicate" in result) && !("ignored" in result) && event === "payment.captured") {
+      try {
+        await dispatchAlert({
+          type: "PAYMENT_ALERT",
+          title: "💰 Payment Captured",
+          body: `Payment of ₹${(Number(payment.amount) / 100).toFixed(2)} captured for order.`,
+          data: {
+            paymentId: payment.id,
+            amount: (Number(payment.amount) / 100).toFixed(2),
+            alertType: "PAYMENT_ALERT",
+          },
+          targetRole: "ALL",
+        });
+      } catch (err) {
+        console.error("Payment webhook alert dispatch failed", err);
+      }
+    }
+
     return NextResponse.json({ ok: result.status === 200, ...result }, { status: result.status });
   } catch (error) {
     console.error("Payment webhook failed", error);

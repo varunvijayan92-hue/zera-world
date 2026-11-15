@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSupplierOrderWorkflow, routeMarketplaceOrderToSuppliers } from "@/lib/marketplace";
 import { orderSchema } from "@/lib/validators";
+import { dispatchAlert } from "@/lib/notifications";
 
 export async function GET() {
   const denied = await authorizeManagement();
@@ -72,6 +73,23 @@ export async function POST(request: Request) {
       shippingDestination: parsed.data.shippingAddress?.country || "India",
 
     });
+
+    try {
+      await dispatchAlert({
+        type: "ORDER_ALERT",
+        title: `🚨 New Order ${order.marketplaceOrderId}`,
+        body: `Order for ₹${order.totalAmount} received from ${order.customerName}.`,
+        data: {
+          orderId: order.id,
+          marketplaceOrderId: order.marketplaceOrderId,
+          amount: String(order.totalAmount),
+          alertType: "ORDER_ALERT",
+        },
+        targetRole: "ALL",
+      });
+    } catch (err) {
+      console.error("Order alert dispatch failed", err);
+    }
 
     return NextResponse.json({ data: order, supplierDispatches, supplierOrderWorkflow }, { status: 201 });
   } catch (error) {

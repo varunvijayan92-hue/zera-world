@@ -129,7 +129,7 @@ test("create-order uses persisted cart prices and returns gateway amounts in pai
   const response = await createOrder(request({
     cart: [{ productId: "p1", sku: "SKU", quantity: 2 }],
     shippingAddress: { fullName: "Test", email: "test@example.com", phone: "9999999999", addressLine1: "Street", city: "City", state: "State", pincode: "560001", country: "India" },
-    paymentMethod: "razorpay", amount: 1,
+    idempotencyKey: "prepaid-integration-reference", paymentMethod: "razorpay", amount: 1,
   }));
   assert.equal(response.status, 201);
   const result = await response.json();
@@ -154,7 +154,7 @@ test("a changed total requires fresh confirmation before an order or payment is 
   const result = await createOrder(request({
     cart: [{ productId: "p1", sku: "SKU", quantity: 1 }],
     shippingAddress: { fullName: "Test", email: "test@example.com", phone: "9999999999", addressLine1: "Street", city: "City", state: "State", pincode: "560001", country: "India" },
-    paymentMethod: "razorpay", expectedTotalPaise: 100,
+    idempotencyKey: "prepaid-integration-reference", paymentMethod: "razorpay", expectedTotalPaise: 100,
   }));
   assert.equal(result.status, 409);
   assert.equal(createLocal.mock.callCount(), 0);
