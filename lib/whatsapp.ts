@@ -15,7 +15,7 @@ export const whatsappMessageSchema = z.object({
 }).strict();
 export type WhatsAppMessage = z.infer<typeof whatsappMessageSchema>;
 export type WhatsAppNumber = { phoneNumberId: string; name: string; connectionStatus: string; templates: WhatsAppTemplate[] };
-export type WhatsAppTemplate = { messageId: string; name: string; status: string; variableCount: number; mediaType: string | null };
+export type WhatsAppTemplate = { messageId: string; name: string; status: string; variableCount: number; mediaType: string | null; body: string; examples: string[] };
 
 export const whatsappTransport = { fetch: (...args: Parameters<typeof fetch>) => fetch(...args) };
 export const whatsappConfiguration = {
@@ -52,6 +52,8 @@ export function parseWhatsAppNumbers(value: unknown): WhatsAppNumber[] {
     templates: (Array.isArray(row.templates) ? row.templates : []).map((template: any) => ({
       messageId: String(template.message_id || ""), name: String(template.template_name || ""), status: String(template.status || "UNKNOWN"),
       variableCount: Number(template.var_count || 0),
+      body: String((Array.isArray(template.components) ? template.components : []).find((component: any) => component.type === "BODY")?.text || ""),
+      examples: (Array.isArray(template.components) ? template.components : []).find((component: any) => component.type === "BODY")?.example?.body_text?.[0]?.map(String) || [],
       mediaType: (Array.isArray(template.components) ? template.components : []).find((component: any) => component.type === "HEADER" && ["IMAGE", "VIDEO", "DOCUMENT"].includes(component.format))?.format || null,
     })),
   }));
