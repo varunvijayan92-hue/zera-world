@@ -13,7 +13,13 @@ Customer registration now requires an Indian WhatsApp phone number. The registra
 | Dispatched | Admin/supplier records a shipment | 44406 (`zera_order_shipped_v1`) | Order, courier and tracking summary |
 | Delivered | Admin confirms delivery | 44407 (`zera_order_delivered_v1`) | Order/delivery/receipt summary |
 
-The existing payment template was pending when checked. The order, dispatched and delivered UTILITY templates were created and submitted for approval during this update; their content is in [whatsapp-templates.json](whatsapp-templates.json). No customer test message was sent. Approval status is checked against Fast2SMS before every send. A configured template ID is not proof of approval.
+On 16 November 2026, Fast2SMS reported all four templates as Approved and the business sender as Connected. Their content is in [whatsapp-templates.json](whatsapp-templates.json). No real test message has been sent because a test recipient has not been supplied. Approval status is checked against Fast2SMS before every send.
+
+## Test studio
+
+Open `/admin/whatsapp`, or use the WhatsApp test studio link in Admin Settings. Select a template, enter the intended test recipient's number and edit the clearly marked demo values. The phone-style preview uses the provider's actual template body. Approved, connected text templates enable the send button once the number and variables are valid. Media templates need a separate attachment workflow.
+
+The studio retains the same submission UUID for identical retries, including after switching templates. An accepted test is disabled against repeat clicks. A provider reference means acceptance, not confirmed delivery. Local browser checks simulate provider acceptance and do not send a real message. The temporary local QA route is excluded from the deployed application.
 
 These automatic text templates use one variable each. The payment template expects an amount; the other three expect a summary. Do not substitute a template with a different variable contract. The generic manual API supports multiple variable values and optional media when the selected approved template requires it.
 

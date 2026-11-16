@@ -81,7 +81,7 @@ export function WhatsAppStatus({ canEdit }: { canEdit: boolean }) {
       if (!response.ok) throw Error(body.message || "The test message could not be sent.");
       attempt.result = body.data; setResult(body.data);
       setMessage("Test accepted by Fast2SMS. Check the recipient's WhatsApp for delivery.");
-    } catch (failure) { setError(failure instanceof Error ? failure.message : "Send status is unknown. Check Fast2SMS logs before starting another test. Retrying identical details keeps the same request ID."); }
+    } catch (failure) { setError(failure instanceof TypeError || failure instanceof SyntaxError ? "Send status is unknown. Check Fast2SMS logs before starting another test. Retrying identical details keeps the same request ID." : failure instanceof Error ? failure.message : "The test message could not be confirmed. Check Fast2SMS logs before retrying."); }
     finally { inFlight.current = false; setSending(false); }
   }
 
@@ -105,7 +105,7 @@ export function WhatsAppStatus({ canEdit }: { canEdit: boolean }) {
       </div>
       <div className="grid gap-8 p-5 sm:p-8 lg:grid-cols-[1.15fr_.85fr]">
         <div className="min-w-0 space-y-6">
-          <div><div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#EDF2EB] text-xs font-bold text-[#173B35]">1</span><h3 className="font-semibold text-[#173B35]">Choose your message</h3></div><p className="mt-2 text-sm text-[#173B35]/60">Select a template to preview it while awaiting approval.</p></div>
+          <div><div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#EDF2EB] text-xs font-bold text-[#173B35]">1</span><h3 className="font-semibold text-[#173B35]">Choose your message</h3></div><p className="mt-2 text-sm text-[#173B35]/60">Select a template, then personalize the sample details below.</p></div>
           {connection && !sender?.templates.length ? <p className="rounded-xl bg-[#F7F4ED] p-4 text-sm">No templates are available for this sender. Add them in Fast2SMS, then refresh.</p> : null}
           {connection && connection.numbers.length > 1 ? <label className="block text-sm font-medium">Business sender<select aria-label="Business sender" disabled={sending} value={senderId} onChange={event => setSenderId(event.target.value)} className="mt-2 block min-h-11 w-full rounded-xl border p-3">{connection.numbers.map(item => <option key={item.phoneNumberId} value={item.phoneNumberId}>{item.name || item.phoneNumberId} · {item.connectionStatus}</option>)}</select></label> : null}
           <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="WhatsApp message templates">{sender?.templates.map(template => {
