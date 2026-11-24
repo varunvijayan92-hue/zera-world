@@ -5,8 +5,28 @@ import { CjIntegrationForm } from "@/components/cj-integration-form";
 import { AdminHeading, AdminNotice } from "@/components/admin-ui";
 import Link from "next/link";
 import { WhatsAppStatus } from "@/components/whatsapp-status";
+
 export default async function SettingsPage() {
   const user = await requireStoreAdmin();
   const saved = await prisma.integrationSetting.findMany({ select: { provider: true } });
-  return <main className="mx-auto max-w-6xl p-5 md:p-8"><AdminHeading title="Settings" description="Payments, courier APIs and store connections." /><AdminNotice>Razorpay server environment credentials are used when no admin credential override has been saved. Shiprocket uses a dedicated API user email and password; Delhivery uses your business API token. Never put private keys in public environment variables.</AdminNotice><Link className="mb-5 inline-block font-semibold underline" href="/admin/sellers">Amazon &amp; Flipkart seller settings</Link><div className="grid gap-6 lg:grid-cols-2">{(["RAZORPAY", "SHIPROCKET", "DELHIVERY", "META_WHATSAPP"] as const).map((provider) => <IntegrationForm key={provider} provider={provider} saved={saved.some((entry) => entry.provider === provider)} canEdit={user.role === "ADMIN"} />)}<CjIntegrationForm saved={saved.some(entry => entry.provider === "CJ_DROPSHIPPING")} canEdit={user.role === "ADMIN"} /></div><Link href="/admin/whatsapp" className="mt-6 inline-flex rounded-xl bg-[#173B35] px-5 py-3 font-semibold text-white">Open WhatsApp test studio</Link><WhatsAppStatus canEdit={user.role === "ADMIN"} /></main>;
+  const canEdit = user.role === "ADMIN";
+  const isSaved = (provider: string) => saved.some(entry => entry.provider === provider);
+
+  return (
+    <main className="mx-auto max-w-6xl p-5 md:p-8">
+      <AdminHeading title="Settings" description="Payments, courier APIs and store connections." />
+      <IntegrationForm provider="META_WHATSAPP" saved={isSaved("META_WHATSAPP")} canEdit={canEdit} />
+      <WhatsAppStatus canEdit={canEdit} />
+      <div className="mt-8">
+        <AdminNotice>Razorpay server environment credentials are used when no admin credential override has been saved. Shiprocket uses a dedicated API user email and password. Delhivery uses your business API token.</AdminNotice>
+        <Link className="mb-5 inline-block font-semibold underline" href="/admin/sellers">Amazon &amp; Flipkart seller settings</Link>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {(["RAZORPAY", "SHIPROCKET", "DELHIVERY"] as const).map(provider => (
+            <IntegrationForm key={provider} provider={provider} saved={isSaved(provider)} canEdit={canEdit} />
+          ))}
+          <CjIntegrationForm saved={isSaved("CJ_DROPSHIPPING")} canEdit={canEdit} />
+        </div>
+      </div>
+    </main>
+  );
 }

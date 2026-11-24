@@ -63,7 +63,7 @@ export function WhatsAppStatus({ canEdit }: { canEdit: boolean }) {
   useEffect(() => {
     if (!sender) return;
     if (!sender.templates.some(template => template.messageId === templateId)) {
-      const first = sender.templates.find(template => template.status.toUpperCase() === "APPROVED") || sender.templates.find(template => template.name.includes("order_placed")) || sender.templates[0];
+      const first = sender.templates.find(template => template.status.toUpperCase() === "APPROVED" && template.supported && !template.mediaType) || sender.templates.find(template => template.name.includes("order_placed")) || sender.templates[0];
       if (first) selectTemplate(first);
       else { setTemplateId(""); setVariables([]); }
     }
@@ -96,7 +96,7 @@ export function WhatsAppStatus({ canEdit }: { canEdit: boolean }) {
 
   return <section className="mt-6 overflow-hidden rounded-[28px] border border-[#173B35]/10 bg-white shadow-sm">
     <header className="flex flex-wrap items-center justify-between gap-5 bg-[#173B35] px-6 py-7 text-white sm:px-8">
-      <div className="flex items-center gap-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10"><MessageCircle className="h-6 w-6" aria-hidden="true" /></div><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-[#D5C8A6]">Zera&apos;s World · Messaging</p><h2 className="mt-1 text-2xl font-semibold">A little update. A better experience.</h2><p className="mt-2 max-w-xl text-sm leading-6 text-white/70">Preview your order messages, choose a test number, and check how they arrive on WhatsApp.</p></div></div>
+      <div className="flex items-center gap-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10"><MessageCircle className="h-6 w-6" aria-hidden="true" /></div><div><h2 className="text-2xl font-semibold">Send a WhatsApp test message</h2><p className="mt-2 max-w-xl text-sm leading-6 text-white/70">Preview your order messages, choose a test number, and check how they arrive on WhatsApp.</p></div></div>
       <button type="button" disabled={loading || sending || !canEdit} onClick={() => void load()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/25 px-4 py-2 text-sm font-semibold disabled:opacity-50">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}Refresh status</button>
     </header>
     {!canEdit ? <p className="p-6 text-sm">Only administrators can configure or send WhatsApp tests.</p> : <>
@@ -106,7 +106,7 @@ export function WhatsAppStatus({ canEdit }: { canEdit: boolean }) {
       <div className="grid gap-8 p-5 sm:p-8 lg:grid-cols-[1.15fr_.85fr]">
         <div className="min-w-0 space-y-6">
           <div><div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#EDF2EB] text-xs font-bold text-[#173B35]">1</span><h3 className="font-semibold text-[#173B35]">Choose your message</h3></div><p className="mt-2 text-sm text-[#173B35]/60">Select a template, then personalize the sample details below.</p></div>
-          {connection && !connection.configured ? <p className="rounded-xl bg-[#F7F4ED] p-4 text-sm">Save the Meta sender credentials in Admin Settings, then refresh.</p> : null}
+          {connection && !connection.configured ? <p className="rounded-xl bg-[#F7F4ED] p-4 text-sm">Save your Meta sender credentials, then click Refresh status to load templates.</p> : null}
           {connection?.configured && !sender?.templates.length ? <p className="rounded-xl bg-[#F7F4ED] p-4 text-sm">No templates are available for this sender. Check your WhatsApp Business Account in Meta, then refresh.</p> : null}
           {connection && connection.numbers.length > 1 ? <label className="block text-sm font-medium">Business sender<select aria-label="Business sender" disabled={sending} value={senderId} onChange={event => setSenderId(event.target.value)} className="mt-2 block min-h-11 w-full rounded-xl border p-3">{connection.numbers.map(item => <option key={item.phoneNumberId} value={item.phoneNumberId}>{item.name || item.phoneNumberId} · {item.connectionStatus}</option>)}</select></label> : null}
           <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="WhatsApp message templates">{sender?.templates.map(template => {
