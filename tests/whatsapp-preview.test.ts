@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeWhatsAppTestRecipient, renderWhatsAppPreview, whatsappTestVariables } from "../lib/whatsapp-preview";
-import { parseWhatsAppNumbers } from "../lib/whatsapp";
+import { parseWhatsAppTemplate } from "../lib/whatsapp";
 
 test("test recipients accept formatted Indian numbers without changing the destination", () => {
   for (const input of ["9876543210", "+91 98765 43210", "91-98765-43210", "(+91) 9876543210"]) assert.equal(normalizeWhatsAppTestRecipient(input), "9876543210");
@@ -21,8 +21,8 @@ test("every supplied workflow test is explicitly marked as a demo", () => {
 });
 
 test("template metadata exposes provider text and examples for an accurate preview", () => {
-  const [number] = parseWhatsAppNumbers({ data: [{ phone_number_id: "123456", templates: [{ message_id: 1, template_name: "order", status: "Pending", var_count: 1,
-    components: [{ type: "BODY", text: "Order {{1}}", example: { body_text: [["TEST-1001"]] } }] }] }] });
-  assert.equal(number.templates[0].body, "Order {{1}}");
-  assert.deepEqual(number.templates[0].examples, ["TEST-1001"]);
+  const template = parseWhatsAppTemplate({ id: "1", name: "order", language: "en_US", status: "PENDING",
+    components: [{ type: "BODY", text: "Order {{1}}", example: { body_text: [["TEST-1001"]] } }] });
+  assert.equal(template.body, "Order {{1}}");
+  assert.deepEqual(template.examples, ["TEST-1001"]);
 });

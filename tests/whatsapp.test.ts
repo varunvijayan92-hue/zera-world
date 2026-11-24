@@ -6,9 +6,12 @@ import { POST } from "../app/api/admin/whatsapp/messages/route";
 import { prisma } from "../lib/prisma";
 
 const input = { submissionId: "2b1136a2-56e2-4ee8-8e48-5898673aed20", messageId: "44404", to: "+919876543210", variables: ["499.00"] };
-function metadata(status = "Approved", variables = 1) {
-  return { success: true, data: [{ phone_number_id: "148028678394112", verified_name: "Test sender", connection_status: "CONNECTED", templates: [{ message_id: 44404, template_name: "payment_completed", status, var_count: variables, components: [] }] }] };
+const config = { accessToken: "test-secret", wabaId: "123456", phoneNumberId: "148028678394112" };
+function metadata(status = "APPROVED", variables = 1) {
+  return { data: [{ id: "44404", name: "payment_completed", language: "en_US", status,
+    components: [{ type: "BODY", text: Array.from({ length: variables }, (_, index) => `{{${index + 1}}}`).join(" ") }] }] };
 }
+const phones = () => Response.json({ data: [{ id: config.phoneNumberId, verified_name: "Test sender", status: "CONNECTED" }] });
 
 test("WhatsApp payload normalizes Indian numbers and rejects invalid or ambiguous values", () => {
   assert.equal(whatsappMessageSchema.parse(input).to, "9876543210");
@@ -16,16 +19,17 @@ test("WhatsApp payload normalizes Indian numbers and rejects invalid or ambiguou
 });
 
 test("pending templates and variable mismatches never reach the send endpoint", async t => {
-  t.mock.method(whatsappConfiguration, "read", async () => ({ apiKey: "test-secret", phoneNumberId: "148028678394112" }));
-  let status = "Pending", variables = 1;
+  t.mock.method(whatsappConfiguration, "read", async () => config);
+  let status = "PENDING", variables = 1;
   t.mock.method(whatsappTransport, "fetch", async (url: string, options: any) => {
-    assert.ok(url.includes("dlt_manager/whatsapp"));
-    assert.equal(options.headers.Authorization, "test-secret");
+    assert.equal(options.headers.Authorization, "Bearer test-secret");
+    if (url.includes("/phone_numbers")) return phones();
+    assert.ok(url.includes("/message_templates"));
     assert.ok(!url.includes("test-secret"));
     return Response.json(metadata(status, variables));
   });
   await assert.rejects(prepareWhatsAppMessage(whatsappMessageSchema.parse(input)), /not approved/);
-  status = "Approved"; variables = 2;
+  status = "APPROVED"; variables = 2;
   await assert.rejects(prepareWhatsAppMessage(whatsappMessageSchema.parse(input)), /requires 2/);
   variables = 1;
   const prepared = await prepareWhatsAppMessage(whatsappMessageSchema.parse(input));
@@ -37,16 +41,20 @@ test("pending templates and variable mismatches never reach the send endpoint", 
 });
 
 test("provider acceptance is reported separately from delivery, without automatic retries", async t => {
-  t.mock.method(whatsappConfiguration, "read", async () => ({ apiKey: "test-secret", phoneNumberId: "148028678394112" }));
+  t.mock.method(whatsappConfiguration, "read", async () => config);
   let calls = 0;
-  t.mock.method(whatsappTransport, "fetch", async (url: string) => {
+  t.mock.method(whatsappTransport, "fetch", async (url: string, options: RequestInit) => {
     calls++;
-    const parsed = new URL(url);
-    assert.equal(parsed.searchParams.get("numbers"), "9876543210");
-    assert.equal(parsed.searchParams.get("variables_values"), "499.00");
-    return Response.json({ status: true, request_id: "W-test" });
+    assert.equal(new URL(url).pathname, "/v27.0/148028678394112/messages");
+    assert.equal(options.method, "POST");
+    const body = JSON.parse(String(options.body));
+    assert.equal(body.to, "919876543210");
+    assert.deepEqual(body.template, { name: "payment_completed", language: { code: "en_US" },
+      components: [{ type: "body", parameters: [{ type: "text", text: "499.00" }] }] });
+    return Response.json({ messages: [{ id: "W-test" }] });
   });
-  const result = await sendWhatsAppMessage({ ...whatsappMessageSchema.parse(input), phoneNumberId: "148028678394112" });
+  const result = await sendWhatsAppMessage({ ...whatsappMessageSchema.parse(input), phoneNumberId: config.phoneNumberId,
+    templateName: "payment_completed", templateLanguage: "en_US", mediaType: null });
   assert.deepEqual(result, { requestId: "W-test", status: "ACCEPTED" });
   assert.equal(calls, 1);
 });
@@ -62,11 +70,12 @@ test("anonymous users and managers cannot send store WhatsApp messages", async t
 
 test("a repeated submission returns its original acceptance without sending twice", async t => {
   t.mock.method(authContext, "current", async () => ({ id: "whatsapp-admin", role: "ADMIN", isActive: true }));
-  t.mock.method(whatsappConfiguration, "read", async () => ({ apiKey: "test-secret", phoneNumberId: "148028678394112" }));
+  t.mock.method(whatsappConfiguration, "read", async () => config);
   let sends = 0;
   t.mock.method(whatsappTransport, "fetch", async (url: string) => {
-    if (url.includes("dlt_manager")) return Response.json(metadata());
-    sends++; return Response.json({ status: true, request_id: "W-once" });
+    if (url.includes("/phone_numbers")) return phones();
+    if (url.includes("/message_templates")) return Response.json(metadata());
+    sends++; return Response.json({ messages: [{ id: "W-once" }] });
   });
   let saved: any;
   const original = prisma.auditLog;

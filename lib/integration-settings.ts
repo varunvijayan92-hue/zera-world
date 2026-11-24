@@ -2,11 +2,11 @@ import { prisma } from "./prisma";
 import { decryptCredentials } from "./integration-crypto";
 
 export const integrationFields = {
+  META_WHATSAPP: ["accessToken", "wabaId", "phoneNumberId", "verifyToken", "templateLanguage", "orderTemplate", "paymentTemplate", "shippedTemplate", "deliveredTemplate"],
   RAZORPAY: ["keyId", "keySecret", "webhookSecret"],
   DELHIVERY: ["apiToken", "pickupLocation"],
   SHIPROCKET: ["email", "password", "pickupLocation"],
   CJ_DROPSHIPPING: ["apiKey"],
-  FAST2SMS_WHATSAPP: ["apiKey", "phoneNumberId", "orderTemplateId", "paymentTemplateId", "shippedTemplateId", "deliveredTemplateId"],
   AMAZON: ["sellerId", "marketplaceId", "clientId", "clientSecret", "refreshToken"],
   FLIPKART: ["sellerId", "clientId", "clientSecret"],
 } as const;

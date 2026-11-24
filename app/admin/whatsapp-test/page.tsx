@@ -9,12 +9,13 @@ import {
   renderWhatsAppPreview,
   normalizeWhatsAppTestRecipient,
 } from "@/lib/whatsapp-preview";
-import { whatsappMessageSchema } from "@/lib/whatsapp";
 
 type Template = {
   messageId: string;
   name: string;
   status: string;
+  supported: boolean;
+  language: string;
   variableCount: number;
   mediaType: string | null;
   body: string;
@@ -75,7 +76,7 @@ export default function WhatsAppTestScreen() {
   useEffect(() => {
     if (!connection) return;
     const sender = connection.numbers.find((n) => n.phoneNumberId === senderId);
-    const firstApproved = sender?.templates.find((t) => t.status.toUpperCase() === "APPROVED");
+    const firstApproved = sender?.templates.find((t) => t.supported && !t.mediaType && t.status.toUpperCase() === "APPROVED");
     if (firstApproved) {
       setTemplateId(firstApproved.messageId);
       setVariables(whatsappTestVariables(firstApproved.name, firstApproved.variableCount, firstApproved.examples));
@@ -92,6 +93,8 @@ export default function WhatsAppTestScreen() {
   const number = normalizeWhatsAppTestRecipient(recipient);
   const canSend =
     selectedTemplate &&
+    selectedTemplate.supported &&
+    !selectedTemplate.mediaType &&
     selectedTemplate.status.toUpperCase() === "APPROVED" &&
     number &&
     variables.length === selectedTemplate.variableCount &&

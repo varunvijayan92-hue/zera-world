@@ -7,7 +7,7 @@ import { integrationFields } from "@/lib/integration-settings";
 import { AccessError, apiError } from "@/lib/portal-access";
 import { isSameOriginRequest } from "@/lib/request-origin";
 
-const schema = z.object({ provider: z.enum(["RAZORPAY", "DELHIVERY", "SHIPROCKET", "CJ_DROPSHIPPING", "FAST2SMS_WHATSAPP", "AMAZON", "FLIPKART"]), credentials: z.record(z.string().max(4096)) });
+const schema = z.object({ provider: z.enum(["RAZORPAY", "DELHIVERY", "SHIPROCKET", "CJ_DROPSHIPPING", "AMAZON", "FLIPKART", "META_WHATSAPP"]), credentials: z.record(z.string().max(4096)) });
 export async function POST(request: Request) {
   try {
     const user = await getCurrentUser();
@@ -17,24 +17,28 @@ export async function POST(request: Request) {
     const { provider, credentials } = parsed.data;
     const existing = await prisma.integrationSetting.findUnique({ where: { provider } });
     const merged = existing ? decryptCredentials(existing.encryptedCredentials) : {};
-    if (provider === "FAST2SMS_WHATSAPP") {
-      merged.apiKey ||= process.env.FAST2SMS_API_KEY || "";
-      merged.phoneNumberId ||= process.env.FAST2SMS_WHATSAPP_PHONE_NUMBER_ID || "";
-    }
     for (const key of integrationFields[provider]) {
       const value = provider === "SHIPROCKET" && key === "password" ? credentials[key] : credentials[key]?.trim();
       if (value) merged[key] = value;
     }
-    const required = integrationFields[provider].filter((key) => !["webhookSecret", "pickupLocation", "orderTemplateId", "paymentTemplateId", "shippedTemplateId", "deliveredTemplateId"].includes(key));
+    const required = integrationFields[provider].filter((key) => provider !== "META_WHATSAPP" && !["webhookSecret", "pickupLocation", "orderTemplateId", "paymentTemplateId", "shippedTemplateId", "deliveredTemplateId"].includes(key));
     if (required.some((key) => !merged[key])) throw new AccessError("Complete the required API credentials. Blank fields preserve previously saved values.");
     if (provider === "SHIPROCKET" && !z.string().email().safeParse(merged.email).success) throw new AccessError("Enter a valid Shiprocket API user email.");
-    if (provider === "FAST2SMS_WHATSAPP" && !/^\d{5,30}$/.test(merged.phoneNumberId)) throw new AccessError("Enter the WhatsApp phone number ID from Fast2SMS, not a mobile number.");
-    if (provider === "FAST2SMS_WHATSAPP" && ["orderTemplateId", "paymentTemplateId", "shippedTemplateId", "deliveredTemplateId"].some(key => merged[key] && !/^\d{1,20}$/.test(merged[key]))) throw new AccessError("Use the numeric Fast2SMS message ID for each template.");
+    if (provider === "META_WHATSAPP") {
+      const { accessToken, wabaId, phoneNumberId, verifyToken, templateLanguage } = merged;
+      const senderFields = [accessToken, wabaId, phoneNumberId];
+      if (senderFields.some(Boolean) && !senderFields.every(Boolean)) throw new AccessError("Enter the Meta access token, WhatsApp Business Account ID and phone number ID together.");
+      if (!accessToken && !verifyToken) throw new AccessError("Enter Meta sender credentials or a webhook verify token.");
+      if ([wabaId, phoneNumberId].some(id => id && !/^\d{5,30}$/.test(id))) throw new AccessError("Use the numeric IDs shown in Meta API Setup.");
+      if (verifyToken && verifyToken.length < 32) throw new AccessError("Use a webhook verify token of at least 32 characters.");
+      if (templateLanguage && !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(templateLanguage)) throw new AccessError("Use a Meta language code such as en_US.");
+      if (["orderTemplate", "paymentTemplate", "shippedTemplate", "deliveredTemplate"].some(key => merged[key] && !/^[a-z0-9_]{1,512}$/.test(merged[key]))) throw new AccessError("Use the exact template names from WhatsApp Manager.");
+    }
     const encryptedCredentials = encryptCredentials(merged);
     await prisma.$transaction([
       prisma.integrationSetting.upsert({ where: { provider }, create: { provider, encryptedCredentials }, update: { encryptedCredentials } }),
       prisma.auditLog.create({ data: { userId: user.id, action: "UPDATE_INTEGRATION", entityType: "IntegrationSetting", entityId: provider, details: { provider } } }),
     ]);
-    return NextResponse.json({ message: "Credentials saved securely. Saving does not verify partner access." });
+    return NextResponse.json({ message: provider === "META_WHATSAPP" ? "Meta WhatsApp settings saved securely." : "Credentials saved securely. Saving does not verify partner access." });
   } catch (error) { return apiError(error); }
 }

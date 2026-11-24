@@ -21,8 +21,8 @@ export async function POST(request: Request) {
       const existing = await prisma.auditLog.findUnique({ where: { id } });
       const previous = existing?.details as Record<string, unknown> | undefined;
       if (previous?.fingerprint !== fingerprint) throw new AccessError("This submission ID was already used for different message details.", 409);
-      if (existing?.action === "WHATSAPP_SEND_ACCEPTED") return NextResponse.json({ data: { requestId: previous.requestId, status: "ACCEPTED" }, message: "This message was already accepted by Fast2SMS. It was not sent again." });
-      throw new AccessError("This send is pending or unconfirmed. Check Fast2SMS logs before retrying with a new submission ID.", 409);
+      if (existing?.action === "WHATSAPP_SEND_ACCEPTED") return NextResponse.json({ data: { requestId: previous.requestId, status: "ACCEPTED" }, message: "This message was already accepted by Meta. It was not sent again." });
+      throw new AccessError("This send is pending or unconfirmed. Check Meta WhatsApp Manager before retrying with a new submission ID.", 409);
     }
     let result: Awaited<ReturnType<typeof sendWhatsAppMessage>>;
     try { result = await sendWhatsAppMessage(message); }
@@ -32,6 +32,6 @@ export async function POST(request: Request) {
       throw error;
     }
     await prisma.auditLog.update({ where: { id }, data: { action: "WHATSAPP_SEND_ACCEPTED", details: { ...details, requestId: result.requestId } } });
-    return NextResponse.json({ data: result, message: "Fast2SMS accepted the message. Acceptance does not confirm delivery." }, { status: 202 });
+    return NextResponse.json({ data: result, message: "Meta accepted the message. Acceptance does not confirm delivery." }, { status: 202 });
   } catch (error) { return apiError(error); }
 }

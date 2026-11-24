@@ -10,11 +10,11 @@ export type WhatsAppOrderEvent = "ORDER_PLACED" | "PAYMENT_RECEIVED" | "SHIPPED"
 export const whatsappEventDelivery = { prepare: prepareWhatsAppMessage, send: sendWhatsAppMessage };
 export const whatsappOrderSettings = {
   async read() {
-    const saved = await integrationCredentials("FAST2SMS_WHATSAPP");
-    return { ORDER_PLACED: saved.orderTemplateId || process.env.FAST2SMS_WHATSAPP_ORDER_TEMPLATE_ID,
-      PAYMENT_RECEIVED: saved.paymentTemplateId || process.env.FAST2SMS_WHATSAPP_PAYMENT_TEMPLATE_ID,
-      SHIPPED: saved.shippedTemplateId || process.env.FAST2SMS_WHATSAPP_SHIPPED_TEMPLATE_ID,
-      DELIVERED: saved.deliveredTemplateId || process.env.FAST2SMS_WHATSAPP_DELIVERED_TEMPLATE_ID };
+    const saved = await integrationCredentials("META_WHATSAPP");
+    return { ORDER_PLACED: saved.orderTemplate || "zera_order_placed_v1",
+      PAYMENT_RECEIVED: saved.paymentTemplate || "payment_completed",
+      SHIPPED: saved.shippedTemplate || "zera_order_shipped_v1",
+      DELIVERED: saved.deliveredTemplate || "zera_order_delivered_v1", language: saved.templateLanguage };
   },
 };
 
@@ -69,13 +69,13 @@ export async function deliverWhatsAppNotifications(limit = 10, retryBlockedNow =
       const shipment = entry.order.shipments.find(item => item.id === entry.reference) || entry.order.shipments[0];
       const hash = entry.id;
       const submissionId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
-      const prepared = await whatsappEventDelivery.prepare({ submissionId, messageId, to, variables: [orderMessageSummary(event, entry.order, shipment)] });
+      const prepared = await whatsappEventDelivery.prepare({ submissionId, messageId, language: settings.language, to, variables: [orderMessageSummary(event, entry.order, shipment)] });
       sending = true;
       const result = await whatsappEventDelivery.send(prepared.message);
       await prisma.whatsAppNotification.update({ where: { id: entry.id }, data: { status: "ACCEPTED", requestId: result.requestId, lastError: null } });
     } catch {
       await prisma.whatsAppNotification.update({ where: { id: candidate.id }, data: { status: sending ? "UNKNOWN" : "BLOCKED",
-        lastError: sending ? "Provider acceptance unknown. Check Fast2SMS logs; automatic retry is disabled." : "Check customer phone, sender connection and the event's approved template configuration." } }).catch(() => {});
+        lastError: sending ? "Provider acceptance unknown. Check Meta WhatsApp Manager; automatic retry is disabled." : "Check customer phone, sender connection and the event's approved template configuration." } }).catch(() => {});
     }
   }
   return { processed };
