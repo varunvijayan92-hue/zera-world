@@ -140,3 +140,16 @@ export async function sendWhatsAppMessage(input: PreparedMessage) {
   if (!requestId) throw new AccessError("Send status is unknown. Check Meta WhatsApp Manager before trying again.", 502);
   return { requestId, status: "ACCEPTED" as const };
 }
+
+export async function sendWhatsAppText(senderId: string, to: string, body: string) {
+  const { accessToken, phoneNumberId } = await whatsappConfiguration.read();
+  if (!accessToken || phoneNumberId !== senderId || !/^\d{5,30}$/.test(senderId)) {
+    throw new AccessError("Configure the Meta sender used for this conversation in Admin Settings.", 503);
+  }
+  const result = await metaRequest<{ messages?: { id?: string }[] }>(accessToken, `${senderId}/messages`, {
+    messaging_product: "whatsapp", to, type: "text", text: { body },
+  });
+  const id = result.messages?.[0]?.id;
+  if (!id) throw new AccessError("Meta did not confirm the reply. Check the conversation before retrying.", 502);
+  return id;
+}

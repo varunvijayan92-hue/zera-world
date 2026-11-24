@@ -9,12 +9,13 @@ import { mobileListQuery, mobileListMeta } from "../lib/mobile-list";
 import { authContext } from "../lib/auth";
 import { prisma } from "../lib/prisma";
 import { GET as navigation } from "../app/api/mobile/navigation/route";
+import { GET as inboxSection } from "../app/api/mobile/admin/inbox/route";
 import { GET as adminSection } from "../app/api/mobile/admin/[section]/route";
 import { GET as supplierDetail } from "../app/api/mobile/supplier/[section]/[id]/route";
 import { GET as supplierSection } from "../app/api/mobile/supplier/[section]/route";
 import { GET as adminDetail } from "../app/api/mobile/admin/[section]/[id]/route";
 
-function mockModel(t: TestContext, name: string, methods: Record<string, unknown>) {
+function mockModel(t: TestContext, name: string, methods: Record<string, unknown> | (() => Promise<unknown>)) {
   const client = prisma as unknown as Record<string, unknown>;
   const original = client[name];
   Object.assign(prisma, { [name]: methods });
@@ -26,7 +27,7 @@ test("every menu advertises its read endpoint and all workflow aliases exist", (
   const supplierSource = readFileSync("app/api/mobile/supplier/[section]/route.ts", "utf8");
   for (const group of adminNavigation) for (const item of group.items) {
     const id = item.href.slice("/admin/".length);
-    assert.ok(adminSource.includes(`case "${id}"`), id);
+    assert.ok(adminSource.includes(`case "${id}"`) || existsSync(`app/api/mobile/admin/${id}/route.ts`), id);
     assert.equal(mobileMenuContract("ADMIN", id).read.path, `/api/mobile/admin/${id}`);
   }
   for (const [, entries] of supplierNavigation) for (const [, id] of entries) {
@@ -58,7 +59,7 @@ test("navigation rejects anonymous and customer sessions and includes admin menu
   role = "ADMIN";
   const response = await navigation();
   const body = await response.json();
-  assert.equal(body.groups.flatMap((group: any) => group.items).length, 22);
+  assert.equal(body.groups.flatMap((group: any) => group.items).length, 23);
   assert.ok(body.groups[0].items[0].api.read.path);
   assert.equal(response.headers.get("cache-control"), "private, no-store");
 });
@@ -109,9 +110,11 @@ test("every published admin and supplier menu executes its read handler", async 
     mockModel(t, name, { findMany: async () => [], count: async () => 0, aggregate: async () => ({ _sum: { totalAmount: null } }) });
   }
   mockModel(t, "supplierContact", { findFirst: async () => ({ supplier: { id: "supplier" } }) });
+  mockModel(t, "$queryRaw", async () => []);
   for (const group of adminNavigation) for (const item of group.items) {
     const section = item.href.slice("/admin/".length);
-    const response = await adminSection(new Request(`https://store.test/api/mobile/admin/${section}`), { params: Promise.resolve({ section }) });
+    const request = new Request(`https://store.test/api/mobile/admin/${section}`);
+    const response = section === "inbox" ? await inboxSection(request) : await adminSection(request, { params: Promise.resolve({ section }) });
     assert.equal(response.status, 200, section);
   }
   role = "SUPPLIER";

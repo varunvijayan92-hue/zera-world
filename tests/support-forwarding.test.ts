@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createHmac } from "node:crypto";
 import { Resend } from "resend";
+import { supportInbox } from "../lib/support-inbox";
 import { supportMailClient } from "../lib/support-mail";
 import { POST } from "../app/api/webhooks/resend/route";
 
@@ -11,6 +12,7 @@ test("incoming support email forwarding verifies signatures, preserves replies a
   const bytes = Buffer.from("unit-test-support-forwarding-secret");
   process.env.RESEND_API_KEY = "re_unit_test";
   process.env.RESEND_WEBHOOK_SECRET = `whsec_${bytes.toString("base64")}`;
+  t.mock.method(supportInbox, "receive", async () => {});
   const verifier = new Resend("re_unit_test");
   let marker = false, fail = false, oversized = false, sends = 0; let sent: Record<string, unknown> = {}; let key = "";
   supportMailClient.create = () => ({

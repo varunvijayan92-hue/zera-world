@@ -1,5 +1,6 @@
 // Mobile aliases share the website handlers, validation and role checks.
 export const mobileEndpoints = [
+  { path: "/api/mobile/admin/inbox", methods: ["GET", "POST"] },
   { path: "/api/mobile/admin/integrations/whatsapp", methods: ["GET"] },
   { path: "/api/mobile/admin/whatsapp/messages", methods: ["POST"] },
   { path: "/api/mobile/admin/whatsapp/notifications", methods: ["GET", "POST"] },

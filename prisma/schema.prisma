@@ -889,3 +889,21 @@ model CustomerVoucher {
 
   @@index([customerId])
 }
+
+model SupportMessage {
+  id          String   @id
+  thread      String
+  channel     String
+  peer        String
+  senderId    String?
+  subject     String?
+  body        String
+  direction   String
+  status      String
+  externalId  String?
+  actorId     String?
+  createdAt   DateTime @default(now())
+
+  @@index([thread, createdAt])
+  @@index([createdAt])
+}

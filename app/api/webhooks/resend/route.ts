@@ -1,4 +1,5 @@
 
+import { supportInbox, supportThread } from "@/lib/support-inbox";
 import { supportMailClient } from "@/lib/support-mail";
 
 export const runtime = "nodejs";
@@ -83,6 +84,21 @@ export async function POST(request: Request) {
       return Response.json({ ok: true, ignored: true });
     }
 
+    const originalSender = emailAddress(email.reply_to?.[0] || email.from);
+    const subject = (email.subject || "").replace(/^(?:re:\s*)+/i, "").trim().slice(0, 500);
+    const messageId = "message_id" in event.data && typeof event.data.message_id === "string"
+      ? event.data.message_id
+      : Object.entries(email.headers || {}).find(([name]) => name.toLowerCase() === "message-id")?.[1];
+    const received = new Date(event.created_at);
+    if (/^[^\s@<>]+@[^\s@<>]+$/.test(originalSender)) {
+      await supportInbox.receive([{
+        id: `email:${email_id}`, thread: supportThread("EMAIL", originalSender, subject.toLowerCase()),
+        channel: "EMAIL", peer: originalSender, subject, externalId: messageId,
+        body: (email.text || email.html?.replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, "").replace(/<[^>]*>/g, " ") || "(No message text)").slice(0, 30000),
+        direction: "INBOUND", status: "RECEIVED", createdAt: Number.isNaN(received.getTime()) ? undefined : received,
+      }]);
+    }
+
     const { data: attachmentList, error: attachmentError } =
       await resend.emails.receiving.attachments.list({
         emailId: email_id,
@@ -117,7 +133,6 @@ export async function POST(request: Request) {
       });
     }
 
-    const originalSender = emailAddress(email.reply_to?.[0] || email.from);
     const body =
       email.text ||
       "This message contained HTML content only. " +

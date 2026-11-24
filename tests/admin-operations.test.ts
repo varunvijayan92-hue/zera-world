@@ -19,8 +19,8 @@ test("admin mutations accept their own origin and reject cross-origin submission
 
 test("the admin navigation includes all requested sections without ambiguous active matches", () => {
   const items = adminNavigation.flatMap((group) => [...group.items]);
-  assert.equal(items.length, 22);
-  assert.equal(new Set(items.map((item) => item.href)).size, 22);
+  assert.equal(items.length, 23);
+  assert.equal(new Set(items.map((item) => item.href)).size, 23);
   assert.ok(items.some(item => item.href === "/admin/gift-cards"));
   assert.ok(items.some(item => item.href === "/admin/accounts"));
   assert.equal(isAdminNavActive("/admin/invoices/order1", "/admin/invoices"), true);

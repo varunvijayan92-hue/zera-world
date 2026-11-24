@@ -713,6 +713,7 @@ fun AdminDashboardScreen(
             Box(modifier = Modifier.weight(1f)) {
                 when (currentSection) {
                     "dashboard" -> AdminSummaryTab(repository = repository, onNavigate = { id, label -> currentSection = id; currentSectionLabel = label })
+                    "inbox" -> AdminInboxTab(repository)
                     "orders", "products", "categories", "inventory", "payments", "invoices", "returns" -> ConnectedAdminTab(repository, currentSection, currentSectionLabel, user.role)
                     "suppliers" -> SuppliersTab(repository = repository)
                     "notifications" -> AlertsTab(sessionManager = sessionManager, repository = repository, fcmToken = fcmToken, isTokenRegistered = isTokenRegistered, onTokenRegisterClick = onTokenRegisterClick)

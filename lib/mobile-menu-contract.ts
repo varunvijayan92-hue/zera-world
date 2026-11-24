@@ -3,7 +3,7 @@ import { mobileEndpoints } from "./mobile-endpoints";
 const adminResources: Record<string, string[]> = {
   dashboard: [], analytics: ["reports/export"],
   products: ["products", "suppliers/cj-"], orders: ["orders", "shipments", "shipping/pickup-locations"],
-  notifications: ["device-token"], "contact-messages": [], customers: ["users"],
+  notifications: ["device-token"], inbox: ["inbox"], "contact-messages": [], customers: ["users"],
   inventory: ["inventory", "products/[id]/stock"], returns: ["returns", "refunds"],
   sellers: ["integrations"],
   categories: ["categories"], suppliers: ["suppliers", "supplier-product-mappings", "supplier-approvals"],
