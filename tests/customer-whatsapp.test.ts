@@ -16,9 +16,11 @@ test("registration requires a valid phone number and WhatsApp consent defaults t
 test("customers can opt in and out while enabled updates require a valid destination", async t => {
   t.mock.method(authContext, "current", async () => ({ id: "customer", role: "CUSTOMER", isActive: true }));
   const originalUser = prisma.user, originalPreference = prisma.customerWhatsAppPreference;
-  let writes = 0, enabled = false;
-  Object.assign(prisma, { customerWhatsAppPreference: { findUnique: async () => ({ enabled }) }, user: { update: async ({ where, data }: any) => {
-    assert.equal(where.id, "customer"); enabled = data.whatsappPreference.upsert.update.enabled;
+  let writes = 0, enabled = false, storedPhone: string | null = null;
+  Object.assign(prisma, { customerWhatsAppPreference: { findUnique: async () => ({ enabled }) }, user: { findUniqueOrThrow: async () => ({ phone: storedPhone }), update: async ({ where, data }: any) => {
+    assert.equal(where.id, "customer"); assert.equal(where.phone, storedPhone);
+    if (storedPhone !== data.phone) assert.equal(data.phoneVerifiedAt, null);
+    storedPhone = data.phone; enabled = data.whatsappPreference.upsert.update.enabled;
     if (enabled) assert.equal(data.phone, "9876543210"); writes++; return {};
   } } });
   t.after(() => Object.assign(prisma, { user: originalUser, customerWhatsAppPreference: originalPreference }));

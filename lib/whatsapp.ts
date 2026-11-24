@@ -153,3 +153,19 @@ export async function sendWhatsAppText(senderId: string, to: string, body: strin
   if (!id) throw new AccessError("Meta did not confirm the reply. Check the conversation before retrying.", 502);
   return id;
 }
+
+export async function sendWhatsAppSignupCode(phone: string, code: string) {
+  const { accessToken, phoneNumberId, signupOtpTemplate, signupOtpLanguage } = await integrationCredentials("META_WHATSAPP");
+  if (!accessToken || !phoneNumberId || !/^\d{5,30}$/.test(phoneNumberId)) {
+    throw new AccessError("WhatsApp verification is currently unavailable.", 503);
+  }
+  const parameters = [{ type: "text", text: code }];
+  const result = await metaRequest<{ messages?: { id?: string }[] }>(accessToken, `${phoneNumberId}/messages`, {
+    messaging_product: "whatsapp", to: `91${phone}`, type: "template",
+    template: {
+      name: signupOtpTemplate || "zera_signup_otp", language: { code: signupOtpLanguage || "en_US" },
+      components: [{ type: "body", parameters }, { type: "button", sub_type: "url", index: "0", parameters }],
+    },
+  });
+  if (!result.messages?.[0]?.id) throw new AccessError("WhatsApp verification could not be sent.", 503);
+}

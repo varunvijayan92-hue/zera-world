@@ -31,7 +31,10 @@ export async function PATCH(request: Request) {
     const enabled = whatsappEnabled ?? previous?.enabled ?? false;
     const phone = enabled ? customerWhatsAppPhone.safeParse(profile.phone) : null;
     if (phone && !phone.success) throw new AccessError("Enter a valid Indian WhatsApp phone number to receive order updates.");
-    await prisma.user.update({ where: { id: user.id }, data: { ...profile, phone: phone?.success ? phone.data : profile.phone,
+    const current = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { phone: true } });
+    const nextPhone = phone?.success ? phone.data : profile.phone;
+    await prisma.user.update({ where: { id: user.id, phone: current.phone }, data: { ...profile, phone: nextPhone,
+      ...(current.phone !== nextPhone && { phoneVerifiedAt: null }),
       whatsappPreference: { upsert: { create: { enabled }, update: { enabled } } } } });
     return NextResponse.json({ message: "Profile and preferences saved." });
   } catch (error) { return apiError(error); }

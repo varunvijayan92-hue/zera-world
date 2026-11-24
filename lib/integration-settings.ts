@@ -2,7 +2,7 @@ import { prisma } from "./prisma";
 import { decryptCredentials } from "./integration-crypto";
 
 export const integrationFields = {
-  META_WHATSAPP: ["accessToken", "wabaId", "phoneNumberId", "appSecret", "verifyToken", "templateLanguage", "orderTemplate", "paymentTemplate", "shippedTemplate", "deliveredTemplate"],
+  META_WHATSAPP: ["accessToken", "wabaId", "phoneNumberId", "appSecret", "verifyToken", "templateLanguage", "signupOtpTemplate", "signupOtpLanguage", "signupOtpEnabled", "orderTemplate", "paymentTemplate", "shippedTemplate", "deliveredTemplate"],
   RAZORPAY: ["keyId", "keySecret", "webhookSecret"],
   DELHIVERY: ["apiToken", "pickupLocation"],
   SHIPROCKET: ["email", "password", "pickupLocation"],

@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Minus, Plus, Trash2 } from "lucide-react";
 import { MAX_CART_UNITS, readCart, writeCart, type CartItem } from "@/lib/cart";
-import { CHECKOUT_DRAFT_KEY, SAVED_ADDRESS_KEY, emptyAddress, readCheckoutDraft, readSavedAddress, rememberAddress, type DeliveryAddress, type CheckoutDraft } from "@/lib/checkout-storage";
+import { CHECKOUT_DRAFT_KEY, SAVED_ADDRESS_KEY, emptyAddress, newDeliveryAddress, readCheckoutDraft, readSavedAddress, rememberAddress, type AddressContact, type DeliveryAddress, type CheckoutDraft } from "@/lib/checkout-storage";
 import { checkoutAddressSchema } from "@/lib/validators";
+import { AddressLabelField } from "@/components/address-label-field";
 import { DeliveryAddressFields } from "@/components/delivery-address-fields";
 import { CheckoutProgress, CheckoutSummary } from "@/components/checkout-summary";
 
@@ -19,6 +20,10 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState<DeliveryAddress>({ ...emptyAddress });
   const [accountAddresses, setAccountAddresses] = useState<{ id: string; label: string; address: DeliveryAddress }[]>([]);
   const [isCustomer, setIsCustomer] = useState(false);
+  const [contact, setContact] = useState<AddressContact | null>(null);
+  const [addressId, setAddressId] = useState("");
+  const [addressLabel, setAddressLabel] = useState("Home");
+  const addressEdited = useRef(false);
   const [savedAddress, setSavedAddress] = useState<DeliveryAddress | null>(null);
   const [saveAddress, setSaveAddress] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -37,12 +42,22 @@ export default function CheckoutPage() {
     const draft = readCheckoutDraft(sessionStorage);
     if (saved) { setSavedAddress(saved); setSaveAddress(true); }
     if (draft || saved) setAddress(draft?.shippingAddress || saved!);
-    void fetch("/api/account/addresses").then(async (response) => {
+    const controller = new AbortController();
+    void fetch("/api/account/addresses", { cache: "no-store", signal: controller.signal }).then(async response => {
       if (!response.ok) return;
-      const result = await response.json(); setIsCustomer(true); setAccountAddresses(result.addresses);
-      if (!draft && !saved && result.addresses[0]) setAddress(result.addresses[0].address);
+      const result: { addresses: typeof accountAddresses; contact: AddressContact | null } = await response.json();
+      if (controller.signal.aborted) return;
+      setIsCustomer(true);
+      setContact(result.contact);
+      setAccountAddresses(result.addresses);
+      if (draft || addressEdited.current) return;
+      const preferred = result.addresses[0];
+      setAddress(preferred?.address || newDeliveryAddress(result.contact));
+      setAddressId(preferred?.id || "");
+      setAddressLabel(preferred?.label || "Home");
     }).catch(() => {});
     setReady(true);
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -78,8 +93,8 @@ export default function CheckoutPage() {
     if (!parsed.success) { setMessage("Please complete your contact and delivery address."); return; }
     setContinuing(true);
     try {
-      if (saveAddress && isCustomer && !accountAddresses.some((entry) => JSON.stringify(entry.address) === JSON.stringify(parsed.data))) {
-        const response = await fetch("/api/account/addresses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: "Delivery", address: parsed.data }) });
+      if (saveAddress && isCustomer && !accountAddresses.some(entry => entry.label === addressLabel.trim() && JSON.stringify(checkoutAddressSchema.safeParse(entry.address).data) === JSON.stringify(parsed.data))) {
+        const response = await fetch("/api/account/addresses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: addressLabel.trim(), address: parsed.data }) });
         const result = await response.json(); if (!response.ok) throw Error(result.message || "Address could not be saved.");
       }
       writeCart(localStorage, currentQuote.items);
@@ -112,10 +127,17 @@ export default function CheckoutPage() {
           </section>
           <section className="rounded-[28px] border border-[#173B35]/10 bg-white p-5 md:p-7">
             <h2 className="text-xl font-bold">2. Confirm delivery address</h2>
-            {isCustomer ? <label className="mt-4 block text-sm font-semibold">Account addresses<select aria-label="Saved account address" className="mt-2 block w-full rounded-xl border p-3" defaultValue="" onChange={(event) => { const selected = accountAddresses.find((entry) => entry.id === event.target.value); if (selected) setAddress(selected.address); }}><option value="">Choose a saved address or enter a new one</option>{accountAddresses.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}: {entry.address.addressLine1}, {entry.address.city}</option>)}</select></label> : null}
-            {savedAddress ? <div className="mt-4 rounded-2xl bg-[#F7F4ED] p-4"><p className="text-sm font-semibold">Saved address | {savedAddress.fullName}</p><p className="mt-1 text-sm text-[#173B35]/70">{savedAddress.addressLine1}, {savedAddress.city} {savedAddress.pincode}</p><div className="mt-3 flex gap-4 text-sm"><button type="button" onClick={() => { setAddress(savedAddress); setSaveAddress(true); }} className="font-semibold underline">Use saved address</button><button type="button" onClick={() => { try { localStorage.removeItem(SAVED_ADDRESS_KEY); setSavedAddress(null); setSaveAddress(false); } catch { setMessage("The saved address could not be removed. Try again."); } }} className="text-red-700 underline">Forget address</button></div></div> : null}
-            <DeliveryAddressFields value={address} onChange={setAddress} onLocatingChange={setLocating} />
-            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl bg-[#F7F4ED] p-4 text-sm"><input type="checkbox" checked={saveAddress} onChange={(event) => setSaveAddress(event.target.checked)} className="mt-1 accent-[#173B35]" /><span><span className="font-semibold">Save this address for my next shipment</span><span className="mt-1 block text-xs text-[#173B35]/65">Saved to your account and this browser for your next shipment.</span></span></label>
+            {isCustomer ? <label className="mt-4 block text-sm font-semibold">Account addresses<select aria-label="Saved account address" className="mt-2 block w-full rounded-xl border p-3" value={addressId} onChange={event => {
+              addressEdited.current = true;
+              const selected = accountAddresses.find(entry => entry.id === event.target.value);
+              setAddressId(selected?.id || "");
+              setAddressLabel(selected?.label || "Home");
+              setAddress(selected?.address || newDeliveryAddress(contact));
+            }}><option value="">Enter a new address</option>{accountAddresses.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}: {entry.address.addressLine1}, {entry.address.city}</option>)}</select></label> : null}
+            {savedAddress ? <div className="mt-4 rounded-2xl bg-[#F7F4ED] p-4"><p className="text-sm font-semibold">Saved address | {savedAddress.fullName}</p><p className="mt-1 text-sm text-[#173B35]/70">{savedAddress.addressLine1}, {savedAddress.city} {savedAddress.pincode}</p><div className="mt-3 flex gap-4 text-sm"><button type="button" onClick={() => { addressEdited.current = true; setAddressId(""); setAddress(savedAddress); setSaveAddress(true); }} className="font-semibold underline">Use saved address</button><button type="button" onClick={() => { try { localStorage.removeItem(SAVED_ADDRESS_KEY); setSavedAddress(null); setSaveAddress(false); } catch { setMessage("The saved address could not be removed. Try again."); } }} className="text-red-700 underline">Forget address</button></div></div> : null}
+            <DeliveryAddressFields value={address} onChange={next => { addressEdited.current = true; setAddress(next); }} onLocatingChange={setLocating} />
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl bg-[#F7F4ED] p-4 text-sm"><input type="checkbox" checked={saveAddress} onChange={(event) => setSaveAddress(event.target.checked)} className="mt-1 accent-[#173B35]" /><span><span className="font-semibold">Save this address for my next shipment</span><span className="mt-1 block text-xs text-[#173B35]/65">{isCustomer ? "Save to your account for future orders." : "Save in this browser for future orders."}</span></span></label>
+            {isCustomer && saveAddress ? <AddressLabelField value={addressLabel} onChange={setAddressLabel} /> : null}
           </section>
         </div>
         <aside className="rounded-[28px] border border-[#173B35]/10 bg-white p-6 lg:sticky lg:top-6">

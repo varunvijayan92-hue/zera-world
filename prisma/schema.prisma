@@ -23,6 +23,7 @@ model User {
   supplierContacts     SupplierContact[]
   syncJobs             SyncJob[]
   phone                String?
+  phoneVerifiedAt      DateTime?
   language             String               @default("en")
   notificationsEnabled Boolean              @default(true)
   customerOrders       CustomerOrder[]
@@ -906,4 +907,11 @@ model SupportMessage {
 
   @@index([thread, createdAt])
   @@index([createdAt])
+}
+
+model CustomerWhatsAppOtpRate {
+  recipient   String   @id
+  windowStart DateTime
+  lastSentAt  DateTime
+  sends       Int
 }

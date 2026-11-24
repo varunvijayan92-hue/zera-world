@@ -6,7 +6,11 @@ import { portalUser, apiError, AccessError } from "@/lib/portal-access";
 export async function GET() {
   try {
     const user = await portalUser("CUSTOMER");
-    return NextResponse.json({ addresses: await prisma.customerAddress.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" } }) }, { headers: { "Cache-Control": "no-store" } });
+    const [addresses, contact] = await Promise.all([
+      prisma.customerAddress.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" } }),
+      prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true, email: true, phone: true } }),
+    ]);
+    return NextResponse.json({ addresses, contact }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return apiError(error); }
 }
 export async function POST(request: Request) {

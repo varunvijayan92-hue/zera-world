@@ -61,11 +61,31 @@ test("failed email delivery invalidates the challenge and does not expose the co
   assert.equal(invalidated, true);
 });
 
-test("registration codes activate new customers atomically, while login codes cannot activate disabled users", async t => {
- const original=prisma.$transaction;let activated=false;
- const row={userId:"new",challengeId:"register",digest:otpDigest("register","123456"),sessionVersion:0,attempts:0,expiresAt:new Date(Date.now()+60000),consumedAt:null,purpose:"LOGIN"};
- const tx={$queryRaw:async()=>[{...row}],$executeRaw:async()=>1,user:{findUnique:async()=>({id:"new",role:"CUSTOMER",isActive:false,sessionVersion:0}),update:async()=>{activated=true;return {};}}};
- Object.assign(prisma,{$transaction:async(work:(client:typeof tx)=>unknown)=>work(tx)});t.after(()=>Object.assign(prisma,{$transaction:original}));
- assert.equal(await consumeCustomerOtp("register","123456"),null);assert.equal(activated,false);
- row.purpose="REGISTER";assert.equal((await consumeCustomerOtp("register","123456"))?.otpPurpose,"REGISTER");assert.equal(activated,true);
+test("registration binds the WhatsApp code to the phone and requires email verification to activate", async t => {
+  const original = prisma.$transaction;
+  const phone = "9876543210";
+  const user = { id: "new", role: "CUSTOMER", isActive: false, sessionVersion: 0, phone, phoneVerifiedAt: null as Date | null };
+  const row = { userId: "new", challengeId: "register", digest: otpDigest("register", "123456"), sessionVersion: 0, attempts: 0,
+    expiresAt: new Date(Date.now() + 60000), consumedAt: null, purpose: "LOGIN" };
+  const tx = { $queryRaw: async () => [{ ...row }], $executeRaw: async () => 1, user: {
+    findUnique: async () => ({ ...user }),
+    updateMany: async ({ data }: { data: Partial<typeof user> }) => { Object.assign(user, data); return { count: 1 }; },
+  } };
+  Object.assign(prisma, { $transaction: async (work: (client: typeof tx) => unknown) => work(tx) });
+  t.after(() => Object.assign(prisma, { $transaction: original }));
+
+  assert.equal(await consumeCustomerOtp("register", "123456"), null);
+  row.purpose = "REGISTER_WHATSAPP";
+  row.digest = otpDigest("register", "123456", `REGISTER_WHATSAPP:${phone}`);
+  user.phone = "9999999999";
+  assert.equal(await consumeCustomerOtp("register", "123456"), null);
+  user.phone = phone;
+  assert.equal((await consumeCustomerOtp("register", "123456"))?.otpPurpose, "REGISTER_WHATSAPP");
+  assert.ok(user.phoneVerifiedAt);
+  assert.equal(user.isActive, false);
+  row.purpose = "REGISTER_EMAIL";
+  row.digest = otpDigest("register", "654321", `REGISTER_EMAIL:${phone}`);
+  assert.equal(await consumeCustomerOtp("register", "123456"), null);
+  assert.equal((await consumeCustomerOtp("register", "654321"))?.otpPurpose, "REGISTER_EMAIL");
+  assert.equal(user.isActive, true);
 });

@@ -7,6 +7,11 @@ export const emptyAddress: DeliveryAddress = {
   fullName: "", email: "", phone: "", addressLine1: "", addressLine2: "",
   city: "", state: "", pincode: "", country: "India", landmark: "",
 };
+export type AddressContact = { fullName: string; email: string; phone: string | null };
+
+export function newDeliveryAddress(contact?: AddressContact | null): DeliveryAddress {
+  return { ...emptyAddress, fullName: contact?.fullName || "", email: contact?.email || "", phone: contact?.phone || "" };
+}
 export const SAVED_ADDRESS_KEY = "zeraworld-saved-address";
 export const CHECKOUT_DRAFT_KEY = "zeraworld-checkout-draft";
 export const amountSchema = z.object({
